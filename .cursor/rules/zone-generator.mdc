@@ -1,0 +1,3155 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+
+Directory Structure:
+
+└── ./
+    ├── bin
+    │   └── zonefile-cli.js
+    ├── lib
+    │   ├── zonefile-node-legacy.js
+    │   ├── zonefile.d.ts
+    │   └── zonefile.js
+    ├── tests
+    │   ├── tests.js
+    │   ├── zonefile_forward.json
+    │   ├── zonefile_forward.txt
+    │   ├── zonefile_reverse_ipv4.json
+    │   ├── zonefile_reverse_ipv4.txt
+    │   ├── zonefile_reverse_ipv6.json
+    │   └── zonefile_reverse_ipv6.txt
+    ├── package.json
+    └── README.md
+
+
+
+---
+File: /bin/zonefile-cli.js
+---
+
+#!/usr/bin/env node
+
+import fs from 'fs';
+import zonefile from '../lib/zonefile.js';
+
+import { createRequire } from "module";
+const require = createRequire(import.meta.url);
+
+var args = function () {
+  var ret = [];
+  process.argv.forEach(function (val, index, array) {
+    if (index >= 2) {
+      ret.push(val);
+    }
+  });
+  return ret;
+};
+
+var input = args();
+
+var pjson = require('../package.json');
+if (input.length === 0) {
+  console.log('dns-zonefile version: ', pjson.version);
+  console.log('Usage:');
+  console.log('   "zonefile [-v|--version]" to show version information.');
+  console.log('   "zonefile -p zonefile.txt" to parse a zonefile to JSON.');
+  console.log('   "zonefile -g zonefile.json" to generate a zonefile from JSON.');
+  console.log('   "zonefile zonefile.json" to generate a zonefile from JSON if the file name ' +
+    '\n     contains ".json", case insensitively, otherwise to parse the file as a zonefile to JSON.');
+} else if (input[0] === '-v' || input[0] === '--version') {
+  console.log('dns-zonefile version: ', pjson.version);
+} else if (input[0] === '-g') {
+  var src = input[1];
+  var options = fs.readFileSync(src, 'utf8');
+  var output = zonefile.generate(JSON.parse(options));
+  console.log(output);
+} else if (input[0] === '-p') {
+  var src = input[1];
+  var options = fs.readFileSync(src, 'utf8');
+  var output = zonefile.parse(options);
+  console.log(JSON.stringify(output));
+} else {
+  var src = input[0];
+  var options = fs.readFileSync(src, 'utf8');
+  if (src.toLocaleLowerCase().indexOf('.json') > 0) {
+    var output = zonefile.generate(JSON.parse(options));
+  } else {
+    var output = zonefile.parse(options);
+    output = JSON.stringify(output);
+  }
+  console.log(output);
+}
+
+
+---
+File: /lib/zonefile-node-legacy.js
+---
+
+const defaultTemplate = `; Zone: {zone}
+; Exported  (yyyy-mm-ddThh:mm:ss.sssZ): {datetime}
+
+{$origin}
+{$ttl}
+
+; SOA Record
+{name} {ttl}	IN	SOA	{mname}{rname}(
+{serial} ;serial
+{refresh} ;refresh
+{retry} ;retry
+{expire} ;expire
+{minimum} ;minimum ttl
+)
+
+; NS Records
+{ns}
+
+; MX Records
+{mx}
+
+; A Records
+{a}
+
+; AAAA Records
+{aaaa}
+
+; CNAME Records
+{cname}
+
+; PTR Records
+{ptr}
+
+; TXT Records
+{txt}
+
+; SRV Records
+{srv}
+
+; SPF Records
+{spf}
+
+; CAA Records
+{caa}
+
+; DS Records
+{ds}
+
+`;
+
+/////////////////////////////////////////////////////////////////////////////////////
+//                                                               __                //
+//                                                              /  |               //
+//   ______    ______   _______    ______    ______   ______   _$$ |_     ______   //
+//  /      \  /      \ /       \  /      \  /      \ /      \ / $$   |   /      \  //
+// /$$$$$$  |/$$$$$$  |$$$$$$$  |/$$$$$$  |/$$$$$$  |$$$$$$  |$$$$$$/   /$$$$$$  | //
+// $$ |  $$ |$$    $$ |$$ |  $$ |$$    $$ |$$ |  $$/ /    $$ |  $$ | __ $$    $$ | //
+// $$ \__$$ |$$$$$$$$/ $$ |  $$ |$$$$$$$$/ $$ |     /$$$$$$$ |  $$ |/  |$$$$$$$$/  //
+// $$    $$ |$$       |$$ |  $$ |$$       |$$ |     $$    $$ |  $$  $$/ $$       | //
+//  $$$$$$$ | $$$$$$$/ $$/   $$/  $$$$$$$/ $$/       $$$$$$$/    $$$$/   $$$$$$$/  //
+// /  \__$$ |                                                                      //
+// $$    $$/                                                                       //
+//  $$$$$$/                                                                        //
+//                                                                                 //
+/////////////////////////////////////////////////////////////////////////////////////
+let generate = function (options, template) {
+  const json = JSON.parse(JSON.stringify(options));
+  template = template || defaultTemplate;
+  template = process$ORIGIN(json['$origin'], template);
+  template = process$TTL(json['$ttl'], template);
+  template = processSOA(json['soa'], template);
+  template = processNS(json['ns'] || [], template);
+  template = processA(json['a'] || [], template);
+  template = processAAAA(json['aaaa'] || [], template);
+  template = processCNAME(json['cname'] || [], template);
+  template = processMX(json['mx'] || [], template);
+  template = processPTR(json['ptr'] || [], template);
+  template = processTXT(json['txt'] || [], template);
+  template = processSRV(json['srv'] || [], template);
+  template = processSPF(json['spf'] || [], template);
+  template = processCAA(json['caa'] || [], template);
+  template = processDS(json['ds'] || [], template);
+  template = processValues(json, template);
+  return template.replace(/\n{2,}/gim, '\n\n');
+};
+
+let process$ORIGIN = function (data, template) {
+  let ret = '';
+  if (typeof data !== 'undefined') {
+    ret += '$ORIGIN ' + data;
+  }
+  return template.replace('{$origin}', ret);
+};
+
+let process$TTL = function (data, template) {
+  let ret = '';
+  if (typeof data !== 'undefined') {
+    ret += '$TTL ' + data;
+  }
+  return template.replace('{$ttl}', ret);
+};
+
+let processSOA = function (data, template) {
+  let ret = template;
+  data.name = data.name || '@';
+  data.ttl = data.ttl || '';
+  Object.keys(data).map(key => {
+    ret = ret.replace('{' + key + '}', data[key] + '\t');
+  });
+  return ret;
+};
+
+let processNS = function (data, template) {
+  let ret = '';
+  for (let value of data) {
+    ret += (value.name || '@') + '\t';
+    if (value.ttl) ret += value.ttl + '\t';
+    ret += 'IN\tNS\t' + value.host + '\n';
+  }
+  return template.replace('{ns}', ret);
+};
+
+let processA = function (data, template) {
+  let ret = '';
+  for (let value of data) {
+    ret += (value.name || '@') + '\t';
+    if (value.ttl) ret += value.ttl + '\t';
+    ret += 'IN\tA\t' + value.ip + '\n';
+  }
+  return template.replace('{a}', ret);
+};
+
+let processAAAA = function (data, template) {
+  let ret = '';
+  for (let value of data) {
+    ret += (value.name || '@') + '\t';
+    if (value.ttl) ret += value.ttl + '\t';
+    ret += 'IN\tAAAA\t' + value.ip + '\n';
+  }
+  return template.replace('{aaaa}', ret);
+};
+
+let processCNAME = function (data, template) {
+  let ret = '';
+  for (let value of data) {
+    ret += (value.name || '@') + '\t';
+    if (value.ttl) ret += value.ttl + '\t';
+    ret += 'IN\tCNAME\t' + value.alias + '\n';
+  }
+  return template.replace('{cname}', ret);
+};
+
+let processMX = function (data, template) {
+  let ret = '';
+  for (let value of data) {
+    ret += (value.name || '@') + '\t';
+    if (value.ttl) ret += value.ttl + '\t';
+    ret += 'IN\tMX\t' + value.preference + '\t' + value.host + '\n';
+  }
+  return template.replace('{mx}', ret);
+};
+
+let processPTR = function (data, template) {
+  let ret = '';
+  for (let value of data) {
+    ret += (value.name || '@') + '\t';
+    if (value.ttl) ret += value.ttl + '\t';
+    ret += 'IN\tPTR\t' + value.host + '\n';
+  }
+  return template.replace('{ptr}', ret);
+};
+
+let processTXT = function (data, template) {
+  let ret = '';
+  for (let value of data) {
+    ret += (value.name || '@') + '\t';
+    if (value.ttl) ret += value.ttl + '\t';
+    ret += 'IN\tTXT\t' + value.txt + '\n';
+  }
+  return template.replace('{txt}', ret);
+};
+
+let processSRV = function (data, template) {
+  let ret = '';
+  for (let value of data) {
+    ret += (value.name || '@') + '\t';
+    if (value.ttl) ret += value.ttl + '\t';
+    ret += 'IN\tSRV\t' + value.priority + '\t';
+    ret += value.weight + '\t';
+    ret += value.port + '\t';
+    ret += value.target + '\n';
+  }
+  return template.replace('{srv}', ret);
+};
+
+let processSPF = function (data, template) {
+  let ret = '';
+  for (let value of data) {
+    ret += (value.name || '@') + '\t';
+    if (value.ttl) ret += value.ttl + '\t';
+    ret += 'IN\tSPF\t' + value.data + '\n';
+  }
+  return template.replace('{spf}', ret);
+};
+
+let processCAA = function (data, template) {
+  let ret = '';
+  for (let value of data) {
+    ret += (value.name || '@') + '\t';
+    if (value.ttl) ret += value.ttl + '\t';
+    ret += `IN\tCAA\t${value.flags}\t${value.tag}\t${value.value}\n`
+  }
+  return template.replace('{caa}', ret);
+};
+
+let processDS = function (data, template) {
+  let ret = '';
+  for (let value of data) {
+    ret += (value.name || '@') + '\t';
+    if (value.ttl) ret += value.ttl + '\t';
+    ret += `IN\tDS\t${value.key_tag}\t${value.algorithm}\t${value.digest_type}\t${value.digest}\n`
+  }
+  return template.replace('{ds}', ret);
+};
+
+let processValues = function (options, template) {
+  template = template.replace('{zone}', options['$origin'] || options['soa']['name'] || '');
+  template = template.replace('{datetime}', (new Date()).toISOString());
+  return template.replace('{time}', Math.round(Date.now() / 1000));
+};
+
+
+////////////////////////////////////////////////////////
+//   ______    ______    ______    _______   ______   //
+//  /      \  /      \  /      \  /       | /      \  //
+// /$$$$$$  | $$$$$$  |/$$$$$$  |/$$$$$$$/ /$$$$$$  | //
+// $$ |  $$ | /    $$ |$$ |  $$/ $$      \ $$    $$ | //
+// $$ |__$$ |/$$$$$$$ |$$ |       $$$$$$  |$$$$$$$$/  //
+// $$    $$/ $$    $$ |$$ |      /     $$/ $$       | //
+// $$$$$$$/   $$$$$$$/ $$/       $$$$$$$/   $$$$$$$/  //
+// $$ |                                               //
+// $$ |                                               //
+// $$/                                                //
+//                                                    //
+////////////////////////////////////////////////////////
+let parse = function (text) {
+  text = removeComments(text);
+  text = flatten(text);
+  return parseRRs(text);
+};
+
+let removeComments = function (text) {
+  const lines = text.split('\n');
+  let ret = '';
+  for (const line of lines) {
+    if (line.trim().startsWith(';')) {
+      continue;
+    }
+    const tokens = splitArgs(line, ';', true);
+    for (const token of tokens) {
+      ret += token;
+      if (token.endsWith('\\')) {
+        ret += ';';
+      } else {
+        ret += '\n';
+        break;
+      }
+    }
+  }
+  return ret;
+};
+
+let flatten = function (text) {
+  let re = /SOA[\s\S]*?\([\s\S]*?\)/gim;
+  let match = re.exec(text);
+  if (match !== null) {
+    let soa = match[0].replace(/\s+/gm, ' ');
+    soa = soa.replace(/\(|\)/gim, ' ');
+    return text.substring(0, match.index) + soa + text.substring(match.index + match[0].length);
+  } else {
+    return text;
+  }
+};
+
+let normalizeRR = function (rr) {
+  let rrArray = splitArgs(rr, null, true);
+  let hasName = false;
+  let hasTtl = false;
+  if (rr.match(/^\s+/)) {
+    hasName = false;
+  } else {
+    hasName = true;
+  }
+
+  // According to RFC 1035:
+  // <rr> contents take one of the following forms:
+  // [<TTL>] [<class>] <type> <RDATA> -- We assume this one
+  // [<class>] [<TTL>] <type> <RDATA>
+  if (hasName) {
+    if (!isNaN(rrArray[1])) {
+      hasTtl = true;
+    }
+  } else {
+    if (!isNaN(rrArray[0])) {
+      hasTtl = true;
+    }
+  }
+
+  let rrTypeIndex = 0;
+  if (hasName) {
+    ++rrTypeIndex;
+  }
+  if (hasTtl) {
+    ++rrTypeIndex;
+  }
+  let rrType = rrArray[rrTypeIndex];
+  if (rrType === 'IN') {
+    rrType = rrArray[rrTypeIndex + 1];
+  }
+
+  let typeIndex = rrArray.indexOf(rrType, hasName ? 1 : 0);
+  if (typeIndex === 0 || rrArray[typeIndex - 1] !== 'IN') {
+    rrArray.splice(typeIndex, 0, 'IN');
+    ++typeIndex;
+  }
+
+  return {
+    rrType,
+    tokens: rrArray,
+    hasName: hasName,
+    hasTtl: hasTtl,
+    typeIndex: typeIndex
+  };
+};
+
+let parseRRs = function (text) {
+  let ret = {};
+  let rrs = text.split('\n');
+  for (let rr of rrs) {
+    if (!rr.trim()) {
+      continue;
+    }
+    let rrArray = splitArgs(rr, null, true);
+    if (rr.startsWith('$ORIGIN')) {
+      ret.$origin = rrArray[1];
+    } else if (rr.startsWith('$TTL')) {
+      ret.$ttl = rrArray[1];
+    } else {
+      const nrr = normalizeRR(rr);
+      // console.log(nrr);
+      switch (nrr.rrType) {
+        case 'SOA':
+          ret.soa = parseSOA(rrArray);
+          break;
+        case 'TXT':
+          ret.txt = ret.txt || [];
+          ret.txt.push(parseTXT(nrr, ret.txt));
+          break;
+        case 'NS':
+          ret.ns = ret.ns || [];
+          ret.ns.push(parseNS(nrr, ret.ns));
+          break;
+        case 'A':
+          ret.a = ret.a || [];
+          ret.a.push(parseA(nrr, ret.a));
+          break;
+        case 'AAAA':
+          ret.aaaa = ret.aaaa || [];
+          ret.aaaa.push(parseAAAA(nrr, ret.aaaa));
+          break;
+        case 'CNAME':
+          ret.cname = ret.cname || [];
+          ret.cname.push(parseCNAME(nrr, ret.cname));
+          break;
+        case 'MX':
+          ret.mx = ret.mx || [];
+          ret.mx.push(parseMX(nrr, ret.mx));
+          break;
+        case 'PTR':
+          ret.ptr = ret.ptr || [];
+          ret.ptr.push(parsePTR(nrr, ret.ptr, ret.$origin));
+          break;
+        case 'SRV':
+          ret.srv = ret.srv || [];
+          ret.srv.push(parseSRV(nrr, ret.srv));
+          break;
+        case 'SPF':
+          ret.spf = ret.spf || [];
+          ret.spf.push(parseSPF(nrr, ret.spf));
+          break;
+        case 'CAA':
+          ret.caa = ret.caa || [];
+          ret.caa.push(parseCAA(nrr, ret.caa));
+          break;
+        case 'DS':
+          ret.ds = ret.ds || [];
+          ret.ds.push(parseDS(nrr, ret.ds));
+          break;
+      }
+    }
+  }
+  return ret;
+};
+
+let parseSOA = function (rrTokens) {
+  let soa = {};
+  let l = rrTokens.length;
+  soa.name = rrTokens[0];
+  soa.minimum = parseInt(rrTokens[l - 1], 10);
+  soa.expire = parseInt(rrTokens[l - 2], 10);
+  soa.retry = parseInt(rrTokens[l - 3], 10);
+  soa.refresh = parseInt(rrTokens[l - 4], 10);
+  soa.serial = parseInt(rrTokens[l - 5], 10);
+  soa.rname = rrTokens[l - 6];
+  soa.mname = rrTokens[l - 7];
+  if (!isNaN(rrTokens[1])) soa.ttl = parseInt(rrTokens[1], 10);
+  return soa;
+};
+
+let parseNS = function (rrData, recordsSoFar) {
+  let rrTokens = rrData.tokens;
+  if (!rrData.hasName) {
+    if (recordsSoFar.length) {
+      rrTokens.unshift(recordsSoFar[recordsSoFar.length - 1].name);
+    } else {
+      rrTokens.unshift('@');
+    }
+  }
+
+  let l = rrTokens.length;
+  let result = {
+    name: rrTokens[0],
+    host: rrTokens[l - 1]
+  };
+
+  if (rrData.hasTtl) result.ttl = parseInt(rrTokens[1], 10);
+  return result;
+};
+
+let parseA = function (rrData, recordsSoFar) {
+  let rrTokens = rrData.tokens;
+  if (!rrData.hasName) {
+    if (recordsSoFar.length) {
+      rrTokens.unshift(recordsSoFar[recordsSoFar.length - 1].name);
+    } else {
+      rrTokens.unshift('@');
+    }
+  }
+
+  let l = rrTokens.length;
+  let result = {
+    name: rrTokens[0],
+    ip: rrTokens[l - 1]
+  };
+
+  if (rrData.hasTtl) result.ttl = parseInt(rrTokens[1], 10);
+  return result;
+};
+
+let parseAAAA = function (rrData, recordsSoFar) {
+  let rrTokens = rrData.tokens;
+  if (!rrData.hasName) {
+    if (recordsSoFar.length) {
+      rrTokens.unshift(recordsSoFar[recordsSoFar.length - 1].name);
+    } else {
+      rrTokens.unshift('@');
+    }
+  }
+
+  let l = rrTokens.length;
+  let result = {
+    name: rrTokens[0],
+    ip: rrTokens[l - 1]
+  };
+
+  if (rrData.hasTtl) result.ttl = parseInt(rrTokens[1], 10);
+  return result;
+};
+
+let parseCNAME = function (rrData, recordsSoFar) {
+  let rrTokens = rrData.tokens;
+  if (!rrData.hasName) {
+    if (recordsSoFar.length) {
+      rrTokens.unshift(recordsSoFar[recordsSoFar.length - 1].name);
+    } else {
+      rrTokens.unshift('@');
+    }
+  }
+
+  let l = rrTokens.length;
+  let result = {
+    name: rrTokens[0],
+    alias: rrTokens[l - 1]
+  };
+
+  if (rrData.hasTtl) result.ttl = parseInt(rrTokens[1], 10);
+  return result;
+};
+
+let parseMX = function (rrData, recordsSoFar) {
+  let rrTokens = rrData.tokens;
+  if (!rrData.hasName) {
+    if (recordsSoFar.length) {
+      rrTokens.unshift(recordsSoFar[recordsSoFar.length - 1].name);
+    } else {
+      rrTokens.unshift('@');
+    }
+  }
+
+  let l = rrTokens.length;
+  let result = {
+    name: rrTokens[0],
+    preference: parseInt(rrTokens[l - 2], 10),
+    host: rrTokens[l - 1]
+  };
+
+  if (rrData.hasTtl) result.ttl = parseInt(rrTokens[1], 10);
+  return result;
+};
+
+let parseTXT = function (rrData, recordsSoFar) {
+  let rrTokens = rrData.tokens;
+  const txtArray = rrTokens.slice(rrData.typeIndex + 1);
+  if (!rrData.hasName) {
+    if (recordsSoFar.length) {
+      rrTokens.unshift(recordsSoFar[recordsSoFar.length - 1].name);
+    } else {
+      rrTokens.unshift('@');
+    }
+  }
+
+  //   const splitTxtArray = [];
+  //   txtArray.forEach(txt => {
+  //     splitTxtArray.push(...splitStringBySize(txt, 255));
+  //   });
+
+  let result = {
+    name: rrTokens[0],
+    txt: txtArray.join(' ')
+  };
+
+  if (rrData.hasTtl) result.ttl = parseInt(rrTokens[1], 10);
+  return result;
+};
+
+let parsePTR = function (rrData, recordsSoFar, currentOrigin) {
+  let rrTokens = rrData.tokens;
+  if (!rrData.hasName && recordsSoFar[recordsSoFar.length - 1]) {
+    rrTokens.unshift(recordsSoFar[recordsSoFar.length - 1].name);
+  }
+
+  let l = rrTokens.length;
+  let result = {
+    name: rrTokens[0],
+    fullname: rrTokens[0] + '.' + currentOrigin,
+    host: rrTokens[l - 1]
+  };
+
+  if (rrData.hasTtl) result.ttl = parseInt(rrTokens[1], 10);
+  return result;
+};
+
+let parseSRV = function (rrData, recordsSoFar) {
+  let rrTokens = rrData.tokens;
+  if (!rrData.hasName) {
+    if (recordsSoFar.length) {
+      rrTokens.unshift(recordsSoFar[recordsSoFar.length - 1].name);
+    } else {
+      rrTokens.unshift('@');
+    }
+  }
+
+  let l = rrTokens.length;
+  let result = {
+    name: rrTokens[0],
+    target: rrTokens[l - 1],
+    priority: parseInt(rrTokens[l - 4], 10),
+    weight: parseInt(rrTokens[l - 3], 10),
+    port: parseInt(rrTokens[l - 2], 10)
+  };
+
+  if (rrData.hasTtl) result.ttl = parseInt(rrTokens[1], 10);
+  return result;
+};
+
+let parseSPF = function (rrData, recordsSoFar) {
+  let rrTokens = rrData.tokens;
+  const txtArray = rrTokens.slice(rrData.typeIndex + 1);
+  if (!rrData.hasName) {
+    if (recordsSoFar.length) {
+      rrTokens.unshift(recordsSoFar[recordsSoFar.length - 1].name);
+    } else {
+      rrTokens.unshift('@');
+    }
+  }
+
+  //   const splitTxtArray = [];
+  //   txtArray.forEach(txt => {
+  //     splitTxtArray.push(...splitStringBySize(txt, 255));
+  //   });
+
+  let result = {
+    name: rrTokens[0],
+    data: txtArray.join(' ')
+  };
+
+  if (rrData.hasTtl) result.ttl = parseInt(rrTokens[1], 10);
+  return result;
+};
+
+let parseCAA = function (rrData, recordsSoFar) {
+  let rrTokens = rrData.tokens;
+  if (!rrData.hasName) {
+    if (recordsSoFar.length) {
+      rrTokens.unshift(recordsSoFar[recordsSoFar.length - 1].name);
+    } else {
+      rrTokens.unshift('@');
+    }
+  }
+
+  let l = rrTokens.length;
+  let result = {
+    name: rrTokens[0],
+    flags: parseInt(rrTokens[l - 3], 10),
+    tag: rrTokens[l - 2],
+    value: rrTokens[l - 1],
+  };
+
+  if (rrData.hasTtl) result.ttl = parseInt(rrTokens[1], 10);
+  return result;
+};
+
+let parseDS = function (rrData, recordsSoFar) {
+  let rrTokens = rrData.tokens;
+  if (!rrData.hasName) {
+    if (recordsSoFar.length) {
+      rrTokens.unshift(recordsSoFar[recordsSoFar.length - 1].name);
+    } else {
+      rrTokens.unshift('@');
+    }
+  }
+
+  let l = rrTokens.length;
+  let result = {
+    name: rrTokens[0],
+    key_tag: rrTokens[l - 4],
+    algorithm: rrTokens[l - 3],
+    digest_type: rrTokens[l - 2],
+    digest: rrTokens[l - 1],
+  };
+
+  if (rrData.hasTtl) result.ttl = parseInt(rrTokens[1], 10);
+  return result;
+};
+
+// const splitStringBySize = function (input, chunkSize) {
+//   const output = [];
+//   const numOfChunks = Math.ceil(input.length / chunkSize);
+//   for (let i = 0; i < numOfChunks; ++i) {
+//     let chunkData = input.slice(i * chunkSize, (i + 1) * chunkSize);
+//     if (!input.startsWith('"') || !input.endsWith('"')) {
+//       chunkData = '"' + chunkData + '"';
+//     }
+//     output.push(chunkData)
+//   }
+//   return output;
+// }
+
+let splitArgs = function (input, sep, keepQuotes) {
+  let separator = sep || /\s/g;
+  let singleQuoteOpen = false;
+  let doubleQuoteOpen = false;
+  let tokenBuffer = [];
+  let ret = [];
+
+  let arr = input.split('');
+  for (let i = 0; i < arr.length; ++i) {
+    let element = arr[i];
+    let matches = element.match(separator);
+    if (element === "'" && !doubleQuoteOpen) {
+      if (keepQuotes === true) {
+        tokenBuffer.push(element);
+      }
+      singleQuoteOpen = !singleQuoteOpen;
+      continue;
+    } else if (element === '"' && !singleQuoteOpen) {
+      if (keepQuotes === true) {
+        tokenBuffer.push(element);
+      }
+      doubleQuoteOpen = !doubleQuoteOpen;
+      continue;
+    }
+
+    if (!singleQuoteOpen && !doubleQuoteOpen && matches) {
+      if (tokenBuffer.length > 0) {
+        ret.push(tokenBuffer.join(''));
+        tokenBuffer = [];
+      }
+    } else {
+      tokenBuffer.push(element);
+    }
+  }
+  if (tokenBuffer.length > 0) {
+    ret.push(tokenBuffer.join(''));
+  } else if (!!sep) {
+    ret.push('');
+  }
+  return ret;
+};
+
+if (typeof module !== 'undefined' && typeof module.exports !== 'undefined') {
+  exports.generate = generate;
+  exports.parse = parse;
+} else {
+  window.zonefile_generate = generate;
+  window.zonefile_parse = parse;
+}
+
+
+
+---
+File: /lib/zonefile.d.ts
+---
+
+declare module "dns-zonefile" {
+  interface DNSZone {
+    $origin?: string;
+    $ttl?: number;
+    soa?: {
+      name: string;
+      minimum: number;
+      expire: number;
+      retry: number;
+      refresh: number;
+      serial: number;
+      rname: string;
+      mname: string;
+      ttl?: number;
+    };
+    ns?: {
+      name: string;
+      host: string;
+      ttl?: number;
+    }[];
+    a?: {
+      name: string;
+      ip: string;
+      ttl?: number;
+    }[];
+    aaaa?: {
+      name: string;
+      ip: string;
+      ttl?: number;
+    }[];
+    cname?: {
+      name: string;
+      alias: string;
+      ttl?: number;
+    }[];
+    mx?: {
+      name: string;
+      preference: number;
+      host: string;
+      ttl?: number;
+    }[];
+    txt?: {
+      name: string;
+      txt: string;
+      ttl?: number;
+    }[];
+    ptr?: {
+      name: string;
+      fullname: string;
+      host: string;
+      ttl?: number;
+    }[];
+    srv?: {
+      name: string;
+      target: string;
+      priority: number;
+      weight: number;
+      port: number;
+      ttl?: number;
+    }[];
+    spf?: {
+      name: string;
+      data: string;
+      ttl?: number;
+    }[];
+    caa?: {
+      name: string;
+      flags: number;
+      tag: string;
+      value: string;
+      ttl?: number;
+    }[];
+    ds?: {
+      name: string;
+      key_tag: string;
+      algorithm: string;
+      digest_type: string;
+      digest: string;
+      ttl?: number;
+    }[];
+  }
+
+  function parse(zoneFile: string): DNSZone;
+  function generate(dnsZone: DNSZone): string;
+}
+
+
+
+---
+File: /lib/zonefile.js
+---
+
+const defaultTemplate = `; Zone: {zone}
+; Exported  (yyyy-mm-ddThh:mm:ss.sssZ): {datetime}
+
+{$origin}
+{$ttl}
+
+; SOA Record
+{name} {ttl}	IN	SOA	{mname}{rname}(
+{serial} ;serial
+{refresh} ;refresh
+{retry} ;retry
+{expire} ;expire
+{minimum} ;minimum ttl
+)
+
+; NS Records
+{ns}
+
+; MX Records
+{mx}
+
+; A Records
+{a}
+
+; AAAA Records
+{aaaa}
+
+; CNAME Records
+{cname}
+
+; PTR Records
+{ptr}
+
+; TXT Records
+{txt}
+
+; SRV Records
+{srv}
+
+; SPF Records
+{spf}
+
+; CAA Records
+{caa}
+
+; DS Records
+{ds}
+
+`;
+
+/////////////////////////////////////////////////////////////////////////////////////
+//                                                               __                //
+//                                                              /  |               //
+//   ______    ______   _______    ______    ______   ______   _$$ |_     ______   //
+//  /      \  /      \ /       \  /      \  /      \ /      \ / $$   |   /      \  //
+// /$$$$$$  |/$$$$$$  |$$$$$$$  |/$$$$$$  |/$$$$$$  |$$$$$$  |$$$$$$/   /$$$$$$  | //
+// $$ |  $$ |$$    $$ |$$ |  $$ |$$    $$ |$$ |  $$/ /    $$ |  $$ | __ $$    $$ | //
+// $$ \__$$ |$$$$$$$$/ $$ |  $$ |$$$$$$$$/ $$ |     /$$$$$$$ |  $$ |/  |$$$$$$$$/  //
+// $$    $$ |$$       |$$ |  $$ |$$       |$$ |     $$    $$ |  $$  $$/ $$       | //
+//  $$$$$$$ | $$$$$$$/ $$/   $$/  $$$$$$$/ $$/       $$$$$$$/    $$$$/   $$$$$$$/  //
+// /  \__$$ |                                                                      //
+// $$    $$/                                                                       //
+//  $$$$$$/                                                                        //
+//                                                                                 //
+/////////////////////////////////////////////////////////////////////////////////////
+let generate = function (options, template) {
+  const json = JSON.parse(JSON.stringify(options));
+  template = template || defaultTemplate;
+  template = process$ORIGIN(json['$origin'], template);
+  template = process$TTL(json['$ttl'], template);
+  template = processSOA(json['soa'], template);
+  template = processNS(json['ns'] || [], template);
+  template = processA(json['a'] || [], template);
+  template = processAAAA(json['aaaa'] || [], template);
+  template = processCNAME(json['cname'] || [], template);
+  template = processMX(json['mx'] || [], template);
+  template = processPTR(json['ptr'] || [], template);
+  template = processTXT(json['txt'] || [], template);
+  template = processSRV(json['srv'] || [], template);
+  template = processSPF(json['spf'] || [], template);
+  template = processCAA(json['caa'] || [], template);
+  template = processDS(json['ds'] || [], template);
+  template = processValues(json, template);
+  return template.replace(/\n{2,}/gim, '\n\n');
+};
+
+let process$ORIGIN = function (data, template) {
+  let ret = '';
+  if (typeof data !== 'undefined') {
+    ret += '$ORIGIN ' + data;
+  }
+  return template.replace('{$origin}', ret);
+};
+
+let process$TTL = function (data, template) {
+  let ret = '';
+  if (typeof data !== 'undefined') {
+    ret += '$TTL ' + data;
+  }
+  return template.replace('{$ttl}', ret);
+};
+
+let processSOA = function (data, template) {
+  let ret = template;
+  data.name = data.name || '@';
+  data.ttl = data.ttl || '';
+  Object.keys(data).map(key => {
+    ret = ret.replace('{' + key + '}', data[key] + '\t');
+  });
+  return ret;
+};
+
+let processNS = function (data, template) {
+  let ret = '';
+  for (let value of data) {
+    ret += (value.name || '@') + '\t';
+    if (value.ttl) ret += value.ttl + '\t';
+    ret += 'IN\tNS\t' + value.host + '\n';
+  }
+  return template.replace('{ns}', ret);
+};
+
+let processA = function (data, template) {
+  let ret = '';
+  for (let value of data) {
+    ret += (value.name || '@') + '\t';
+    if (value.ttl) ret += value.ttl + '\t';
+    ret += 'IN\tA\t' + value.ip + '\n';
+  }
+  return template.replace('{a}', ret);
+};
+
+let processAAAA = function (data, template) {
+  let ret = '';
+  for (let value of data) {
+    ret += (value.name || '@') + '\t';
+    if (value.ttl) ret += value.ttl + '\t';
+    ret += 'IN\tAAAA\t' + value.ip + '\n';
+  }
+  return template.replace('{aaaa}', ret);
+};
+
+let processCNAME = function (data, template) {
+  let ret = '';
+  for (let value of data) {
+    ret += (value.name || '@') + '\t';
+    if (value.ttl) ret += value.ttl + '\t';
+    ret += 'IN\tCNAME\t' + value.alias + '\n';
+  }
+  return template.replace('{cname}', ret);
+};
+
+let processMX = function (data, template) {
+  let ret = '';
+  for (let value of data) {
+    ret += (value.name || '@') + '\t';
+    if (value.ttl) ret += value.ttl + '\t';
+    ret += 'IN\tMX\t' + value.preference + '\t' + value.host + '\n';
+  }
+  return template.replace('{mx}', ret);
+};
+
+let processPTR = function (data, template) {
+  let ret = '';
+  for (let value of data) {
+    ret += (value.name || '@') + '\t';
+    if (value.ttl) ret += value.ttl + '\t';
+    ret += 'IN\tPTR\t' + value.host + '\n';
+  }
+  return template.replace('{ptr}', ret);
+};
+
+let processTXT = function (data, template) {
+  let ret = '';
+  for (let value of data) {
+    ret += (value.name || '@') + '\t';
+    if (value.ttl) ret += value.ttl + '\t';
+    ret += 'IN\tTXT\t' + value.txt + '\n';
+  }
+  return template.replace('{txt}', ret);
+};
+
+let processSRV = function (data, template) {
+  let ret = '';
+  for (let value of data) {
+    ret += (value.name || '@') + '\t';
+    if (value.ttl) ret += value.ttl + '\t';
+    ret += 'IN\tSRV\t' + value.priority + '\t';
+    ret += value.weight + '\t';
+    ret += value.port + '\t';
+    ret += value.target + '\n';
+  }
+  return template.replace('{srv}', ret);
+};
+
+let processSPF = function (data, template) {
+  let ret = '';
+  for (let value of data) {
+    ret += (value.name || '@') + '\t';
+    if (value.ttl) ret += value.ttl + '\t';
+    ret += 'IN\tSPF\t' + value.data + '\n';
+  }
+  return template.replace('{spf}', ret);
+};
+
+let processCAA = function (data, template) {
+  let ret = '';
+  for (let value of data) {
+    ret += (value.name || '@') + '\t';
+    if (value.ttl) ret += value.ttl + '\t';
+    ret += `IN\tCAA\t${value.flags}\t${value.tag}\t${value.value}\n`
+  }
+  return template.replace('{caa}', ret);
+};
+
+let processDS = function (data, template) {
+  let ret = '';
+  for (let value of data) {
+    ret += (value.name || '@') + '\t';
+    if (value.ttl) ret += value.ttl + '\t';
+    ret += `IN\tDS\t${value.key_tag}\t${value.algorithm}\t${value.digest_type}\t${value.digest}\n`
+  }
+  return template.replace('{ds}', ret);
+};
+
+let processValues = function (options, template) {
+  template = template.replace('{zone}', options['$origin'] || options['soa']['name'] || '');
+  template = template.replace('{datetime}', (new Date()).toISOString());
+  return template.replace('{time}', Math.round(Date.now() / 1000));
+};
+
+////////////////////////////////////////////////////////
+//   ______    ______    ______    _______   ______   //
+//  /      \  /      \  /      \  /       | /      \  //
+// /$$$$$$  | $$$$$$  |/$$$$$$  |/$$$$$$$/ /$$$$$$  | //
+// $$ |  $$ | /    $$ |$$ |  $$/ $$      \ $$    $$ | //
+// $$ |__$$ |/$$$$$$$ |$$ |       $$$$$$  |$$$$$$$$/  //
+// $$    $$/ $$    $$ |$$ |      /     $$/ $$       | //
+// $$$$$$$/   $$$$$$$/ $$/       $$$$$$$/   $$$$$$$/  //
+// $$ |                                               //
+// $$ |                                               //
+// $$/                                                //
+//                                                    //
+////////////////////////////////////////////////////////
+let parse = function (text) {
+  text = removeComments(text);
+  text = flatten(text);
+  return parseRRs(text);
+};
+
+let removeComments = function (text) {
+  const lines = text.split('\n');
+  let ret = '';
+  for (const line of lines) {
+    if (line.trim().startsWith(';')) {
+      continue;
+    }
+    const tokens = splitArgs(line, ';', true);
+    for (const token of tokens) {
+      ret += token;
+      if (token.endsWith('\\')) {
+        ret += ';';
+      } else {
+        ret += '\n';
+        break;
+      }
+    }
+  }
+  return ret;
+};
+
+let flatten = function (text) {
+  let re = /SOA[\s\S]*?\([\s\S]*?\)/gim;
+  let match = re.exec(text);
+  if (match !== null) {
+    let soa = match[0].replace(/\s+/gm, ' ');
+    soa = soa.replace(/\(|\)/gim, ' ');
+    return text.substring(0, match.index) + soa + text.substring(match.index + match[0].length);
+  } else {
+    return text;
+  }
+};
+
+let normalizeRR = function (rr) {
+  let rrArray = splitArgs(rr, null, true);
+  let hasName = false;
+  let hasTtl = false;
+  if (rr.match(/^\s+/)) {
+    hasName = false;
+  } else {
+    hasName = true;
+  }
+
+  // According to RFC 1035:
+  // <rr> contents take one of the following forms:
+  // [<TTL>] [<class>] <type> <RDATA> -- We assume this one
+  // [<class>] [<TTL>] <type> <RDATA>
+  if (hasName) {
+    if (!isNaN(rrArray[1])) {
+      hasTtl = true;
+    }
+  } else {
+    if (!isNaN(rrArray[0])) {
+      hasTtl = true;
+    }
+  }
+
+  let rrTypeIndex = 0;
+  if (hasName) {
+    ++rrTypeIndex;
+  }
+  if (hasTtl) {
+    ++rrTypeIndex;
+  }
+  let rrType = rrArray[rrTypeIndex];
+  if (rrType === 'IN') {
+    rrType = rrArray[rrTypeIndex + 1];
+  }
+
+  let typeIndex = rrArray.indexOf(rrType, hasName ? 1 : 0);
+  if (typeIndex === 0 || rrArray[typeIndex - 1] !== 'IN') {
+    rrArray.splice(typeIndex, 0, 'IN');
+    ++typeIndex;
+  }
+
+  return {
+    rrType,
+    tokens: rrArray,
+    hasName: hasName,
+    hasTtl: hasTtl,
+    typeIndex: typeIndex
+  };
+};
+
+let parseRRs = function (text) {
+  let ret = {};
+  let rrs = text.split('\n');
+  for (let rr of rrs) {
+    if (!rr.trim()) {
+      continue;
+    }
+    let rrArray = splitArgs(rr, null, true);
+    if (rr.startsWith('$ORIGIN')) {
+      ret.$origin = rrArray[1];
+    } else if (rr.startsWith('$TTL')) {
+      ret.$ttl = rrArray[1];
+    } else {
+      const nrr = normalizeRR(rr);
+      // console.log(nrr);
+      switch (nrr.rrType) {
+        case 'SOA':
+          ret.soa = parseSOA(rrArray);
+          break;
+        case 'TXT':
+          ret.txt = ret.txt || [];
+          ret.txt.push(parseTXT(nrr, ret.txt));
+          break;
+        case 'NS':
+          ret.ns = ret.ns || [];
+          ret.ns.push(parseNS(nrr, ret.ns));
+          break;
+        case 'A':
+          ret.a = ret.a || [];
+          ret.a.push(parseA(nrr, ret.a));
+          break;
+        case 'AAAA':
+          ret.aaaa = ret.aaaa || [];
+          ret.aaaa.push(parseAAAA(nrr, ret.aaaa));
+          break;
+        case 'CNAME':
+          ret.cname = ret.cname || [];
+          ret.cname.push(parseCNAME(nrr, ret.cname));
+          break;
+        case 'MX':
+          ret.mx = ret.mx || [];
+          ret.mx.push(parseMX(nrr, ret.mx));
+          break;
+        case 'PTR':
+          ret.ptr = ret.ptr || [];
+          ret.ptr.push(parsePTR(nrr, ret.ptr, ret.$origin));
+          break;
+        case 'SRV':
+          ret.srv = ret.srv || [];
+          ret.srv.push(parseSRV(nrr, ret.srv));
+          break;
+        case 'SPF':
+          ret.spf = ret.spf || [];
+          ret.spf.push(parseSPF(nrr, ret.spf));
+          break;
+        case 'CAA':
+          ret.caa = ret.caa || [];
+          ret.caa.push(parseCAA(nrr, ret.caa));
+          break;
+        case 'DS':
+          ret.ds = ret.ds || [];
+          ret.ds.push(parseDS(nrr, ret.ds));
+          break;
+      }
+    }
+  }
+  return ret;
+};
+
+let parseSOA = function (rrTokens) {
+  let soa = {};
+  let l = rrTokens.length;
+  soa.name = rrTokens[0];
+  soa.minimum = parseInt(rrTokens[l - 1], 10);
+  soa.expire = parseInt(rrTokens[l - 2], 10);
+  soa.retry = parseInt(rrTokens[l - 3], 10);
+  soa.refresh = parseInt(rrTokens[l - 4], 10);
+  soa.serial = parseInt(rrTokens[l - 5], 10);
+  soa.rname = rrTokens[l - 6];
+  soa.mname = rrTokens[l - 7];
+  if (!isNaN(rrTokens[1])) soa.ttl = parseInt(rrTokens[1], 10);
+  return soa;
+};
+
+let parseNS = function (rrData, recordsSoFar) {
+  let rrTokens = rrData.tokens;
+  if (!rrData.hasName) {
+    if (recordsSoFar.length) {
+      rrTokens.unshift(recordsSoFar[recordsSoFar.length - 1].name);
+    } else {
+      rrTokens.unshift('@');
+    }
+  }
+
+  let l = rrTokens.length;
+  let result = {
+    name: rrTokens[0],
+    host: rrTokens[l - 1]
+  };
+
+  if (rrData.hasTtl) result.ttl = parseInt(rrTokens[1], 10);
+  return result;
+};
+
+let parseA = function (rrData, recordsSoFar) {
+  let rrTokens = rrData.tokens;
+  if (!rrData.hasName) {
+    if (recordsSoFar.length) {
+      rrTokens.unshift(recordsSoFar[recordsSoFar.length - 1].name);
+    } else {
+      rrTokens.unshift('@');
+    }
+  }
+
+  let l = rrTokens.length;
+  let result = {
+    name: rrTokens[0],
+    ip: rrTokens[l - 1]
+  };
+
+  if (rrData.hasTtl) result.ttl = parseInt(rrTokens[1], 10);
+  return result;
+};
+
+let parseAAAA = function (rrData, recordsSoFar) {
+  let rrTokens = rrData.tokens;
+  if (!rrData.hasName) {
+    if (recordsSoFar.length) {
+      rrTokens.unshift(recordsSoFar[recordsSoFar.length - 1].name);
+    } else {
+      rrTokens.unshift('@');
+    }
+  }
+
+  let l = rrTokens.length;
+  let result = {
+    name: rrTokens[0],
+    ip: rrTokens[l - 1]
+  };
+
+  if (rrData.hasTtl) result.ttl = parseInt(rrTokens[1], 10);
+  return result;
+};
+
+let parseCNAME = function (rrData, recordsSoFar) {
+  let rrTokens = rrData.tokens;
+  if (!rrData.hasName) {
+    if (recordsSoFar.length) {
+      rrTokens.unshift(recordsSoFar[recordsSoFar.length - 1].name);
+    } else {
+      rrTokens.unshift('@');
+    }
+  }
+
+  let l = rrTokens.length;
+  let result = {
+    name: rrTokens[0],
+    alias: rrTokens[l - 1]
+  };
+
+  if (rrData.hasTtl) result.ttl = parseInt(rrTokens[1], 10);
+  return result;
+};
+
+let parseMX = function (rrData, recordsSoFar) {
+  let rrTokens = rrData.tokens;
+  if (!rrData.hasName) {
+    if (recordsSoFar.length) {
+      rrTokens.unshift(recordsSoFar[recordsSoFar.length - 1].name);
+    } else {
+      rrTokens.unshift('@');
+    }
+  }
+
+  let l = rrTokens.length;
+  let result = {
+    name: rrTokens[0],
+    preference: parseInt(rrTokens[l - 2], 10),
+    host: rrTokens[l - 1]
+  };
+
+  if (rrData.hasTtl) result.ttl = parseInt(rrTokens[1], 10);
+  return result;
+};
+
+let parseTXT = function (rrData, recordsSoFar) {
+  let rrTokens = rrData.tokens;
+  const txtArray = rrTokens.slice(rrData.typeIndex + 1);
+  if (!rrData.hasName) {
+    if (recordsSoFar.length) {
+      rrTokens.unshift(recordsSoFar[recordsSoFar.length - 1].name);
+    } else {
+      rrTokens.unshift('@');
+    }
+  }
+
+  //   const splitTxtArray = [];
+  //   txtArray.forEach(txt => {
+  //     splitTxtArray.push(...splitStringBySize(txt, 255));
+  //   });
+
+  let result = {
+    name: rrTokens[0],
+    txt: txtArray.join(' ')
+  };
+
+  if (rrData.hasTtl) result.ttl = parseInt(rrTokens[1], 10);
+  return result;
+};
+
+let parsePTR = function (rrData, recordsSoFar, currentOrigin) {
+  let rrTokens = rrData.tokens;
+  if (!rrData.hasName && recordsSoFar[recordsSoFar.length - 1]) {
+    rrTokens.unshift(recordsSoFar[recordsSoFar.length - 1].name);
+  }
+
+  let l = rrTokens.length;
+  let result = {
+    name: rrTokens[0],
+    fullname: rrTokens[0] + '.' + currentOrigin,
+    host: rrTokens[l - 1]
+  };
+
+  if (rrData.hasTtl) result.ttl = parseInt(rrTokens[1], 10);
+  return result;
+};
+
+let parseSRV = function (rrData, recordsSoFar) {
+  let rrTokens = rrData.tokens;
+  if (!rrData.hasName) {
+    if (recordsSoFar.length) {
+      rrTokens.unshift(recordsSoFar[recordsSoFar.length - 1].name);
+    } else {
+      rrTokens.unshift('@');
+    }
+  }
+
+  let l = rrTokens.length;
+  let result = {
+    name: rrTokens[0],
+    target: rrTokens[l - 1],
+    priority: parseInt(rrTokens[l - 4], 10),
+    weight: parseInt(rrTokens[l - 3], 10),
+    port: parseInt(rrTokens[l - 2], 10)
+  };
+
+  if (rrData.hasTtl) result.ttl = parseInt(rrTokens[1], 10);
+  return result;
+};
+
+let parseSPF = function (rrData, recordsSoFar) {
+  let rrTokens = rrData.tokens;
+  const txtArray = rrTokens.slice(rrData.typeIndex + 1);
+  if (!rrData.hasName) {
+    if (recordsSoFar.length) {
+      rrTokens.unshift(recordsSoFar[recordsSoFar.length - 1].name);
+    } else {
+      rrTokens.unshift('@');
+    }
+  }
+
+  //   const splitTxtArray = [];
+  //   txtArray.forEach(txt => {
+  //     splitTxtArray.push(...splitStringBySize(txt, 255));
+  //   });
+
+  let result = {
+    name: rrTokens[0],
+    data: txtArray.join(' ')
+  };
+
+  if (rrData.hasTtl) result.ttl = parseInt(rrTokens[1], 10);
+  return result;
+};
+
+let parseCAA = function (rrData, recordsSoFar) {
+  let rrTokens = rrData.tokens;
+  if (!rrData.hasName) {
+    if (recordsSoFar.length) {
+      rrTokens.unshift(recordsSoFar[recordsSoFar.length - 1].name);
+    } else {
+      rrTokens.unshift('@');
+    }
+  }
+
+  let l = rrTokens.length;
+  let result = {
+    name: rrTokens[0],
+    flags: parseInt(rrTokens[l - 3], 10),
+    tag: rrTokens[l - 2],
+    value: rrTokens[l - 1],
+  };
+
+  if (rrData.hasTtl) result.ttl = parseInt(rrTokens[1], 10);
+  return result;
+};
+
+let parseDS = function (rrData, recordsSoFar) {
+  let rrTokens = rrData.tokens;
+  if (!rrData.hasName) {
+    if (recordsSoFar.length) {
+      rrTokens.unshift(recordsSoFar[recordsSoFar.length - 1].name);
+    } else {
+      rrTokens.unshift('@');
+    }
+  }
+
+  let l = rrTokens.length;
+  let result = {
+    name: rrTokens[0],
+    key_tag: rrTokens[l - 4],
+    algorithm: rrTokens[l - 3],
+    digest_type: rrTokens[l - 2],
+    digest: rrTokens[l - 1],
+  };
+
+  if (rrData.hasTtl) result.ttl = parseInt(rrTokens[1], 10);
+  return result;
+};
+
+// const splitStringBySize = function (input, chunkSize) {
+//   const output = [];
+//   const numOfChunks = Math.ceil(input.length / chunkSize);
+//   for (let i = 0; i < numOfChunks; ++i) {
+//     let chunkData = input.slice(i * chunkSize, (i + 1) * chunkSize);
+//     if (!input.startsWith('"') || !input.endsWith('"')) {
+//       chunkData = '"' + chunkData + '"';
+//     }
+//     output.push(chunkData)
+//   }
+//   return output;
+// }
+
+let splitArgs = function (input, sep, keepQuotes) {
+  let separator = sep || /\s/g;
+  let singleQuoteOpen = false;
+  let doubleQuoteOpen = false;
+  let tokenBuffer = [];
+  let ret = [];
+
+  let arr = input.split('');
+  for (let i = 0; i < arr.length; ++i) {
+    let element = arr[i];
+    let matches = element.match(separator);
+    if (element === "'" && !doubleQuoteOpen) {
+      if (keepQuotes === true) {
+        tokenBuffer.push(element);
+      }
+      singleQuoteOpen = !singleQuoteOpen;
+      continue;
+    } else if (element === '"' && !singleQuoteOpen) {
+      if (keepQuotes === true) {
+        tokenBuffer.push(element);
+      }
+      doubleQuoteOpen = !doubleQuoteOpen;
+      continue;
+    }
+
+    if (!singleQuoteOpen && !doubleQuoteOpen && matches) {
+      if (tokenBuffer.length > 0) {
+        ret.push(tokenBuffer.join(''));
+        tokenBuffer = [];
+      }
+    } else {
+      tokenBuffer.push(element);
+    }
+  }
+  if (tokenBuffer.length > 0) {
+    ret.push(tokenBuffer.join(''));
+  } else if (!!sep) {
+    ret.push('');
+  }
+  return ret;
+};
+
+export default {
+  generate,
+  parse,
+};
+
+
+---
+File: /tests/tests.js
+---
+
+import fs from 'fs';
+import zonefile from '../lib/zonefile.js';
+import deepEqual from 'deep-equal';
+
+import path from 'path';
+import { fileURLToPath } from 'url';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+import { createRequire } from "module";
+const require = createRequire(import.meta.url);
+
+/////////////////////////////////////////////////////////////////////////////////
+//                  _______                                                    //
+//     __          /       \                                                   //
+//    /  |         $$$$$$$  | ______    ______    _______   ______    ______   //
+//  __$$ |__       $$ |__$$ |/      \  /      \  /       | /      \  /      \  //
+// /  $$    |      $$    $$/ $$$$$$  |/$$$$$$  |/$$$$$$$/ /$$$$$$  |/$$$$$$  | //
+// $$$$$$$$/       $$$$$$$/  /    $$ |$$ |  $$/ $$      \ $$    $$ |$$ |  $$/  //
+//    $$ |         $$ |     /$$$$$$$ |$$ |       $$$$$$  |$$$$$$$$/ $$ |       //
+//    $$/          $$ |     $$    $$ |$$ |      /     $$/ $$       |$$ |       //
+//                 $$/       $$$$$$$/ $$/       $$$$$$$/   $$$$$$$/ $$/        //
+//                                                                             //
+/////////////////////////////////////////////////////////////////////////////////
+describe('forward parser', () => {
+   let parsed;
+   beforeEach(() => {
+      const text = fs.readFileSync(__dirname + '/zonefile_forward.txt', 'utf8');
+      parsed = zonefile.parse(text);
+   });
+
+   it('should parse global info', () => {
+      expect(parsed['$origin']).toEqual('MYDOMAIN.COM.');
+      expect(parsed['$ttl']).toEqual('3600');
+   });
+
+   it('should parse soa records', () => {
+      const records = parsed['soa'];
+      expect(records?.['name']).toEqual('@');
+      expect(records?.['minimum']).toEqual(86400);
+      expect(records?.['expire']).toEqual(604800);
+      expect(records?.['retry']).toEqual(600);
+      expect(records?.['refresh']).toEqual(3600);
+      expect(records?.['serial']).toEqual(1406291485);
+      expect(records?.['rname']).toEqual('HOSTMASTER.MYDOMAIN.COM.');
+      expect(records?.['mname']).toEqual('NS1.NAMESERVER.NET.');
+   });
+
+   it('should parse ns records', () => {
+      const records = parsed['ns'];
+      expect(records?.length).toEqual(2);
+      expect(records?.[0]?.['name']).toEqual('@');
+      expect(records?.[0]?.['host']).toEqual('NS1.NAMESERVER.NET.');
+      expect(records?.[1]?.['name']).toEqual('@');
+      expect(records?.[1]?.['host']).toEqual('NS2.NAMESERVER.NET.');
+   });
+
+   it('should parse mx records', () => {
+      const records = parsed['mx'];
+      expect(records?.length).toEqual(2);
+      expect(records?.[0]?.['name']).toEqual('@');
+      expect(records?.[0]?.['preference']).toEqual(0);
+      expect(records?.[0]?.['host']).toEqual('mail1');
+      expect(records?.[1]?.['name']).toEqual('@');
+      expect(records?.[1]?.['preference']).toEqual(10);
+      expect(records?.[1]?.['host']).toEqual('mail2');
+   });
+
+   it('should parse a records', () => {
+      const records = parsed['a'];
+      expect(records?.length).toEqual(7);
+      expect(records?.[0]?.['name']).toEqual('@');
+      expect(records?.[0]?.['ip']).toEqual('2.2.2.2');
+      expect(records?.[1]?.['name']).toEqual('@');
+      expect(records?.[1]?.['ip']).toEqual('1.1.1.1');
+      expect(records?.[2]?.['name']).toEqual('@');
+      expect(records?.[2]?.['ip']).toEqual('127.0.0.1');
+      expect(records?.[3]?.['name']).toEqual('www');
+      expect(records?.[3]?.['ip']).toEqual('127.0.0.1');
+      expect(records?.[4]?.['name']).toEqual('mail');
+      expect(records?.[4]?.['ip']).toEqual('127.0.0.1');
+      expect(records?.[5]?.['name']).toEqual('mail');
+      expect(records?.[5]?.['ip']).toEqual('1.2.3.4');
+      expect(records?.[6]?.['name']).toEqual('tst');
+      expect(records?.[6]?.['ip']).toEqual('101.228.10.127');
+      expect(records?.[6]?.['ttl']).toEqual(300);
+   });
+
+   it('should parse aaaa records', () => {
+      const records = parsed['aaaa'];
+      expect(records?.length).toEqual(3);
+      expect(records?.[0]?.['name']).toEqual('@');
+      expect(records?.[0]?.['ip']).toEqual('::1');
+      expect(records?.[1]?.['name']).toEqual('mail');
+      expect(records?.[1]?.['ip']).toEqual('2001:db8::1');
+      expect(records?.[2]?.['name']).toEqual('A');
+      expect(records?.[2]?.['ip']).toEqual('2001:db8::1');
+      expect(records?.[2]?.['ttl']).toEqual(200);
+   });
+
+   it('should parse cname records', () => {
+      const records = parsed['cname'];
+      expect(records?.length).toEqual(4);
+      expect(records?.[0]?.['name']).toEqual('mail1');
+      expect(records?.[0]?.['alias']).toEqual('mail');
+      expect(records?.[1]?.['name']).toEqual('mail2');
+      expect(records?.[1]?.['alias']).toEqual('mail');
+      expect(records?.[2]?.['name']).toEqual('CNAME');
+      expect(records?.[2]?.['alias']).toEqual('CNAME');
+      expect(records?.[3]?.['name']).toEqual('CNAME');
+      expect(records?.[3]?.['alias']).toEqual('CNAME');
+   });
+
+   it('should parse caa records', () => {
+      const records = parsed['caa'];
+      expect(records?.length).toEqual(3);
+      expect(records?.[0]?.['name']).toEqual('@');
+      expect(records?.[0]?.['flags']).toEqual(0);
+      expect(records?.[0]?.['tag']).toEqual('issue');
+      expect(records?.[0]?.['value']).toEqual('"ca.example.net; account=230123"');
+      expect(records?.[1]?.['name']).toEqual('@');
+      expect(records?.[1]?.['flags']).toEqual(0);
+      expect(records?.[1]?.['tag']).toEqual('iodef');
+      expect(records?.[1]?.['value']).toEqual('"mailto:security@example.com"');
+      expect(records?.[2]?.['name']).toEqual('@');
+      expect(records?.[2]?.['flags']).toEqual(0);
+      expect(records?.[2]?.['tag']).toEqual('iodef');
+      expect(records?.[2]?.['value']).toEqual('"http://iodef.example.com/"');
+   });
+
+   it('should parse txt records', () => {
+      const records = parsed['txt'];
+      expect(records?.length).toEqual(4);
+      expect(records?.[0]?.['name']).toEqual('treefrog.ca.');
+      expect(records?.[0]?.['txt']).toEqual('"v=spf1 a mx a:mail.treefrog.ca a:webmail.treefrog.ca ip4:76.75.250.33 ?all" "asdfsdaf" "sdfsadfdasf"');
+      expect(records?.[1]?.['name']).toEqual('treefrog.ca.');
+      expect(records?.[1]?.['txt']).toEqual('"v=spf1 a mx a:mail.treefrog.ca a:webmail.treefrog.ca ip4:76.75.250.33 ?all" "asdfsdaf" sdfsadfdasf');
+      expect(records?.[2]?.['name']).toEqual('treemonkey.ca.');
+      expect(records?.[2]?.['txt']).toEqual('"v=DKIM1\\; k=rsa\\; p=MIGf..."');
+      expect(records?.[3]?.['name']).toEqual('treemonkey.ca.');
+      expect(records?.[3]?.['txt']).toEqual('"v=DKIM1\\; k=rsa\\; p=MIGf..."');
+   });
+
+   it('should parse spf records', () => {
+      const records = parsed['spf'];
+      expect(records?.length).toEqual(4);
+      expect(records?.[0]?.['name']).toEqual('test');
+      expect(records?.[0]?.['data']).toEqual('"v=spf1" "mx:gcloud-node.com." "-all"');
+      expect(records?.[1]?.['name']).toEqual('test1');
+      expect(records?.[1]?.['data']).toEqual('"v=spf2" "mx:gcloud-node.com." "-all"');
+      expect(records?.[2]?.['name']).toEqual('test1');
+      expect(records?.[2]?.['data']).toEqual('"v=spf3" "mx:gcloud-node.com." "-all    " "aasdfsadfdsafdasf"');
+      expect(records?.[3]?.['name']).toEqual('test1');
+      expect(records?.[3]?.['data']).toEqual('"v=spf4" "mx:gcloud-node.com." "-all"');
+   });
+
+   it('should parse ds records', () => {
+      const records = parsed['ds'];
+      expect(records?.length).toEqual(2);
+      expect(records?.[0]?.['name']).toEqual('secure.example.');
+      expect(records?.[0]?.['key_tag']).toEqual('tag=12345');
+      expect(records?.[0]?.['algorithm']).toEqual('alg=3');
+      expect(records?.[0]?.['digest_type']).toEqual('digest_type=1');
+      expect(records?.[0]?.['digest']).toEqual('<foofoo>');
+      expect(records?.[1]?.['name']).toEqual('secure.example.');
+      expect(records?.[1]?.['key_tag']).toEqual('tag=12345');
+      expect(records?.[1]?.['algorithm']).toEqual('alg=3');
+      expect(records?.[1]?.['digest_type']).toEqual('digest_type=1');
+      expect(records?.[1]?.['digest']).toEqual('"<foofoo>"');
+   });
+
+   it('should parse srv records', () => {
+      const records = parsed['srv'];
+      expect(records?.length).toEqual(6);
+      expect(records?.[0]?.['name']).toEqual('_foobar._tcp');
+      expect(records?.[0]?.['target']).toEqual('old-slow-box.example.com.');
+      expect(records?.[0]?.['priority']).toEqual(0);
+      expect(records?.[0]?.['weight']).toEqual(1);
+      expect(records?.[0]?.['port']).toEqual(9);
+      expect(records?.[0]?.['ttl']).toEqual(200);
+
+      expect(records?.[1]?.['name']).toEqual('_foobar._tcp');
+      expect(records?.[1]?.['target']).toEqual('new-fast-box.example.com.');
+      expect(records?.[1]?.['priority']).toEqual(0);
+      expect(records?.[1]?.['weight']).toEqual(3);
+      expect(records?.[1]?.['port']).toEqual(9);
+
+      expect(records?.[2]?.['name']).toEqual('_foobar._tcp');
+      expect(records?.[2]?.['target']).toEqual('sysadmins-box.example.com.');
+      expect(records?.[2]?.['priority']).toEqual(1);
+      expect(records?.[2]?.['weight']).toEqual(0);
+      expect(records?.[2]?.['port']).toEqual(9);
+
+      expect(records?.[3]?.['name']).toEqual('_foobar._tcp');
+      expect(records?.[3]?.['target']).toEqual('server.example.com.');
+      expect(records?.[3]?.['priority']).toEqual(1);
+      expect(records?.[3]?.['weight']).toEqual(0);
+      expect(records?.[3]?.['port']).toEqual(9);
+
+      expect(records?.[4]?.['name']).toEqual('*._tcp');
+      expect(records?.[4]?.['target']).toEqual('.');
+      expect(records?.[4]?.['priority']).toEqual(0);
+      expect(records?.[4]?.['weight']).toEqual(0);
+      expect(records?.[4]?.['port']).toEqual(0);
+
+      expect(records?.[5]?.['name']).toEqual('*._udp');
+      expect(records?.[5]?.['target']).toEqual('.');
+      expect(records?.[5]?.['priority']).toEqual(0);
+      expect(records?.[5]?.['weight']).toEqual(0);
+      expect(records?.[5]?.['port']).toEqual(0);
+   });
+});
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//                   ______                                                      __                          //
+//     __           /      \                                                    /  |                         //
+//    /  |         /$$$$$$  |  ______   _______    ______    ______   ______   _$$ |_     ______    ______   //
+//  __$$ |__       $$ | _$$/  /      \ /       \  /      \  /      \ /      \ / $$   |   /      \  /      \  //
+// /  $$    |      $$ |/    |/$$$$$$  |$$$$$$$  |/$$$$$$  |/$$$$$$  |$$$$$$  |$$$$$$/   /$$$$$$  |/$$$$$$  | //
+// $$$$$$$$/       $$ |$$$$ |$$    $$ |$$ |  $$ |$$    $$ |$$ |  $$/ /    $$ |  $$ | __ $$ |  $$ |$$ |  $$/  //
+//    $$ |         $$ \__$$ |$$$$$$$$/ $$ |  $$ |$$$$$$$$/ $$ |     /$$$$$$$ |  $$ |/  |$$ \__$$ |$$ |       //
+//    $$/          $$    $$/ $$       |$$ |  $$ |$$       |$$ |     $$    $$ |  $$  $$/ $$    $$/ $$ |       //
+//                  $$$$$$/   $$$$$$$/ $$/   $$/  $$$$$$$/ $$/       $$$$$$$/    $$$$/   $$$$$$/  $$/        //
+//                                                                                                           //
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+describe('forward generator', () => {
+   let generated;
+   let lines;
+   beforeEach(() => {
+      const json = require(__dirname + '/zonefile_forward.json');
+      generated = zonefile.generate(json);
+      lines = generated.split('\n');
+   });
+
+   it('should generate global info', () => {
+      expect(lines.includes('$ORIGIN MYDOMAIN.COM.')).toBeTrue();
+      expect(lines.includes('$TTL 3600')).toBeTrue();
+   });
+
+   it('should generate soa records', () => {
+      const records = `
+      @	 		IN	SOA	NS1.NAMESERVER.NET.	HOSTMASTER.MYDOMAIN.COM.	(
+      1406291485	 ;serial
+      3600	 ;refresh
+      600	 ;retry
+      604800	 ;expire
+      86400	 ;minimum ttl`;
+      records.trim().split('\n').forEach(record => {
+         expect(lines).toContain(record.trim());
+      });
+   });
+
+   it('should generate ns records', () => {
+      const records = `
+      @	IN	NS	NS1.NAMESERVER.NET.
+      @	IN	NS	NS2.NAMESERVER.NET.`;
+      records.trim().split('\n').forEach(record => {
+         expect(lines).toContain(record.trim());
+      });
+   });
+
+   it('should generate mx records', () => {
+      const records = `
+      @	IN	MX	0	mail1
+      @	IN	MX	10	mail2`;
+      records.trim().split('\n').forEach(record => {
+         expect(lines).toContain(record.trim());
+      });
+   });
+
+   it('should generate a records', () => {
+      const records = `
+      @	IN	A	2.2.2.2
+      @	IN	A	1.1.1.1
+      @	IN	A	127.0.0.1
+      www	IN	A	127.0.0.1
+      mail	IN	A	127.0.0.1
+      mail	IN	A	1.2.3.4
+      tst	300	IN	A	101.228.10.127`;
+      records.trim().split('\n').forEach(record => {
+         expect(lines).toContain(record.trim());
+      });
+   });
+
+   it('should generate aaaa records', () => {
+      const records = ``;
+      records.trim().split('\n').forEach(record => {
+         expect(lines).toContain(record.trim());
+      });
+   });
+
+   it('should generate  records', () => {
+      const records = `
+      @	IN	AAAA	::1
+      mail	IN	AAAA	2001:db8::1
+      A	200	IN	AAAA	2001:db8::1`;
+      records.trim().split('\n').forEach(record => {
+         expect(lines).toContain(record.trim());
+      });
+   });
+
+   it('should generate cname records', () => {
+      const records = `
+      mail1	IN	CNAME	mail
+      mail2	IN	CNAME	mail
+      CNAME	IN	CNAME	CNAME
+      CNAME	IN	CNAME	CNAME`;
+      records.trim().split('\n').forEach(record => {
+         expect(lines).toContain(record.trim());
+      });
+   });
+
+   it('should generate txt records', () => {
+      const records = `
+      treefrog.ca.	IN	TXT	"v=spf1 a mx a:mail.treefrog.ca a:webmail.treefrog.ca ip4:76.75.250.33 ?all" "asdfsdaf" "sdfsadfdasf"
+      treefrog.ca.	IN	TXT	"v=spf1 a mx a:mail.treefrog.ca a:webmail.treefrog.ca ip4:76.75.250.33 ?all" "asdfsdaf" sdfsadfdasf
+      treemonkey.ca.	IN	TXT	"v=DKIM1\\; k=rsa\\; p=MIGf..."
+      treemonkey.ca.	IN	TXT	"v=DKIM1\\; k=rsa\\; p=MIGf..."`;
+      records.trim().split('\n').forEach(record => {
+         expect(lines).toContain(record.trim());
+      });
+   });
+
+   it('should generate srv records', () => {
+      const records = `
+      _foobar._tcp	200	IN	SRV	0	1	9	old-slow-box.example.com.
+      _foobar._tcp	IN	SRV	0	3	9	new-fast-box.example.com.
+      _foobar._tcp	IN	SRV	1	0	9	sysadmins-box.example.com.
+      _foobar._tcp	IN	SRV	1	0	9	server.example.com.
+      *._tcp	IN	SRV	0	0	0	.
+      *._udp	IN	SRV	0	0	0	.`;
+      records.trim().split('\n').forEach(record => {
+         expect(lines).toContain(record.trim());
+      });
+   });
+
+   it('should generate spf records', () => {
+      const records = `
+      test	IN	SPF	"v=spf1" "mx:gcloud-node.com." "-all"
+      test1	IN	SPF	"v=spf2" "mx:gcloud-node.com." "-all"
+      test1	IN	SPF	"v=spf3" "mx:gcloud-node.com." "-all    " "aasdfsadfdsafdasf"
+      test1	IN	SPF	"v=spf4" "mx:gcloud-node.com." "-all"`;
+      records.trim().split('\n').forEach(record => {
+         expect(lines).toContain(record.trim());
+      });
+   });
+
+   it('should generate caa records', () => {
+      const records = `
+      @	IN	CAA	0	issue	"ca.example.net; account=230123"
+      @	IN	CAA	0	iodef	"mailto:security@example.com"
+      @	IN	CAA	0	iodef	"http://iodef.example.com/"`;
+      records.trim().split('\n').forEach(record => {
+         expect(lines).toContain(record.trim());
+      });
+   });
+
+   it('should generate ds records', () => {
+      const records = `
+      secure.example.	IN	DS	tag=12345	alg=3	digest_type=1	<foofoo>
+      secure.example.	IN	DS	tag=12345	alg=3	digest_type=1	"<foofoo>"`;
+      records.trim().split('\n').forEach(record => {
+         expect(lines).toContain(record.trim());
+      });
+   });
+});
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//                  ______        __                                                __                                              //
+//     __          /      |      /  |                                              /  |                                             //
+//    /  |         $$$$$$/   ____$$ |  ______   _____  ____    ______    ______   _$$ |_     ______   _______    _______   ______   //
+//  __$$ |__         $$ |   /    $$ | /      \ /     \/    \  /      \  /      \ / $$   |   /      \ /       \  /       | /      \  //
+// /  $$    |        $$ |  /$$$$$$$ |/$$$$$$  |$$$$$$ $$$$  |/$$$$$$  |/$$$$$$  |$$$$$$/   /$$$$$$  |$$$$$$$  |/$$$$$$$/ /$$$$$$  | //
+// $$$$$$$$/         $$ |  $$ |  $$ |$$    $$ |$$ | $$ | $$ |$$ |  $$ |$$ |  $$ |  $$ | __ $$    $$ |$$ |  $$ |$$ |      $$    $$ | //
+//    $$ |          _$$ |_ $$ \__$$ |$$$$$$$$/ $$ | $$ | $$ |$$ |__$$ |$$ \__$$ |  $$ |/  |$$$$$$$$/ $$ |  $$ |$$ \_____ $$$$$$$$/  //
+//    $$/          / $$   |$$    $$ |$$       |$$ | $$ | $$ |$$    $$/ $$    $$/   $$  $$/ $$       |$$ |  $$ |$$       |$$       | //
+//                 $$$$$$/  $$$$$$$/  $$$$$$$/ $$/  $$/  $$/ $$$$$$$/   $$$$$$/     $$$$/   $$$$$$$/ $$/   $$/  $$$$$$$/  $$$$$$$/  //
+//                                                           $$ |                                                                   //
+//                                                           $$ |                                                                   //
+//                                                           $$/                                                                    //
+//                                                                                                                                  //
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+describe('forward idempotence tests', () => {
+   it('should be idempotent', () => {
+      const text = fs.readFileSync(__dirname + '/zonefile_forward.txt', 'utf8');
+      const json = zonefile.parse(text);
+
+      const text1 = zonefile.generate(json);
+      const json1 = zonefile.parse(text1);
+
+      expect(deepEqual(json, json1)).toBeTrue();
+
+      const text2 = zonefile.generate(json1);
+
+      // exclude the date time line
+      expect(deepEqual(text1.split('\n').slice(2), text2.split('\n').slice(2))).toBeTrue();
+   });
+});
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////
+//                _______                                                                     __    __  //
+//               /       \                                                                   /  |  /  | //
+//               $$$$$$$  | ______    ______    _______   ______    ______         __     __ $$ |  $$ | //
+//  ______       $$ |__$$ |/      \  /      \  /       | /      \  /      \       /  \   /  |$$ |__$$ | //
+// /      |      $$    $$/ $$$$$$  |/$$$$$$  |/$$$$$$$/ /$$$$$$  |/$$$$$$  |      $$  \ /$$/ $$    $$ | //
+// $$$$$$/       $$$$$$$/  /    $$ |$$ |  $$/ $$      \ $$    $$ |$$ |  $$/        $$  /$$/  $$$$$$$$ | //
+//               $$ |     /$$$$$$$ |$$ |       $$$$$$  |$$$$$$$$/ $$ |              $$ $$/         $$ | //
+//               $$ |     $$    $$ |$$ |      /     $$/ $$       |$$ |               $$$/          $$ | //
+//               $$/       $$$$$$$/ $$/       $$$$$$$/   $$$$$$$/ $$/                 $/           $$/  //
+//                                                                                                      //
+//////////////////////////////////////////////////////////////////////////////////////////////////////////
+describe('reverse ipv4 parser', () => {
+   let parsed;
+   beforeEach(() => {
+      const text = fs.readFileSync(__dirname + '/zonefile_reverse_ipv4.txt', 'utf8');
+      parsed = zonefile.parse(text);
+   });
+
+   it('should parse global info', () => {
+      expect(parsed['$origin']).toEqual('0.168.192.IN-ADDR.ARPA.');
+      expect(parsed['$ttl']).toEqual('3600');
+   });
+
+   it('should parse soa records', () => {
+      const records = parsed['soa'];
+      expect(records?.['name']).toEqual('@');
+      expect(records?.['minimum']).toEqual(86400);
+      expect(records?.['expire']).toEqual(604800);
+      expect(records?.['retry']).toEqual(600);
+      expect(records?.['refresh']).toEqual(3600);
+      expect(records?.['serial']).toEqual(1406291485);
+      expect(records?.['rname']).toEqual('HOSTMASTER.MYDOMAIN.COM.');
+      expect(records?.['mname']).toEqual('NS1.NAMESERVER.NET.');
+   });
+
+   it('should parse ns records', () => {
+      const records = parsed['ns'];
+      expect(records?.length).toEqual(2);
+      expect(records?.[0]?.['name']).toEqual('@');
+      expect(records?.[0]?.['host']).toEqual('NS1.NAMESERVER.NET.');
+      expect(records?.[1]?.['name']).toEqual('@');
+      expect(records?.[1]?.['host']).toEqual('NS2.NAMESERVER.NET.');
+   });
+
+   it('should parse ptr records', () => {
+      const records = parsed['ptr'];
+      expect(records?.length).toEqual(8);
+      expect(records?.[0]?.['name']).toEqual('1');
+      expect(records?.[0]?.['fullname']).toEqual(records?.[0]?.['name'] + '.' + parsed['$origin']);
+      expect(records?.[0]?.['host']).toEqual('HOST1.MYDOMAIN.COM.');
+      expect(records?.[0]?.['ttl']).toEqual(400);
+
+      expect(records?.[1]?.['name']).toEqual('2');
+      expect(records?.[1]?.['fullname']).toEqual(records?.[1]?.['name'] + '.' + parsed['$origin']);
+      expect(records?.[1]?.['host']).toEqual('HOST2.MYDOMAIN.COM.');
+
+      expect(records?.[2]?.['name']).toEqual('3');
+      expect(records?.[2]?.['fullname']).toEqual(records?.[2]?.['name'] + '.' + parsed['$origin']);
+      expect(records?.[2]?.['host']).toEqual('HOST3.MYDOMAIN.COM.');
+
+      expect(records?.[3]?.['name']).toEqual('4');
+      expect(records?.[3]?.['fullname']).toEqual(records?.[3]?.['name'] + '.' + parsed['$origin']);
+      expect(records?.[3]?.['host']).toEqual('HOST4.MYDOMAIN.COM.');
+
+      expect(records?.[4]?.['name']).toEqual('4');
+      expect(records?.[4]?.['fullname']).toEqual(records?.[4]?.['name'] + '.' + parsed['$origin']);
+      expect(records?.[4]?.['host']).toEqual('HOST5.MYDOMAIN.COM.');
+
+      expect(records?.[5]?.['name']).toEqual('4');
+      expect(records?.[5]?.['fullname']).toEqual(records?.[5]?.['name'] + '.' + parsed['$origin']);
+      expect(records?.[5]?.['host']).toEqual('HOST6.MYDOMAIN.COM.');
+
+      expect(records?.[6]?.['name']).toEqual('10.3');
+      expect(records?.[6]?.['fullname']).toEqual(records?.[6]?.['name'] + '.' + parsed['$origin']);
+      expect(records?.[6]?.['host']).toEqual('HOST3.MYDOMAIN.COM.');
+
+      expect(records?.[7]?.['name']).toEqual('10.4');
+      expect(records?.[7]?.['fullname']).toEqual(records?.[7]?.['name'] + '.' + parsed['$origin']);
+      expect(records?.[7]?.['host']).toEqual('HOST4.MYDOMAIN.COM.');
+   });
+});
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//                 ______                                                      __                                           __    __  //
+//                /      \                                                    /  |                                         /  |  /  | //
+//               /$$$$$$  |  ______   _______    ______    ______   ______   _$$ |_     ______    ______         __     __ $$ |  $$ | //
+//  ______       $$ | _$$/  /      \ /       \  /      \  /      \ /      \ / $$   |   /      \  /      \       /  \   /  |$$ |__$$ | //
+// /      |      $$ |/    |/$$$$$$  |$$$$$$$  |/$$$$$$  |/$$$$$$  |$$$$$$  |$$$$$$/   /$$$$$$  |/$$$$$$  |      $$  \ /$$/ $$    $$ | //
+// $$$$$$/       $$ |$$$$ |$$    $$ |$$ |  $$ |$$    $$ |$$ |  $$/ /    $$ |  $$ | __ $$ |  $$ |$$ |  $$/        $$  /$$/  $$$$$$$$ | //
+//               $$ \__$$ |$$$$$$$$/ $$ |  $$ |$$$$$$$$/ $$ |     /$$$$$$$ |  $$ |/  |$$ \__$$ |$$ |              $$ $$/         $$ | //
+//               $$    $$/ $$       |$$ |  $$ |$$       |$$ |     $$    $$ |  $$  $$/ $$    $$/ $$ |               $$$/          $$ | //
+//                $$$$$$/   $$$$$$$/ $$/   $$/  $$$$$$$/ $$/       $$$$$$$/    $$$$/   $$$$$$/  $$/                 $/           $$/  //
+//                                                                                                                                    //
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+describe('reverse ipv4 generator', () => {
+   let generated;
+   let lines;
+   beforeEach(() => {
+      const json = require(__dirname + '/zonefile_reverse_ipv4.json');
+      generated = zonefile.generate(json);
+      lines = generated.split('\n');
+   });
+
+   it('should generate global info', () => {
+      expect(lines.includes('$ORIGIN 0.168.192.IN-ADDR.ARPA.')).toBeTrue();
+      expect(lines.includes('$TTL 3600')).toBeTrue();
+   });
+
+   it('should generate soa records', () => {
+      const records = `
+      @	 		IN	SOA	NS1.NAMESERVER.NET.	HOSTMASTER.MYDOMAIN.COM.	(
+      1406291485	 ;serial
+      3600	 ;refresh
+      600	 ;retry
+      604800	 ;expire
+      86400	 ;minimum ttl`;
+      records.trim().split('\n').forEach(record => {
+         expect(lines).toContain(record.trim());
+      });
+   });
+
+   it('should generate ns records', () => {
+      const records = `
+      @	IN	NS	NS1.NAMESERVER.NET.
+      @	IN	NS	NS2.NAMESERVER.NET.`;
+      records.trim().split('\n').forEach(record => {
+         expect(lines).toContain(record.trim());
+      });
+   });
+
+   it('should generate ptr records', () => {
+      const records = `
+      1	400	IN	PTR	HOST1.MYDOMAIN.COM.
+      2	IN	PTR	HOST2.MYDOMAIN.COM.
+      3	IN	PTR	HOST3.MYDOMAIN.COM.
+      4	IN	PTR	HOST4.MYDOMAIN.COM.
+      4	IN	PTR	HOST5.MYDOMAIN.COM.
+      4	IN	PTR	HOST6.MYDOMAIN.COM.
+      10.3	IN	PTR	HOST3.MYDOMAIN.COM.
+      10.4	IN	PTR	HOST4.MYDOMAIN.COM.`;
+      records.trim().split('\n').forEach(record => {
+         expect(lines).toContain(record.trim());
+      });
+   });
+});
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//                ______        __                                                __                                                               __    __  //
+//               /      |      /  |                                              /  |                                                             /  |  /  | //
+//               $$$$$$/   ____$$ |  ______   _____  ____    ______    ______   _$$ |_     ______   _______    _______   ______         __     __ $$ |  $$ | //
+//  ______         $$ |   /    $$ | /      \ /     \/    \  /      \  /      \ / $$   |   /      \ /       \  /       | /      \       /  \   /  |$$ |__$$ | //
+// /      |        $$ |  /$$$$$$$ |/$$$$$$  |$$$$$$ $$$$  |/$$$$$$  |/$$$$$$  |$$$$$$/   /$$$$$$  |$$$$$$$  |/$$$$$$$/ /$$$$$$  |      $$  \ /$$/ $$    $$ | //
+// $$$$$$/         $$ |  $$ |  $$ |$$    $$ |$$ | $$ | $$ |$$ |  $$ |$$ |  $$ |  $$ | __ $$    $$ |$$ |  $$ |$$ |      $$    $$ |       $$  /$$/  $$$$$$$$ | //
+//                _$$ |_ $$ \__$$ |$$$$$$$$/ $$ | $$ | $$ |$$ |__$$ |$$ \__$$ |  $$ |/  |$$$$$$$$/ $$ |  $$ |$$ \_____ $$$$$$$$/         $$ $$/         $$ | //
+//               / $$   |$$    $$ |$$       |$$ | $$ | $$ |$$    $$/ $$    $$/   $$  $$/ $$       |$$ |  $$ |$$       |$$       |         $$$/          $$ | //
+//               $$$$$$/  $$$$$$$/  $$$$$$$/ $$/  $$/  $$/ $$$$$$$/   $$$$$$/     $$$$/   $$$$$$$/ $$/   $$/  $$$$$$$/  $$$$$$$/           $/           $$/  //
+//                                                         $$ |                                                                                              //
+//                                                         $$ |                                                                                              //
+//                                                         $$/                                                                                               //
+//                                                                                                                                                           //
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+describe('reverse ipv4 idempotence tests', () => {
+   it('should be idempotent', () => {
+      const text = fs.readFileSync(__dirname + '/zonefile_reverse_ipv4.txt', 'utf8');
+      const json = zonefile.parse(text);
+
+      const text1 = zonefile.generate(json);
+      const json1 = zonefile.parse(text1);
+
+      expect(deepEqual(json, json1)).toBeTrue();
+
+      const text2 = zonefile.generate(json1);
+
+      // exclude the date time line
+      expect(deepEqual(text1.split('\n').slice(2), text2.split('\n').slice(2))).toBeTrue();
+   });
+});
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////
+//                _______                                                                      ______   //
+//               /       \                                                                    /      \  //
+//               $$$$$$$  | ______    ______    _______   ______    ______         __     __ /$$$$$$  | //
+//  ______       $$ |__$$ |/      \  /      \  /       | /      \  /      \       /  \   /  |$$ \__$$/  //
+// /      |      $$    $$/ $$$$$$  |/$$$$$$  |/$$$$$$$/ /$$$$$$  |/$$$$$$  |      $$  \ /$$/ $$      \  //
+// $$$$$$/       $$$$$$$/  /    $$ |$$ |  $$/ $$      \ $$    $$ |$$ |  $$/        $$  /$$/  $$$$$$$  | //
+//               $$ |     /$$$$$$$ |$$ |       $$$$$$  |$$$$$$$$/ $$ |              $$ $$/   $$ \__$$ | //
+//               $$ |     $$    $$ |$$ |      /     $$/ $$       |$$ |               $$$/    $$    $$/  //
+//               $$/       $$$$$$$/ $$/       $$$$$$$/   $$$$$$$/ $$/                 $/      $$$$$$/   //
+//                                                                                                      //
+//////////////////////////////////////////////////////////////////////////////////////////////////////////
+describe('reverse ipv6 parser', () => {
+   let parsed;
+   beforeEach(() => {
+      const text = fs.readFileSync(__dirname + '/zonefile_reverse_ipv6.txt', 'utf8');
+      parsed = zonefile.parse(text);
+   });
+
+   it('should parse global info', () => {
+      expect(parsed['$origin']).toEqual('0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.8.b.d.0.1.0.0.2.ip6.arpa.');
+      expect(parsed['$ttl']).toEqual('3600');
+   });
+
+   it('should parse soa records', () => {
+      const records = parsed['soa'];
+      expect(records?.['name']).toEqual('@');
+      expect(records?.['minimum']).toEqual(86400);
+      expect(records?.['expire']).toEqual(604800);
+      expect(records?.['retry']).toEqual(600);
+      expect(records?.['refresh']).toEqual(3600);
+      expect(records?.['serial']).toEqual(1406291485);
+      expect(records?.['rname']).toEqual('HOSTMASTER.MYDOMAIN.COM.');
+      expect(records?.['mname']).toEqual('NS1.NAMESERVER.NET.');
+   });
+
+   it('should parse ns records', () => {
+      const records = parsed['ns'];
+      expect(records?.length).toEqual(2);
+      expect(records?.[0]?.['name']).toEqual('@');
+      expect(records?.[0]?.['host']).toEqual('NS1.NAMESERVER.NET.');
+      expect(records?.[1]?.['name']).toEqual('@');
+      expect(records?.[1]?.['host']).toEqual('NS2.NAMESERVER.NET.');
+   });
+
+   it('should parse ptr records', () => {
+      const records = parsed['ptr'];
+      expect(records?.length).toEqual(2);
+      expect(records?.[0]?.['name']).toEqual('1');
+      expect(records?.[0]?.['fullname']).toEqual(records?.[0]?.['name'] + '.' + parsed['$origin']);
+      expect(records?.[0]?.['host']).toEqual('HOST1.MYDOMAIN.COM.');
+      expect(records?.[0]?.['ttl']).toEqual(400);
+
+      expect(records?.[1]?.['name']).toEqual('2');
+      expect(records?.[1]?.['fullname']).toEqual(records?.[1]?.['name'] + '.' + parsed['$origin']);
+      expect(records?.[1]?.['host']).toEqual('HOST2.MYDOMAIN.COM.');
+   });
+});
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//                 ______                                                      __                                            ______   //
+//                /      \                                                    /  |                                          /      \  //
+//               /$$$$$$  |  ______   _______    ______    ______   ______   _$$ |_     ______    ______         __     __ /$$$$$$  | //
+//  ______       $$ | _$$/  /      \ /       \  /      \  /      \ /      \ / $$   |   /      \  /      \       /  \   /  |$$ \__$$/  //
+// /      |      $$ |/    |/$$$$$$  |$$$$$$$  |/$$$$$$  |/$$$$$$  |$$$$$$  |$$$$$$/   /$$$$$$  |/$$$$$$  |      $$  \ /$$/ $$      \  //
+// $$$$$$/       $$ |$$$$ |$$    $$ |$$ |  $$ |$$    $$ |$$ |  $$/ /    $$ |  $$ | __ $$ |  $$ |$$ |  $$/        $$  /$$/  $$$$$$$  | //
+//               $$ \__$$ |$$$$$$$$/ $$ |  $$ |$$$$$$$$/ $$ |     /$$$$$$$ |  $$ |/  |$$ \__$$ |$$ |              $$ $$/   $$ \__$$ | //
+//               $$    $$/ $$       |$$ |  $$ |$$       |$$ |     $$    $$ |  $$  $$/ $$    $$/ $$ |               $$$/    $$    $$/  //
+//                $$$$$$/   $$$$$$$/ $$/   $$/  $$$$$$$/ $$/       $$$$$$$/    $$$$/   $$$$$$/  $$/                 $/      $$$$$$/   //
+//                                                                                                                                    //
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+describe('reverse ipv4 generator', () => {
+   let generated;
+   let lines;
+   beforeEach(() => {
+      const json = require(__dirname + '/zonefile_reverse_ipv6.json');
+      generated = zonefile.generate(json);
+      lines = generated.split('\n');
+   });
+
+   it('should generate global info', () => {
+      expect(lines.includes('$ORIGIN 0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.8.b.d.0.1.0.0.2.ip6.arpa.')).toBeTrue();
+      expect(lines.includes('$TTL 3600')).toBeTrue();
+   });
+
+   it('should generate soa records', () => {
+      const records = `
+      @	 		IN	SOA	NS1.NAMESERVER.NET.	HOSTMASTER.MYDOMAIN.COM.	(
+      1406291485	 ;serial
+      3600	 ;refresh
+      600	 ;retry
+      604800	 ;expire
+      86400	 ;minimum ttl`;
+      records.trim().split('\n').forEach(record => {
+         expect(lines).toContain(record.trim());
+      });
+   });
+
+   it('should generate ns records', () => {
+      const records = `
+      @	IN	NS	NS1.NAMESERVER.NET.
+      @	IN	NS	NS2.NAMESERVER.NET.`;
+      records.trim().split('\n').forEach(record => {
+         expect(lines).toContain(record.trim());
+      });
+   });
+
+   it('should generate ptr records', () => {
+      const records = `
+      1	400	IN	PTR	HOST1.MYDOMAIN.COM.
+      2	IN	PTR	HOST2.MYDOMAIN.COM.`;
+      records.trim().split('\n').forEach(record => {
+         expect(lines).toContain(record.trim());
+      });
+   });
+});
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//                ______        __                                                __                                                                ______   //
+//               /      |      /  |                                              /  |                                                              /      \  //
+//               $$$$$$/   ____$$ |  ______   _____  ____    ______    ______   _$$ |_     ______   _______    _______   ______         __     __ /$$$$$$  | //
+//  ______         $$ |   /    $$ | /      \ /     \/    \  /      \  /      \ / $$   |   /      \ /       \  /       | /      \       /  \   /  |$$ \__$$/  //
+// /      |        $$ |  /$$$$$$$ |/$$$$$$  |$$$$$$ $$$$  |/$$$$$$  |/$$$$$$  |$$$$$$/   /$$$$$$  |$$$$$$$  |/$$$$$$$/ /$$$$$$  |      $$  \ /$$/ $$      \  //
+// $$$$$$/         $$ |  $$ |  $$ |$$    $$ |$$ | $$ | $$ |$$ |  $$ |$$ |  $$ |  $$ | __ $$    $$ |$$ |  $$ |$$ |      $$    $$ |       $$  /$$/  $$$$$$$  | //
+//                _$$ |_ $$ \__$$ |$$$$$$$$/ $$ | $$ | $$ |$$ |__$$ |$$ \__$$ |  $$ |/  |$$$$$$$$/ $$ |  $$ |$$ \_____ $$$$$$$$/         $$ $$/   $$ \__$$ | //
+//               / $$   |$$    $$ |$$       |$$ | $$ | $$ |$$    $$/ $$    $$/   $$  $$/ $$       |$$ |  $$ |$$       |$$       |         $$$/    $$    $$/  //
+//               $$$$$$/  $$$$$$$/  $$$$$$$/ $$/  $$/  $$/ $$$$$$$/   $$$$$$/     $$$$/   $$$$$$$/ $$/   $$/  $$$$$$$/  $$$$$$$/           $/      $$$$$$/   //
+//                                                         $$ |                                                                                              //
+//                                                         $$ |                                                                                              //
+//                                                         $$/                                                                                               //
+//                                                                                                                                                           //
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+describe('reverse ipv4 idempotence tests', () => {
+   it('should be idempotent', () => {
+      const text = fs.readFileSync(__dirname + '/zonefile_reverse_ipv6.txt', 'utf8');
+      const json = zonefile.parse(text);
+
+      const text1 = zonefile.generate(json);
+      const json1 = zonefile.parse(text1);
+
+      expect(deepEqual(json, json1)).toBeTrue();
+
+      const text2 = zonefile.generate(json1);
+
+      // exclude the date time line
+      expect(deepEqual(text1.split('\n').slice(2), text2.split('\n').slice(2))).toBeTrue();
+   });
+});
+
+
+---
+File: /tests/zonefile_forward.json
+---
+
+{
+  "$origin": "MYDOMAIN.COM.",
+  "$ttl": "3600",
+  "soa": {
+    "name": "@",
+    "minimum": 86400,
+    "expire": 604800,
+    "retry": 600,
+    "refresh": 3600,
+    "serial": 1406291485,
+    "rname": "HOSTMASTER.MYDOMAIN.COM.",
+    "mname": "NS1.NAMESERVER.NET."
+  },
+  "ns": [
+    {
+      "name": "@",
+      "host": "NS1.NAMESERVER.NET."
+    },
+    {
+      "name": "@",
+      "host": "NS2.NAMESERVER.NET."
+    }
+  ],
+  "mx": [
+    {
+      "name": "@",
+      "preference": 0,
+      "host": "mail1"
+    },
+    {
+      "name": "@",
+      "preference": 10,
+      "host": "mail2"
+    }
+  ],
+  "a": [
+    {
+      "name": "@",
+      "ip": "2.2.2.2"
+    },
+    {
+      "name": "@",
+      "ip": "1.1.1.1"
+    },
+    {
+      "name": "@",
+      "ip": "127.0.0.1"
+    },
+    {
+      "name": "www",
+      "ip": "127.0.0.1"
+    },
+    {
+      "name": "mail",
+      "ip": "127.0.0.1"
+    },
+    {
+      "name": "mail",
+      "ip": "1.2.3.4"
+    },
+    {
+      "name": "tst",
+      "ip": "101.228.10.127",
+      "ttl": 300
+    }
+  ],
+  "aaaa": [
+    {
+      "name": "@",
+      "ip": "::1"
+    },
+    {
+      "name": "mail",
+      "ip": "2001:db8::1"
+    },
+    {
+      "name": "A",
+      "ip": "2001:db8::1",
+      "ttl": 200
+    }
+  ],
+  "cname": [
+    {
+      "name": "mail1",
+      "alias": "mail"
+    },
+    {
+      "name": "mail2",
+      "alias": "mail"
+    },
+    {
+      "name": "CNAME",
+      "alias": "CNAME"
+    },
+    {
+      "name": "CNAME",
+      "alias": "CNAME"
+    }
+  ],
+  "txt": [
+    {
+      "name": "treefrog.ca.",
+      "txt": "\"v=spf1 a mx a:mail.treefrog.ca a:webmail.treefrog.ca ip4:76.75.250.33 ?all\" \"asdfsdaf\" \"sdfsadfdasf\""
+    },
+    {
+      "name": "treefrog.ca.",
+      "txt": "\"v=spf1 a mx a:mail.treefrog.ca a:webmail.treefrog.ca ip4:76.75.250.33 ?all\" \"asdfsdaf\" sdfsadfdasf"
+    },
+    {
+      "name": "treemonkey.ca.",
+      "txt": "\"v=DKIM1\\; k=rsa\\; p=MIGf...\""
+    },
+    {
+      "name": "treemonkey.ca.",
+      "txt": "\"v=DKIM1\\; k=rsa\\; p=MIGf...\""
+    }
+  ],
+  "srv": [
+    {
+      "name": "_foobar._tcp",
+      "target": "old-slow-box.example.com.",
+      "priority": 0,
+      "weight": 1,
+      "port": 9,
+      "ttl": 200
+    },
+    {
+      "name": "_foobar._tcp",
+      "target": "new-fast-box.example.com.",
+      "priority": 0,
+      "weight": 3,
+      "port": 9
+    },
+    {
+      "name": "_foobar._tcp",
+      "target": "sysadmins-box.example.com.",
+      "priority": 1,
+      "weight": 0,
+      "port": 9
+    },
+    {
+      "name": "_foobar._tcp",
+      "target": "server.example.com.",
+      "priority": 1,
+      "weight": 0,
+      "port": 9
+    },
+    {
+      "name": "*._tcp",
+      "target": ".",
+      "priority": 0,
+      "weight": 0,
+      "port": 0
+    },
+    {
+      "name": "*._udp",
+      "target": ".",
+      "priority": 0,
+      "weight": 0,
+      "port": 0
+    }
+  ],
+  "spf": [
+    {
+      "name": "test",
+      "data": "\"v=spf1\" \"mx:gcloud-node.com.\" \"-all\""
+    },
+    {
+      "name": "test1",
+      "data": "\"v=spf2\" \"mx:gcloud-node.com.\" \"-all\""
+    },
+    {
+      "name": "test1",
+      "data": "\"v=spf3\" \"mx:gcloud-node.com.\" \"-all    \" \"aasdfsadfdsafdasf\""
+    },
+    {
+      "name": "test1",
+      "data": "\"v=spf4\" \"mx:gcloud-node.com.\" \"-all\""
+    }
+  ],
+  "caa": [
+    {
+      "name": "@",
+      "flags": 0,
+      "tag": "issue",
+      "value": "\"ca.example.net; account=230123\""
+    },
+    {
+      "name": "@",
+      "flags": 0,
+      "tag": "iodef",
+      "value": "\"mailto:security@example.com\""
+    },
+    {
+      "name": "@",
+      "flags": 0,
+      "tag": "iodef",
+      "value": "\"http://iodef.example.com/\""
+    }
+  ],
+  "ds": [
+    {
+      "name": "secure.example.",
+      "key_tag": "tag=12345",
+      "algorithm": "alg=3",
+      "digest_type": "digest_type=1",
+      "digest": "<foofoo>"
+    },
+    {
+      "name": "secure.example.",
+      "key_tag": "tag=12345",
+      "algorithm": "alg=3",
+      "digest_type": "digest_type=1",
+      "digest": "\"<foofoo>\""
+    }
+  ]
+}
+
+
+---
+File: /tests/zonefile_forward.txt
+---
+
+$ORIGIN MYDOMAIN.COM.
+$TTL 3600
+@	IN	SOA	NS1.NAMESERVER.NET.	HOSTMASTER.MYDOMAIN.COM.	(
+			1406291485	 ;serial
+			3600	 ;refresh
+			600	 ;retry
+			604800	 ;expire
+			86400	 ;minimum ttl
+)
+
+@	NS	NS1.NAMESERVER.NET.
+@	NS	NS2.NAMESERVER.NET.
+
+@	MX	0	mail1
+@	MX	10	mail2
+
+    IN  A	2.2.2.2
+	A	1.1.1.1
+@	A	127.0.0.1
+www	A	127.0.0.1
+mail	A	127.0.0.1
+			A 1.2.3.4
+tst 300 IN A 101.228.10.127;this is a comment
+
+@	AAAA	::1
+mail	AAAA	2001:db8::1
+A  200 AAAA  2001:db8::1
+
+@       CAA 0 issue "ca.example.net; account=230123"
+@       CAA 0 iodef "mailto:security@example.com"
+        CAA 0 iodef "http://iodef.example.com/"
+
+mail1	CNAME	mail
+mail2	CNAME	mail
+CNAME	CNAME	CNAME
+      CNAME	CNAME
+
+test IN SPF "v=spf1" "mx:gcloud-node.com." "-all"
+test1 SPF "v=spf2" "mx:gcloud-node.com." "-all"
+    IN  SPF "v=spf3" "mx:gcloud-node.com." "-all    " "aasdfsadfdsafdasf"
+    SPF "v=spf4" "mx:gcloud-node.com." "-all"
+
+treefrog.ca. IN TXT "v=spf1 a mx a:mail.treefrog.ca a:webmail.treefrog.ca ip4:76.75.250.33 ?all" "asdfsdaf" "sdfsadfdasf"
+   IN TXT "v=spf1 a mx a:mail.treefrog.ca a:webmail.treefrog.ca ip4:76.75.250.33 ?all" "asdfsdaf" sdfsadfdasf
+treemonkey.ca. IN TXT "v=DKIM1\; k=rsa\; p=MIGf..."
+    TXT "v=DKIM1\; k=rsa\; p=MIGf..."
+
+secure.example.   IN   DS      tag=12345 alg=3 digest_type=1 <foofoo>
+   DS      tag=12345 alg=3 digest_type=1 "<foofoo>"
+
+
+; foobar - use old-slow-box or new-fast-box if either is
+; available, make three quarters of the logins go to
+; new-fast-box.
+_foobar._tcp  200  SRV 0 1 9 old-slow-box.example.com.
+                SRV 0 3 9 new-fast-box.example.com.
+; if neither old-slow-box or new-fast-box is up, switch to
+; using the sysdmin's box and the server
+                SRV 1 0 9 sysadmins-box.example.com.
+                SRV 1 0 9 server.example.com.
+
+; NO other services are supported
+*._tcp          SRV  0 0 0 .
+*._udp          SRV  0 0 0 .
+
+
+---
+File: /tests/zonefile_reverse_ipv4.json
+---
+
+{
+   "$origin": "0.168.192.IN-ADDR.ARPA.",
+   "$ttl": "3600",
+   "soa": {
+      "name": "@",
+      "minimum": 86400,
+      "expire": 604800,
+      "retry": 600,
+      "refresh": 3600,
+      "serial": 1406291485,
+      "rname": "HOSTMASTER.MYDOMAIN.COM.",
+      "mname": "NS1.NAMESERVER.NET."
+   },
+   "ns": [
+      {
+         "name": "@",
+         "host": "NS1.NAMESERVER.NET."
+      },
+      {
+         "name": "@",
+         "host": "NS2.NAMESERVER.NET."
+      }
+   ],
+   "ptr": [
+      {
+         "name": "1",
+         "fullname": "1.0.168.192.IN-ADDR.ARPA.",
+         "host": "HOST1.MYDOMAIN.COM.",
+         "ttl": 400
+      },
+      {
+         "name": "2",
+         "fullname": "2.0.168.192.IN-ADDR.ARPA.",
+         "host": "HOST2.MYDOMAIN.COM."
+      },
+      {
+         "name": "3",
+         "fullname": "3.0.168.192.IN-ADDR.ARPA.",
+         "host": "HOST3.MYDOMAIN.COM."
+      },
+      {
+         "name": "4",
+         "fullname": "4.0.168.192.IN-ADDR.ARPA.",
+         "host": "HOST4.MYDOMAIN.COM."
+      },
+      {
+         "name": "4",
+         "fullname": "4.0.168.192.IN-ADDR.ARPA.",
+         "host": "HOST5.MYDOMAIN.COM."
+      },
+      {
+         "name": "4",
+         "fullname": "4.0.168.192.IN-ADDR.ARPA.",
+         "host": "HOST6.MYDOMAIN.COM."
+      },
+      {
+         "name": "10.3",
+         "fullname": "10.3.0.168.192.IN-ADDR.ARPA.",
+         "host": "HOST3.MYDOMAIN.COM."
+      },
+      {
+         "name": "10.4",
+         "fullname": "10.4.0.168.192.IN-ADDR.ARPA.",
+         "host": "HOST4.MYDOMAIN.COM."
+      }
+   ]
+}
+
+
+---
+File: /tests/zonefile_reverse_ipv4.txt
+---
+
+$ORIGIN 0.168.192.IN-ADDR.ARPA.
+$TTL 3600
+@	IN	SOA	NS1.NAMESERVER.NET.	HOSTMASTER.MYDOMAIN.COM.	(
+			1406291485	 ;serial
+			3600	 ;refresh
+			600	 ;retry
+			604800	 ;expire
+			86400	 ;minimum ttl
+)
+
+@	NS	NS1.NAMESERVER.NET.
+@	NS	NS2.NAMESERVER.NET.
+
+1	400 PTR	HOST1.MYDOMAIN.COM.
+2	PTR	HOST2.MYDOMAIN.COM.
+
+3	PTR	HOST3.MYDOMAIN.COM.
+4	PTR	HOST4.MYDOMAIN.COM.
+	PTR HOST5.MYDOMAIN.COM.
+	IN PTR HOST6.MYDOMAIN.COM.
+
+10.3	PTR	HOST3.MYDOMAIN.COM.
+10.4	PTR	HOST4.MYDOMAIN.COM.
+
+
+
+---
+File: /tests/zonefile_reverse_ipv6.json
+---
+
+{
+   "$origin": "0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.8.b.d.0.1.0.0.2.ip6.arpa.",
+   "$ttl": "3600",
+   "soa": {
+      "name": "@",
+      "minimum": 86400,
+      "expire": 604800,
+      "retry": 600,
+      "refresh": 3600,
+      "serial": 1406291485,
+      "rname": "HOSTMASTER.MYDOMAIN.COM.",
+      "mname": "NS1.NAMESERVER.NET."
+   },
+   "ns": [
+      {
+         "name": "@",
+         "host": "NS1.NAMESERVER.NET."
+      },
+      {
+         "name": "@",
+         "host": "NS2.NAMESERVER.NET."
+      }
+   ],
+   "ptr": [
+      {
+         "name": "1",
+         "fullname": "1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.8.b.d.0.1.0.0.2.ip6.arpa.",
+         "host": "HOST1.MYDOMAIN.COM.",
+         "ttl": 400
+      },
+      {
+         "name": "2",
+         "fullname": "2.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.8.b.d.0.1.0.0.2.ip6.arpa.",
+         "host": "HOST2.MYDOMAIN.COM."
+      }
+   ]
+}
+
+
+---
+File: /tests/zonefile_reverse_ipv6.txt
+---
+
+$ORIGIN 0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.8.b.d.0.1.0.0.2.ip6.arpa.
+$TTL 3600
+@	IN	SOA	NS1.NAMESERVER.NET.	HOSTMASTER.MYDOMAIN.COM.	(
+			1406291485	 ;serial
+			3600	 ;refresh
+			600	 ;retry
+			604800	 ;expire
+			86400	 ;minimum ttl
+)
+
+@  NS	NS1.NAMESERVER.NET.
+@	NS	NS2.NAMESERVER.NET.
+
+1	400   PTR	HOST1.MYDOMAIN.COM.
+2	PTR	HOST2.MYDOMAIN.COM.
+
+
+
+---
+File: /package.json
+---
+
+{
+  "name": "dns-zonefile",
+  "version": "0.3.2",
+  "description": "A DNS zone file parser and generator.",
+  "main": "./lib/zonefile.js",
+  "types": "./lib/zonefile.d.ts",
+  "bin": {
+    "zonefile": "./bin/zonefile-cli.js"
+  },
+  "scripts": {
+    "test": "npx jasmine tests/tests.js"
+  },
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/elgs/dns-zonefile.git"
+  },
+  "keywords": [
+    "DNS",
+    "zone",
+    "cli"
+  ],
+  "author": "Qian Chen",
+  "license": "ISC",
+  "contributors": [
+    {
+      "name": "William Ferrell",
+      "email": "willfe@gmail.com"
+    },
+    {
+      "name": "Christoph Witzko",
+      "email": "github@christophwitzko.com"
+    },
+    {
+      "name": "Lance Hudson",
+      "email": "lance@lancehudson.com"
+    },
+    {
+      "name": "Rouven Weßling"
+    },
+    {
+      "name": "Sebastian Vollnhals"
+    },
+    {
+      "name": "Chris Flook"
+    },
+    {
+      "name": "Stephen Sawchuk",
+      "email": "sawchuk@gmail.com"
+    },
+    {
+      "name": "Mayo Jordanov"
+    },
+    {
+      "name": "Ben Speakman"
+    },
+    {
+      "name": "Adam Dobrawy"
+    },
+    {
+      "name": "Pelle Johnsen"
+    }
+  ],
+  "devDependencies": {
+    "deep-equal": "^2.2.3",
+    "jasmine": "^5.6.0"
+  }
+}
+
+
+---
+File: /README.md
+---
+
+dns-zonefile
+============
+An [RFC1035 compliant](http://www.ietf.org/rfc/rfc1035.txt) DNS zone file
+parser and generator for Node.js and browser.
+
+# Installation
+
+## Deno
+
+```typescript
+import zonefile from 'https://deno.land/x/zonefile@0.3.2/lib/zonefile.js';
+```
+
+## Standalone
+
+`npm install dns-zonefile -g`
+
+## Module
+
+`npm install dns-zonefile`
+
+# Usage
+
+## Zone Information
+
+_dns-zonefile_ accepts both zone data expressed as a JSON object or plain text
+zone file. It supports `SOA`, `NS`, `A`, `AAAA`, `CNAME`, `MX`, `PTR`, `SRV`, 
+`SPF`, `CAA`, `DS` and `TXT` record types as well as the `$ORIGIN` keyword 
+(for zone-wide use only). Each record type (and the `$ORIGIN` keyword) is 
+optional, though _bind_ expects to find at least an `SOA` record in a valid 
+zone file.
+
+### Examples
+
+#### Forward DNS Zone
+
+The following JSON produces a zone file for a forward DNS zone:
+
+```json
+{
+    "$origin": "MYDOMAIN.COM.",
+    "$ttl": 3600,
+    "soa": {
+        "mname": "NS1.NAMESERVER.NET.",
+        "rname": "HOSTMASTER.MYDOMAIN.COM.",
+        "serial": "{time}",
+        "refresh": 3600,
+        "retry": 600,
+        "expire": 604800,
+        "minimum": 86400
+    },
+    "ns": [
+        { "host": "NS1.NAMESERVER.NET." },
+        { "host": "NS2.NAMESERVER.NET." }
+    ],
+    "a": [
+        { "name": "@", "ip": "127.0.0.1" },
+        { "name": "www", "ip": "127.0.0.1" },
+        { "name": "mail", "ip": "127.0.0.1" }
+    ],
+    "aaaa": [
+        { "ip": "::1" },
+        { "name": "mail", "ip": "2001:db8::1" }
+    ],
+    "cname":[
+        { "name": "mail1", "alias": "mail" },
+        { "name": "mail2", "alias": "mail" }
+    ],
+    "mx":[
+        { "preference": 0, "host": "mail1" },
+        { "preference": 10, "host": "mail2" }
+    ],
+    "txt":[
+        { "name": "txt1", "txt": "hello" },
+        { "name": "txt2", "txt": "world" }
+    ],
+    "srv":[
+        { "name": "_xmpp-client._tcp", "target": "jabber", "priority": 10, "weight": 0, "port": 5222 },
+        { "name": "_xmpp-server._tcp", "target": "jabber", "priority": 10, "weight": 0, "port": 5269 }
+    ]
+}
+```
+
+_dns-zonefile_ will produce the following zone file from the above information,
+while the following zone file can as well be parsed to produce the zone file
+like above:
+
+```
+; Zone: MYDOMAIN.COM.
+; Exported  (yyyy-mm-ddThh:mm:ss.sssZ): 2014-09-22T21:10:36.697Z
+
+$ORIGIN MYDOMAIN.COM.
+$TTL 3600
+
+; SOA Record
+@	 		IN	SOA	NS1.NAMESERVER.NET.	HOSTMASTER.MYDOMAIN.COM.	(
+			1411420237	 ;serial
+			3600	 ;refresh
+			600	 ;retry
+			604800	 ;expire
+			86400	 ;minimum ttl
+)
+
+; NS Records
+@	IN	NS	NS1.NAMESERVER.NET.
+@	IN	NS	NS2.NAMESERVER.NET.
+
+; MX Records
+@	IN	MX	0	mail1
+@	IN	MX	10	mail2
+
+; A Records
+@	IN	A	127.0.0.1
+www	IN	A	127.0.0.1
+mail	IN	A	127.0.0.1
+
+; AAAA Records
+@	IN	AAAA	::1
+mail	IN	AAAA	2001:db8::1
+
+; CNAME Records
+mail1	IN	CNAME	mail
+mail2	IN	CNAME	mail
+
+; TXT Records
+txt1	IN	TXT	"hello"
+txt2	IN	TXT	"world"
+
+; SRV Records
+_xmpp-client._tcp	IN	SRV	10	0	5222	jabber
+_xmpp-server._tcp	IN	SRV	10	0	5269	jabber
+```
+
+### Reverse DNS Zone
+
+This JSON will produce a zone file for a reverse DNS zone (the `$ORIGIN`
+keyword is recommended for reverse DNS zones):
+
+```json
+{
+	"$origin": "0.168.192.IN-ADDR.ARPA.",
+	"$ttl": 3600,
+	"soa": {
+		"mname": "NS1.NAMESERVER.NET.",
+		"rname": "HOSTMASTER.MYDOMAIN.COM.",
+		"serial": "{time}",
+		"refresh": 3600,
+		"retry": 600,
+		"expire": 604800,
+		"minimum": 86400
+	},
+  "ns": [
+      { "host": "NS1.NAMESERVER.NET." },
+      { "host": "NS2.NAMESERVER.NET." }
+  ],
+  "ptr":[
+      { "name": 1, "host": "HOST1.MYDOMAIN.COM." },
+      { "name": 2, "host": "HOST2.MYDOMAIN.COM." }
+  ]
+}
+```
+
+_dns-zonefile_ will produce the following zone file from the above information,
+while the following zone file can as well be parsed to produce the zone file
+like above:
+
+```
+; Zone: 0.168.192.IN-ADDR.ARPA.
+; Exported  (yyyy-mm-ddThh:mm:ss.sssZ): 2014-09-22T21:10:36.698Z
+
+$ORIGIN 0.168.192.IN-ADDR.ARPA.
+$TTL 3600
+
+; SOA Record
+@	 		IN	SOA	NS1.NAMESERVER.NET.	HOSTMASTER.MYDOMAIN.COM.	(
+			1411420237	 ;serial
+			3600	 ;refresh
+			600	 ;retry
+			604800	 ;expire
+			86400	 ;minimum ttl
+)
+
+; NS Records
+@	IN	NS	NS1.NAMESERVER.NET.
+@	IN	NS	NS2.NAMESERVER.NET.
+
+; PTR Records
+1	IN	PTR	HOST1.MYDOMAIN.COM.
+2	IN	PTR	HOST2.MYDOMAIN.COM.
+```
+
+## Standalone Usage
+
+To use _dns-zonefile_ to generate a zone file from JSON from the command line,
+place the desired JSON data in a file (`zonefile_data.json` in this example)
+and run the following command. Note that the resulting zone file will be
+printed to the console; to save the zone file to disk (`my_zone.conf` in this
+example), use redirection as in this example:
+
+```
+zonefile -g zonefile_data.json > my_zone.conf
+```
+
+To use _dns-zonefile_ to parse a zone file to JSON from the command line, place
+the desired zone file data in a file (`zonefile_data.txt` in this example) and
+run the following command. Note that the resulting JSON will be printed to the
+console; to save the JSON to disk (`my_zone.json` in this example), use
+redirection as in this example:
+
+```
+zonefile -p zonefile_data.txt > my_zone.json
+```
+
+If the `-g` and `-p` are omitted, `-g` will be assumed if the lower cased
+filename contains `.json`, otherwise, `-p` will be assumed.
+
+`zonefile -v` or `zonefile --version` will print the version information.
+
+## Module Usage
+
+_dns-zonefile_ can also be used as a module. Simply use `require()` to include
+it, then invoke its `generate()` function as shown in the following example:
+
+```javascript
+import fs from 'fs';
+import zonefile from 'dns-zonefile';
+const json = fs.readFileSync('./zonefile_forward.json', 'utf8');
+const options = JSON.parse(json);
+const output = zonefile.generate(options);
+console.log(output);
+```
+
+`options` can either be a parsed JSON object as shown above, or a regular
+Javascript object containing the same required fields.
+
+It is also possible to parse a zone file to JSON by invoking its `parse()`
+function as shown in the following example:
+
+```javascript
+import fs from 'fs';
+import zonefile from 'dns-zonefile';
+var text = fs.readFileSync('./zonefile_forward.txt', 'utf8');
+output = zonefile.parse(text);
+console.log(JSON.stringify(output));
+```
+
+# License
+ISC License (ISC)
+
+Copyright (c) 2014, Qian Chen
+
+Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
+OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+PERFORMANCE OF THIS SOFTWARE.
+

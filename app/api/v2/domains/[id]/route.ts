@@ -355,6 +355,42 @@ export async function GET(
                         mailFromStatus = mailFromAttrs?.MailFromDomainStatus || 'NotSet'
                         mailFromVerified = mailFromStatus === 'Success'
                         
+                        // Retry MAIL FROM setup if still pending, failed, or not set
+                        if (sesStatus === 'Success' && (mailFromStatus === 'Pending' || mailFromStatus === 'Failed' || mailFromStatus === 'NotSet')) {
+                            try {
+                                const expectedMailFromDomain = `mail.${domain.domain}`
+                                console.log(`🔄 Retrying MAIL FROM domain setup: ${expectedMailFromDomain} (current status: ${mailFromStatus})`)
+                                
+                                const retryMailFromCommand = new SetIdentityMailFromDomainCommand({
+                                    Identity: domain.domain,
+                                    MailFromDomain: expectedMailFromDomain,
+                                    BehaviorOnMXFailure: 'UseDefaultValue'
+                                })
+                                await sesClient.send(retryMailFromCommand)
+                                
+                                // Wait a moment for AWS to process
+                                await new Promise(resolve => setTimeout(resolve, 1000))
+                                
+                                // Check status again after retry
+                                const recheckMailFromCmd = new GetIdentityMailFromDomainAttributesCommand({ 
+                                    Identities: [domain.domain] 
+                                })
+                                const recheckMailFromResp = await sesClient.send(recheckMailFromCmd)
+                                const recheckMailFromAttrs = recheckMailFromResp.MailFromDomainAttributes?.[domain.domain]
+                                
+                                // Update with rechecked values
+                                if (recheckMailFromAttrs) {
+                                    mailFromDomain = recheckMailFromAttrs.MailFromDomain
+                                    mailFromStatus = recheckMailFromAttrs.MailFromDomainStatus || 'Pending'
+                                    mailFromVerified = mailFromStatus === 'Success'
+                                    console.log(`✅ MAIL FROM retry completed: ${mailFromDomain} (new status: ${mailFromStatus})`)
+                                }
+                            } catch (retryError) {
+                                console.warn(`⚠️ MAIL FROM retry failed for ${domain.domain}:`, retryError)
+                                // Continue with original status if retry fails
+                            }
+                        }
+                        
                         // Update domain status based on SES verification
                         const updateData: any = {
                             lastSesCheck: new Date()
