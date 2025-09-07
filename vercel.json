@@ -1,0 +1,9 @@
+{
+  "crons": [
+    {
+      "path": "/api/webhooks/daily-usage",
+      "schedule": "0 13 * * *"
+    }
+  ]
+}
+
