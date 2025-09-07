@@ -37,7 +37,7 @@ export function LoginForm({
     try {
       await authClient.signIn.social({
         provider: "github",
-        callbackURL: "/logs", // Main layout will handle onboarding redirect
+        callbackURL: "/logs",
         errorCallbackURL: "/login?error=auth_failed",
       });
       // Don't reset loading state here as we'll be redirecting
@@ -52,7 +52,7 @@ export function LoginForm({
     try {
       await authClient.signIn.social({
         provider: "google",
-        callbackURL: "/logs", // Main layout will handle onboarding redirect
+        callbackURL: "/logs",
         errorCallbackURL: "/login?error=auth_failed",
       });
       // Don't reset loading state here as we'll be redirecting
