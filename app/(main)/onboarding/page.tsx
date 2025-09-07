@@ -16,7 +16,7 @@ import { Label } from '@/components/ui/label'
 import { useCreateApiKeyMutation } from '@/features/settings/hooks'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { completeOnboarding } from '@/app/actions/onboarding'
+import { completeOnboarding, skipOnboarding } from '@/app/actions/onboarding'
 import { trackSignupConversion } from '@/lib/utils/twitter-tracking'
 import Copy2 from '@/components/icons/copy-2'
 import Code2 from '@/components/icons/code-2'
@@ -28,6 +28,7 @@ export default function OnboardingPage() {
   const router = useRouter()
   const queryClient = useQueryClient()
   const [isCompleting, setIsCompleting] = useState(false)
+  const [isSkipping, setIsSkipping] = useState(false)
 
   // Step state
   const [activeStep, setActiveStep] = useState<1 | 2>(1)
@@ -312,6 +313,35 @@ export default function OnboardingPage() {
     }
   }
 
+  const handleSkipOnboarding = async () => {
+    if (!session?.user?.id) return
+
+    setIsSkipping(true)
+    try {
+      const result = await skipOnboarding(session.user.id)
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to skip onboarding')
+      }
+
+      // Invalidate onboarding status to update the cache
+      queryClient.invalidateQueries({ queryKey: ['onboarding-status'] })
+
+      // Track user signup conversion for Twitter ads (same as completing)
+      if (session.user.email) {
+        trackSignupConversion(session.user.email, session.user.id)
+      }
+
+      toast.success('Onboarding skipped. Welcome to Inbound! 🎉')
+      router.push('/add?onboarding=true')
+    } catch (error) {
+      console.error('Error skipping onboarding:', error)
+      toast.error(error instanceof Error ? error.message : 'Failed to skip onboarding')
+    } finally {
+      setIsSkipping(false)
+    }
+  }
+
   if (isPending) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -328,11 +358,22 @@ export default function OnboardingPage() {
     <div className="min-h-screen p-4 font-outfit">
       <div className="max-w-4xl mx-auto mt-10">
         {/* Header */}
-        <div className="mb-6">
-          <h2 className="text-2xl font-semibold text-foreground mb-1 tracking-tight">
-            Welcome to Inbound, {session.user.name || session.user.email?.split('@')[0]}!
-          </h2>
-          <p className="text-muted-foreground text-sm font-medium">Follow these quick steps to send your first email.</p>
+        <div className="mb-6 flex justify-between items-start">
+          <div>
+            <h2 className="text-2xl font-semibold text-foreground mb-1 tracking-tight">
+              Welcome to Inbound, {session.user.name || session.user.email?.split('@')[0]}!
+            </h2>
+            <p className="text-muted-foreground text-sm font-medium">Follow these quick steps to send your first email.</p>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleSkipOnboarding}
+            disabled={isSkipping || isCompleting}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            {isSkipping ? 'Skipping...' : 'Skip onboarding'}
+          </Button>
         </div>
 
         {/* Step 1: Create an API key */}

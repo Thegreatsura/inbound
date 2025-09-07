@@ -74,6 +74,73 @@ export async function completeOnboarding(userId: string) {
   }
 }
 
+export async function skipOnboarding(userId: string) {
+  try {
+    // Get user session
+    const session = await auth.api.getSession({
+      headers: await headers()
+    })
+
+    if (!session?.user?.id) {
+      return { success: false, error: 'Unauthorized' }
+    }
+
+    // Verify the user is updating their own onboarding
+    if (userId !== session.user.id) {
+      return { 
+        success: false, 
+        error: 'Forbidden - can only update your own onboarding status' 
+      }
+    }
+
+    console.log(`⏭️ Skipping onboarding for user ${userId}`)
+
+    // Update onboarding status (same as completing, but with skip context)
+    const [updatedOnboarding] = await db
+      .update(userOnboarding)
+      .set({ 
+        isCompleted: true,
+        completedAt: new Date(),
+        updatedAt: new Date()
+      })
+      .where(eq(userOnboarding.userId, userId))
+      .returning()
+
+    if (!updatedOnboarding) {
+      // If no record exists, create one (fallback case)
+      const [newOnboarding] = await db.insert(userOnboarding).values({
+        id: nanoid(),
+        userId: userId,
+        isCompleted: true,
+        defaultEndpointCreated: false, // Will be handled by auth hook
+        completedAt: new Date(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }).returning()
+
+      console.log(`✅ Created and skipped onboarding record for user ${userId}`)
+      return { 
+        success: true, 
+        onboarding: newOnboarding 
+      }
+    }
+
+    console.log(`✅ Marked onboarding as skipped for user ${userId}`)
+    return { 
+      success: true, 
+      onboarding: updatedOnboarding 
+    }
+
+  } catch (error) {
+    console.error('❌ Error skipping onboarding:', error)
+    return { 
+      success: false,
+      error: 'Failed to skip onboarding',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }
+  }
+}
+
 export async function getOnboardingStatus(userId?: string) {
   try {
     // Get user session if userId not provided
