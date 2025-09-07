@@ -1,9 +1,11 @@
 import { Resend } from 'resend';
 import { render } from '@react-email/render';
 import DomainVerifiedEmail from '@/emails/domain-verified';
+import { Inbound } from '@inboundemail/sdk';
 
 // Initialize Resend client
 const resend = new Resend(process.env.RESEND_API_KEY);
+const inbound = new Inbound(process.env.INBOUND_API_KEY!);
 
 export interface DomainVerificationNotificationData {
   userEmail: string;
@@ -49,13 +51,13 @@ export async function sendDomainVerificationNotification(
 
     // Determine the from address
     // Use a verified domain if available, otherwise use the default
-    const fromEmail = process.env.RESEND_FROM_EMAIL || 'notifications@inbound.new';
+    const fromEmail = 'notifications@inbound.new';
     
     // Format sender with name - Resend accepts "Name <email@domain.com>" format
     const fromWithName = `inbound support <${fromEmail}>`;
 
     // Send the email
-    const response = await resend.emails.send({
+    const response = await inbound.emails.send({
       from: fromWithName,
       to: data.userEmail,
       subject: `🎉 ${data.domain} has been successfully verified - inbound`,
@@ -70,7 +72,7 @@ export async function sendDomainVerificationNotification(
       console.error('❌ sendDomainVerificationNotification - Resend API error:', response.error);
       return {
         success: false,
-        error: `Email sending failed: ${response.error.message}`
+        error: `Email sending failed: ${response.error}`
       };
     }
 

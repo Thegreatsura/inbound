@@ -25,60 +25,149 @@ export const DomainVerifiedEmail = ({
   verifiedAt = new Date().toLocaleDateString(),
 }: DomainVerifiedEmailProps) => (
   <Html>
-    <Head />
+    <Head>
+      <link rel="preconnect" href="https://fonts.googleapis.com" />
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+      <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet" />
+      <style>{`
+        @media (prefers-color-scheme: dark) {
+          .dark-mode { display: block !important; }
+          .light-mode { display: none !important; }
+        }
+        @media (prefers-color-scheme: light) {
+          .dark-mode { display: none !important; }
+          .light-mode { display: block !important; }
+        }
+      `}</style>
+    </Head>
     <Preview>🎉 {domain} is verified and ready - inbound</Preview>
     <Body style={main}>
-      <Container style={container}>
-        {/* Header */}
-        <Section style={headerSection}>
-          <div style={logoContainer}>
-            <Img
-              src="https://inbound.new/inbound-wordmark.png"
-              alt="inbound"
-              width="200"
-              height="60"
-              style={wordmarkStyle}
-            />
+      {/* Light Mode Version */}
+      <div className="light-mode" style={lightMode}>
+        <div style={outerContainer}>
+          <div style={innerContainer}>
+            {/* Header */}
+            <Section style={headerSection}>
+              <div style={logoContainer}>
+                <Img src="https://inbound.new/inbound-logo.png" alt="inbound" width={24} height={24} style={{ marginRight: '4px' }} />
+                <Text style={logoText}>inbound</Text>
+              </div>
+              <Heading style={heading}>🎉 Domain Verified!</Heading>
+              <Text style={subheading}>
+                Your domain is now ready to receive emails
+              </Text>
+            </Section>
+
+            <Text style={text}>
+              Hi {userFirstname},
+            </Text>
+
+            <Text style={text}>
+              Your domain <strong style={strongText}>{domain}</strong> is now verified and ready to receive emails through inbound.
+            </Text>
+
+            <Section style={detailsSection}>
+              <Text style={detailText}>
+                ✅ Verified on {verifiedAt}<br />
+                ✅ Email receiving active<br />
+                ✅ Email sending active
+              </Text>
+            </Section>
+
+            <Section style={buttonSection}>
+              <Button style={button} href="https://inbound.new/dashboard">
+                Open Dashboard
+              </Button>
+            </Section>
+
+            <Section style={signatureSection}>
+              <Text style={text}>
+                Reply to this email if you have any questions, we read every email
+              </Text>
+              <Text style={signatureText}>
+                - ryan
+              </Text>
+            </Section>
+
+            <Section style={footerSection}>
+              <Text style={footerText}>
+                <Link href="https://inbound.new/docs" style={link}>docs</Link> • <Link href="https://inbound.new/support" style={link}>support</Link>
+              </Text>
+            </Section>
           </div>
-        </Section>
-        
-        <Text style={text}>
-          Hi {userFirstname},
-        </Text>
-        
-        <Text style={text}>
-          🎉 Your domain <strong>{domain}</strong> is now verified and ready to receive emails through inbound.
-        </Text>
+        </div>
 
-        <Section style={detailsSection}>
-          <Text style={detailText}>
-            ✅ Verified on {verifiedAt}<br/>
-            ✅ Email receiving active<br/>
-            ✅ AWS SES configured
+        {/* Footer */}
+        <div style={bottomFooter}>
+          <Text style={bottomFooterText}>
+            © {new Date().getFullYear()} inbound • Email infrastructure, redefined
           </Text>
-        </Section>
+        </div>
+      </div>
 
-        <Section style={buttonSection}>
-          <Button style={button} href="https://inbound.new/dashboard">
-            open dashboard
-          </Button>
-        </Section>
+      {/* Dark Mode Version */}
+      <div className="dark-mode" style={darkMode}>
+        <div style={outerContainerDark}>
+          <div style={innerContainerDark}>
+            {/* Header */}
+            <Section style={headerSectionDark}>
+              <div style={logoContainer}>
+                <Text style={logoTextDark}>inbound</Text>
+              </div>
+              <Heading style={headingDark}>🎉 Domain Verified!</Heading>
+              <Text style={subheadingDark}>
+                Your domain is now ready to receive emails
+              </Text>
+            </Section>
 
-        
-        
-        <Text style={text}>
-          reply to this email if you have any questions, we read every email 
-          <br/>
-          <br/>
-          - ryan
-        </Text>
+            <Text style={textDark}>
+              Hi {userFirstname},
+            </Text>
 
-        <Section style={footerSection}>
-          <Text style={footerText}>
-            <Link href="https://inbound.new/docs" style={link}>docs</Link> • <Link href="https://inbound.new/support" style={link}>support</Link>
+            <Text style={textDark}>
+              Your domain <strong style={strongTextDark}>{domain}</strong> is now verified and ready to receive emails through inbound.
+            </Text>
+
+            <Section style={detailsSectionDark}>
+              <Text style={detailTextDark}>
+                ✅ Verified on {verifiedAt}<br />
+                ✅ Email receiving active<br />
+                ✅ AWS SES configured
+              </Text>
+            </Section>
+
+            <Section style={buttonSection}>
+              <div style={buttonGlowDark}>
+                <Button style={buttonDark} href="https://inbound.new/dashboard">
+                  Open Dashboard
+                </Button>
+              </div>
+            </Section>
+
+            <Section style={signatureSection}>
+              <Text style={textDark}>
+                Reply to this email if you have any questions, we read every email
+              </Text>
+              <Text style={signatureTextDark}>
+                - ryan
+              </Text>
+            </Section>
+
+            <Section style={footerSectionDark}>
+              <Text style={footerTextDark}>
+                <Link href="https://inbound.new/docs" style={linkDark}>docs</Link> • <Link href="https://inbound.new/support" style={linkDark}>support</Link>
+              </Text>
+            </Section>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div style={bottomFooter}>
+          <Text style={bottomFooterTextDark}>
+            © {new Date().getFullYear()} inbound • Email infrastructure, redefined
           </Text>
-        </Section>
-      </Container>
+        </div>
+      </div>
     </Body>
   </Html>
 );
@@ -87,39 +176,92 @@ export default DomainVerifiedEmail;
 
 // Styles
 const main = {
-  backgroundColor: '#f8fafc',
-  fontFamily: 'Outfit, Arial, sans-serif',
+  margin: '0',
+  padding: '20px',
+  fontFamily: 'Outfit, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif',
+  letterSpacing: '-0.04em',
 };
 
-const container = {
-  backgroundColor: '#ffffff',
+// Light Mode Styles
+const lightMode = {
+  display: 'block',
+};
+
+const outerContainer = {
+  maxWidth: '600px',
   margin: '0 auto',
-  padding: '20px 0 48px',
-  marginBottom: '64px',
-  borderRadius: '12px',
+  background: 'linear-gradient(135deg, rgba(248, 250, 252, 0.6), rgba(241, 245, 249, 0.4))',
+  borderRadius: '30px',
+  overflow: 'hidden',
   boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+};
+
+const innerContainer = {
+  background: '#ffffff',
+  margin: '8px',
+  borderRadius: '25px',
+  padding: '48px 32px',
+  border: '1px solid rgba(0, 0, 0, 0.10)',
 };
 
 const headerSection = {
   textAlign: 'center' as const,
-  padding: '32px 0 24px',
-  borderBottom: '1px solid #e2e8f0',
   marginBottom: '32px',
 };
 
 const logoContainer = {
-  textAlign: 'center' as const,
-  marginBottom: '0',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: '8px',
+  marginBottom: '20px',
 };
 
-const wordmarkStyle = {
-  maxWidth: '100%',
-  height: 'auto',
+const logoText = {
+  fontFamily: 'Outfit, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+  fontSize: '24px',
+  fontWeight: '600',
+  color: '#414141',
+  margin: '0',
+};
+
+const heading = {
+  fontFamily: 'Outfit, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+  color: '#414141',
+  margin: '0 0 12px 0',
+  fontSize: '32px',
+  fontWeight: '600',
+  textAlign: 'center' as const,
+  letterSpacing: '-0.025em',
+};
+
+const subheading = {
+  color: '#6b7280',
+  fontSize: '16px',
+  margin: '0',
+  textAlign: 'center' as const,
+  lineHeight: '1.5',
+  fontFamily: 'Outfit, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+};
+
+const text = {
+  color: '#334155',
+  fontSize: '16px',
+  lineHeight: '24px',
+  margin: '16px 0',
+  fontFamily: 'Outfit, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+};
+
+const strongText = {
+  color: '#414141',
 };
 
 const detailsSection = {
-  backgroundColor: '#f8fafc',
+  backgroundColor: 'rgba(248, 250, 252, 0.6)',
   padding: '20px 24px',
+  borderRadius: '12px',
+  margin: '24px 0',
+  border: '1px solid rgba(0, 0, 0, 0.08)',
 };
 
 const detailText = {
@@ -127,57 +269,217 @@ const detailText = {
   fontSize: '14px',
   lineHeight: '22px',
   margin: '0',
-  fontFamily: 'Outfit, Arial, sans-serif',
-  wordBreak: 'break-word' as const,
+  fontFamily: 'Outfit, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
 };
 
 const buttonSection = {
   textAlign: 'center' as const,
   margin: '32px 0',
+  position: 'relative' as const,
+};
+
+const button = {
+  position: 'relative' as const,
+  display: 'inline-block',
+  background: '#8161FF',
+  color: 'white',
+  padding: '16px 40px',
+  textDecoration: 'none',
+  borderRadius: '12px',
+  fontWeight: '600',
+  fontSize: '16px',
+  fontFamily: 'Outfit, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+  boxShadow: '0 4px 14px 0 rgba(129, 97, 255, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.26)',
+  border: 'none',
+  cursor: 'pointer',
+};
+
+const signatureSection = {
+  marginTop: '24px',
+};
+
+const signatureText = {
+  color: '#334155',
+  fontSize: '16px',
+  lineHeight: '24px',
+  margin: '8px 0 0 0',
+  fontFamily: 'Outfit, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
 };
 
 const footerSection = {
   textAlign: 'center' as const,
-  marginTop: '40px',
-  paddingTop: '20px',
-  borderTop: '1px solid #e2e8f0',
-};
-
-const text = {
-  color: '#334155',
-  fontSize: '16px',
-  lineHeight: '24px',
-  margin: '16px 24px',
-  fontFamily: 'Outfit, Arial, sans-serif',
-};
-
-const button = {
-  backgroundColor: '#6C47FF',
-  borderRadius: '8px',
-  color: '#ffffff',
-  fontSize: '16px',
-  fontWeight: 'medium',
-  textDecoration: 'none',
-  textAlign: 'center' as const,
-  display: 'inline-block',
-  padding: '14px 32px',
-  border: 'none',
-  cursor: 'pointer',
-  boxShadow: '0 4px 6px -1px rgba(108, 71, 255, 0.3)',
-  fontFamily: 'Outfit, Arial, sans-serif',
+  padding: '24px 0',
+  borderTop: '1px solid rgba(0, 0, 0, 0.08)',
+  marginTop: '8px',
 };
 
 const footerText = {
-  color: '#64748b',
+  color: '#6b7280',
   fontSize: '14px',
   lineHeight: '24px',
   margin: '0',
-  fontFamily: 'Outfit, Arial, sans-serif',
+  fontFamily: 'Outfit, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
   textAlign: 'center' as const,
 };
 
 const link = {
-  color: '#6C47FF',
+  color: '#8161FF',
   textDecoration: 'underline',
   fontWeight: '500',
+};
+
+const bottomFooter = {
+  textAlign: 'center' as const,
+  padding: '24px',
+  marginTop: '16px',
+};
+
+const bottomFooterText = {
+  color: '#6b7280',
+  fontSize: '12px',
+  margin: '0',
+  fontFamily: 'Outfit, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+};
+
+// Dark Mode Styles
+const darkMode = {
+  display: 'none',
+};
+
+const outerContainerDark = {
+  maxWidth: '600px',
+  margin: '0 auto',
+  background: 'linear-gradient(135deg, rgba(20, 2, 28, 0.6), rgba(15, 1, 20, 0.4))',
+  borderRadius: '30px',
+  overflow: 'hidden',
+  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.3)',
+};
+
+const innerContainerDark = {
+  background: '#0f0114',
+  margin: '8px',
+  borderRadius: '25px',
+  padding: '48px 32px',
+  border: '1px solid rgba(255, 255, 255, 0.10)',
+};
+
+const headerSectionDark = {
+  textAlign: 'center' as const,
+  marginBottom: '32px',
+};
+
+const logoTextDark = {
+  fontFamily: 'Outfit, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+  fontSize: '24px',
+  fontWeight: '600',
+  color: '#ffffff',
+  margin: '0',
+};
+
+const headingDark = {
+  fontFamily: 'Outfit, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+  color: '#ffffff',
+  margin: '0 0 12px 0',
+  fontSize: '32px',
+  fontWeight: '600',
+  textAlign: 'center' as const,
+  letterSpacing: '-0.025em',
+};
+
+const subheadingDark = {
+  color: '#94a3b8',
+  fontSize: '16px',
+  margin: '0',
+  textAlign: 'center' as const,
+  lineHeight: '1.5',
+  fontFamily: 'Outfit, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+};
+
+const textDark = {
+  color: '#94a3b8',
+  fontSize: '16px',
+  lineHeight: '24px',
+  margin: '16px 0',
+  fontFamily: 'Outfit, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+};
+
+const strongTextDark = {
+  color: '#ffffff',
+};
+
+const detailsSectionDark = {
+  backgroundColor: 'rgba(255, 255, 255, 0.05)',
+  padding: '20px 24px',
+  borderRadius: '12px',
+  margin: '24px 0',
+  border: '1px solid rgba(255, 255, 255, 0.10)',
+};
+
+const detailTextDark = {
+  color: '#94a3b8',
+  fontSize: '14px',
+  lineHeight: '22px',
+  margin: '0',
+  fontFamily: 'Outfit, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+};
+
+const buttonGlowDark = {
+  position: 'absolute' as const,
+  inset: '-8px',
+  background: 'linear-gradient(45deg, rgba(124, 58, 237, 0.2), rgba(139, 92, 246, 0.2), rgba(168, 85, 247, 0.2))',
+  borderRadius: '16px',
+  filter: 'blur(8px)',
+};
+
+const buttonDark = {
+  position: 'relative' as const,
+  display: 'inline-block',
+  background: '#8161FF',
+  color: 'white',
+  padding: '16px 40px',
+  textDecoration: 'none',
+  borderRadius: '12px',
+  fontWeight: '600',
+  fontSize: '16px',
+  fontFamily: 'Outfit, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+  boxShadow: '0 4px 14px 0 rgba(129, 97, 255, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+  border: 'none',
+  cursor: 'pointer',
+};
+
+const signatureTextDark = {
+  color: '#94a3b8',
+  fontSize: '16px',
+  lineHeight: '24px',
+  margin: '8px 0 0 0',
+  fontFamily: 'Outfit, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+};
+
+const footerSectionDark = {
+  textAlign: 'center' as const,
+  padding: '24px 0',
+  borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+  marginTop: '8px',
+};
+
+const footerTextDark = {
+  color: '#94a3b8',
+  fontSize: '14px',
+  lineHeight: '24px',
+  margin: '0',
+  fontFamily: 'Outfit, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+  textAlign: 'center' as const,
+};
+
+const linkDark = {
+  color: '#bcacff',
+  textDecoration: 'underline',
+  fontWeight: '500',
+};
+
+const bottomFooterTextDark = {
+  color: '#94a3b8',
+  fontSize: '12px',
+  margin: '0',
+  fontFamily: 'Outfit, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
 }; 

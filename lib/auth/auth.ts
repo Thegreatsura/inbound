@@ -98,7 +98,7 @@ export const auth = betterAuth({
 
                 try {
                     const { data, error } = await inbound.emails.send({
-                        from: 'Inbound <noreply@inbound.new>',
+                        from: 'inbound <noreply@inbound.new>',
                         to: email,
                         subject: 'Sign in to inbound',
                         html: `
