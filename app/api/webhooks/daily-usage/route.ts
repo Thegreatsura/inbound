@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
 import { sql } from 'drizzle-orm'
 import DailyUsageSummaryEmail from '@/emails/daily-usage-summary'
@@ -8,12 +8,12 @@ import { generateObject } from 'ai'
 import { z } from 'zod'
 
 // Vercel cron/webhook route. Secure by shared secret header if set.
-export async function POST(request: NextRequest) {
+export async function GET(request: NextRequest) {
   const secret = process.env.USAGE_WEBHOOK_SECRET
   if (secret) {
     const header = request.headers.get('x-usage-secret')
     if (header !== secret) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return new Response(null, { status: 401 })
     }
   }
 
@@ -105,10 +105,10 @@ export async function POST(request: NextRequest) {
 
   if (response.error) {
     console.error('Daily usage email send failed:', response.error)
-    return NextResponse.json({ error: response.error }, { status: 500 })
+    return new Response(null, { status: 500 })
   }
 
-  return NextResponse.json({ ok: true })
+  return new Response(null, { status: 204 })
 }
 
 
