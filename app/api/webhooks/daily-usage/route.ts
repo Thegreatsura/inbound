@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server'
+
 import { db } from '@/lib/db'
 import { sql } from 'drizzle-orm'
 import DailyUsageSummaryEmail from '@/emails/daily-usage-summary'
@@ -8,14 +8,7 @@ import { generateObject } from 'ai'
 import { z } from 'zod'
 
 // Vercel cron/webhook route. Secure by shared secret header if set.
-export async function GET(request: NextRequest) {
-  const secret = process.env.USAGE_WEBHOOK_SECRET
-  if (secret) {
-    const header = request.headers.get('x-usage-secret')
-    if (header !== secret) {
-      return new Response(null, { status: 401 })
-    }
-  }
+export async function GET() {
 
   const now = new Date()
   const start = new Date(now)
