@@ -593,7 +593,19 @@ export default function AddDomainForm({
           ? (recordName === '@' ? rootDomain : record.name)
           : (recordName === '@' ? '@' : recordName)
         const [priority, mailServer] = record.value.split(' ')
-        zoneContent += `${name}\t\t3600\tMX\t${priority}\t${mailServer}\n`
+        
+        // Remove domain suffix if accidentally appended (common DNS provider issue)
+        let cleanMailServer = mailServer
+        if (cleanMailServer.endsWith(`.${rootDomain}`)) {
+          cleanMailServer = cleanMailServer.replace(`.${rootDomain}`, '')
+        }
+        
+        // Ensure MX target has trailing dot for FQDN (prevents auto-appending)
+        if (!cleanMailServer.endsWith('.')) {
+          cleanMailServer += '.'
+        }
+        
+        zoneContent += `${name}\t\t3600\tMX\t${priority}\t${cleanMailServer}\n`
       })
       zoneContent += `\n`
     }
@@ -830,7 +842,7 @@ export default function AddDomainForm({
 
   return (
     <div className="flex flex-col">
-      <div className="w-full px-2 mx-auto">
+      <div className="w-full px-10 mx-auto">
         <header className="mb-8 flex items-center space-x-4">
           {/* <div className="rounded-lg bg-iconBg">
             <Image src="/domain-icon.png" alt="Logo" width={48} height={48} className="p-2" />
@@ -1581,7 +1593,7 @@ export default function AddDomainForm({
                     {error && <p className="mt-4 text-sm text-destructive">{error}</p>}
 
                     <div className="flex gap-3 mt-10">
-                        {/* <Button
+                        <Button
                             onClick={() => downloadZoneFile()}
                             variant="secondary"
                             className="w-full md:w-auto"
@@ -1589,16 +1601,7 @@ export default function AddDomainForm({
                         >
                             <Download2 width="16" height="16" className="mr-2" />
                             Download Zone File
-                        </Button> */}
-                        {/* <Button
-                            onClick={() => downloadZoneFile(true)}
-                            variant="secondary"
-                            className="w-full md:w-auto"
-                            disabled={!domainName || dnsRecords.length === 0}
-                        >
-                            <Download2 width="16" height="16" className="mr-2" />
-                            Download Zone File
-                        </Button> */}
+                        </Button>
                     </div>
                 </div>
             )}
