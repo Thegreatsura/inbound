@@ -22,8 +22,8 @@
     "trigger-cron": "curl -X GET \"http://localhost:3000/api/cron/process-scheduled-emails\" -H \"Authorization: Bearer ${CRON_SECRET:-test-secret}\" || echo 'Make sure your dev server is running and CRON_SECRET is set'"
   },
   "dependencies": {
-    "@ai-sdk/openai": "^1.3.22",
-    "@ai-sdk/react": "^1.2.12",
+    "@ai-sdk/openai": "1.0.2",
+    "@ai-sdk/react": "1.0.0",
     "@aws-sdk/client-cloudwatch": "^3.841.0",
     "@aws-sdk/client-cloudwatch-logs": "^3.840.0",
     "@aws-sdk/client-lambda": "^3.840.0",
@@ -74,7 +74,7 @@
     "@types/dompurify": "^3.2.0",
     "@vercel/analytics": "^1.5.0",
     "@vercel/speed-insights": "^1.2.0",
-    "ai": "^5.0.34",
+    "ai": "5.0.15",
     "async_hooks": "^1.0.0",
     "autumn-js": "^0.0.47",
     "better-auth": "^1.3.8",
