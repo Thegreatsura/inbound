@@ -112,6 +112,7 @@ export const DomainVerifiedEmail = ({
             {/* Header */}
             <Section style={headerSectionDark}>
               <div style={logoContainer}>
+              <Img src="https://inbound.new/inbound-logo.png" alt="inbound" width={24} height={24} style={{ marginRight: '4px' }} />
                 <Text style={logoTextDark}>inbound</Text>
               </div>
               <Heading style={headingDark}>🎉 Domain Verified!</Heading>
@@ -137,11 +138,9 @@ export const DomainVerifiedEmail = ({
             </Section>
 
             <Section style={buttonSection}>
-              <div style={buttonGlowDark}>
                 <Button style={buttonDark} href="https://inbound.new/dashboard">
-                  Open Dashboard
-                </Button>
-              </div>
+                Open Dashboard
+              </Button>
             </Section>
 
             <Section style={signatureSection}>
@@ -421,14 +420,6 @@ const detailTextDark = {
   lineHeight: '22px',
   margin: '0',
   fontFamily: 'Outfit, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-};
-
-const buttonGlowDark = {
-  position: 'absolute' as const,
-  inset: '-8px',
-  background: 'linear-gradient(45deg, rgba(124, 58, 237, 0.2), rgba(139, 92, 246, 0.2), rgba(168, 85, 247, 0.2))',
-  borderRadius: '16px',
-  filter: 'blur(8px)',
 };
 
 const buttonDark = {
