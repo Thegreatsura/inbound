@@ -21,6 +21,9 @@ dist
 .next
 /out/
 
+# Development endpoints  
+app/api/development/
+
 # production
 /build
 .
