@@ -41,7 +41,7 @@ export async function createDomainVerification(
 }
 
 /**
- * Update domain with SES verification information
+ * Update domain with SES verification information and tenant association
  */
 export async function updateDomainSesVerification(
   domainId: string,
@@ -49,9 +49,10 @@ export async function updateDomainSesVerification(
   sesStatus: string,
   dnsRecords: Array<{ type: string; name: string; value: string; description?: string }>,
   mailFromDomain?: string,
-  mailFromDomainStatus?: string
+  mailFromDomainStatus?: string,
+  tenantId?: string // NEW: Optional tenant ID for tenant association
 ): Promise<EmailDomain> {
-  // Update the domain record with MAIL FROM domain information
+  // Update the domain record with MAIL FROM domain information and tenant association
   const updateData: any = {
     verificationToken,
     status: sesStatus === 'Success' ? 'verified' : 'pending',
@@ -69,6 +70,12 @@ export async function updateDomainSesVerification(
     if (mailFromDomainStatus === 'Success') {
       updateData.mailFromDomainVerifiedAt = new Date()
     }
+  }
+  
+  // Add tenant ID if provided (NEW TENANT INTEGRATION)
+  if (tenantId) {
+    updateData.tenantId = tenantId
+    console.log(`📝 Storing tenant ID ${tenantId} for domain`)
   }
 
   const [updated] = await db

@@ -624,8 +624,8 @@ export async function POST(request: NextRequest) {
             }
         )
 
-        // Initiate SES verification
-        console.log('🔐 Initiating SES domain verification')
+        // Initiate SES verification (includes tenant association for new domains)
+        console.log('🔐 Initiating SES domain verification with tenant integration')
         const verificationResult = await initiateDomainVerification(domain, userId)
 
         // Track domain usage with Autumn (only if not unlimited)

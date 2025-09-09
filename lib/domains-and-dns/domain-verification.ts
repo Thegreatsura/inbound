@@ -1,5 +1,6 @@
 import { SESClient, VerifyDomainIdentityCommand, GetIdentityVerificationAttributesCommand, DeleteIdentityCommand, SetIdentityMailFromDomainCommand, GetIdentityMailFromDomainAttributesCommand } from '@aws-sdk/client-ses'
 import { getDomainWithRecords, updateDomainSesVerification } from '@/lib/db/domains'
+import { getUserTenant, associateIdentityWithUserTenant } from '@/lib/aws-ses/aws-ses-tenants'
 
 // Check if AWS credentials are available
 const awsRegion = process.env.AWS_REGION || 'us-east-2'
@@ -73,14 +74,47 @@ export async function initiateDomainVerification(
       throw new Error('Invalid domain format')
     }
 
+    // Get or create tenant for user (NEW TENANT INTEGRATION)
+    console.log(`🏢 Getting tenant for user: ${userId}`)
+    const tenantResult = await getUserTenant(userId)
+    if (!tenantResult.success) {
+      throw new Error(`Failed to get user tenant: ${tenantResult.error}`)
+    }
+    
+    const userTenant = tenantResult.tenant
+    console.log(`✅ Using tenant: ${userTenant.id} (${userTenant.awsTenantId})`)
+
     // Verify domain identity with AWS SES (if not already done)
     let verificationToken = domainRecord.verificationToken
     if (!verificationToken) {
+      console.log(`🔐 Creating domain identity in AWS SES: ${domain}`)
       const verifyCommand = new VerifyDomainIdentityCommand({
         Domain: domain
       })
       const verifyResponse = await sesClient.send(verifyCommand)
       verificationToken = verifyResponse.VerificationToken || ''
+      
+      console.log(`✅ Domain identity created in AWS SES with token: ${verificationToken ? '***exists***' : 'none'}`)
+      
+      // IMMEDIATELY associate domain with user's tenant (NEW TENANT INTEGRATION)
+      console.log(`🔗 Immediately associating domain ${domain} with tenant ${userTenant.tenantName}`)
+      const associationResult = await associateIdentityWithUserTenant(userId, domain)
+      if (!associationResult.success) {
+        console.error(`❌ Failed to associate domain with tenant: ${associationResult.error}`)
+        // Continue with domain verification even if tenant association fails
+      } else {
+        console.log(`✅ Domain ${domain} successfully associated with tenant ${userTenant.tenantName}`)
+      }
+    } else {
+      console.log(`📋 Domain already has verification token, checking tenant association`)
+      
+      // For existing domains, try to associate with tenant if not already done
+      const associationResult = await associateIdentityWithUserTenant(userId, domain)
+      if (!associationResult.success) {
+        console.warn(`⚠️ Could not associate existing domain with tenant: ${associationResult.error}`)
+      } else {
+        console.log(`✅ Existing domain ${domain} associated with tenant ${userTenant.tenantName}`)
+      }
     }
 
     // Set up MAIL FROM domain automatically to remove "via amazonses.com"
@@ -169,7 +203,7 @@ export async function initiateDomainVerification(
       }
     ]
 
-    // Update domain record in database with SES information and MAIL FROM domain
+    // Update domain record in database with SES information, MAIL FROM domain, and tenant ID
     if (!domainRecord.verificationToken) {
       await updateDomainSesVerification(
         domainRecord.id,
@@ -177,7 +211,8 @@ export async function initiateDomainVerification(
         sesStatus,
         requiredDnsRecords,
         mailFromDomain,
-        mailFromDomainStatus
+        mailFromDomainStatus,
+        userTenant.id // NEW: Store tenant ID with domain
       )
     }
 

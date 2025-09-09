@@ -163,6 +163,7 @@ export async function listDomains(
       mailFromDomainVerifiedAt: emailDomains.mailFromDomainVerifiedAt,
       isCatchAllEnabled: emailDomains.isCatchAllEnabled,
       receiveDmarcEmails: emailDomains.receiveDmarcEmails,
+      tenantId: emailDomains.tenantId,
       createdAt: emailDomains.createdAt,
       updatedAt: emailDomains.updatedAt,
       userId: emailDomains.userId

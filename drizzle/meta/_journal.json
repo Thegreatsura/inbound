@@ -288,6 +288,13 @@
       "when": 1756589234726,
       "tag": "0040_old_dark_beast",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1757434983869,
+      "tag": "0041_far_spiral",
+      "breakpoints": true
     }
   ]
 }

@@ -45,6 +45,7 @@ import Refresh2 from '@/components/icons/refresh-2'
 import ObjRemove from '@/components/icons/obj-remove'
 import BoltLightning from '@/components/icons/bolt-lightning'
 import UserGroup from '@/components/icons/user-group'
+import Download2 from '@/components/icons/download-2'
 import { formatDistanceToNow } from 'date-fns'
 import { toast } from 'sonner'
 import { DOMAIN_STATUS } from '@/lib/db/schema'
@@ -86,6 +87,7 @@ import type {
 } from '@/app/api/v2/email-addresses/route'
 import { updateDomainDmarcSettings } from '@/app/actions/domains'
 import { ApiIdLabel } from '@/components/api-id-label'
+import { copyAndSaveZoneFile, type DnsRecord as ZoneDnsRecord } from '@/lib/utils/zone-file-generator'
 
 export default function DomainDetailPage() {
     const { data: session } = useSession()
@@ -192,6 +194,9 @@ export default function DomainDetailPage() {
     const [emailToDelete, setEmailToDelete] = useState<{ id: string; address: string } | null>(null)
     // Copy feedback for DNS table
     const [copiedKey, setCopiedKey] = useState<string | null>(null)
+    
+    // Zone file generation state
+    const [isGeneratingZoneFile, setIsGeneratingZoneFile] = useState(false)
 
     // Set catch-all endpoint ID when data loads
     useState(() => {
@@ -583,6 +588,47 @@ export default function DomainDetailPage() {
             toast.error(
                 error instanceof Error ? error.message : 'Failed to upgrade domain'
             )
+        }
+    }
+
+    // Zone file generation handler
+    const handleZoneFileGeneration = async () => {
+        if (!domainDetailsData || !authRecommendationsData?.verificationCheck?.dnsRecords) {
+            toast.error('No DNS records available to generate zone file')
+            return
+        }
+
+        setIsGeneratingZoneFile(true)
+
+        try {
+            // Convert API DNS records to zone file format
+            const zoneDnsRecords: ZoneDnsRecord[] = authRecommendationsData.verificationCheck.dnsRecords.map((record: any) => ({
+                type: record.type as ZoneDnsRecord['type'],
+                name: record.name,
+                value: record.value,
+                isVerified: record.isVerified,
+                error: record.error
+            }))
+
+            const result = await copyAndSaveZoneFile(domainDetailsData.domain, zoneDnsRecords, {
+                includeSoa: true,
+                ttl: 3600
+            })
+
+            if (result.copied && result.downloaded) {
+                toast.success('Zone file copied to clipboard and downloaded successfully')
+            } else if (result.copied) {
+                toast.success('Zone file copied to clipboard')
+            } else if (result.downloaded) {
+                toast.success('Zone file downloaded successfully')
+            } else {
+                toast.error('Failed to copy or download zone file')
+            }
+        } catch (error) {
+            console.error('Zone file generation error:', error)
+            toast.error(error instanceof Error ? error.message : 'Failed to generate zone file')
+        } finally {
+            setIsGeneratingZoneFile(false)
         }
     }
 
@@ -1378,33 +1424,45 @@ export default function DomainDetailPage() {
                                     <Globe2 width="20" height="20" className="text-primary" />
                                     <CardTitle className="text-foreground text-lg">DNS Records</CardTitle>
                                 </div>
-                                {(() => {
-                                    const allRecords = authRecommendationsData.verificationCheck.dnsRecords || []
-                                    const verifiedCount = allRecords.filter((r: any) => r.isVerified).length
-                                    const totalCount = allRecords.length
-                                    const allVerified = totalCount > 0 && verifiedCount === totalCount
-                                    const anyFailed = totalCount > 0 && verifiedCount < totalCount
+                                <div className="flex items-center gap-3">
+                                    {(() => {
+                                        const allRecords = authRecommendationsData.verificationCheck.dnsRecords || []
+                                        const verifiedCount = allRecords.filter((r: any) => r.isVerified).length
+                                        const totalCount = allRecords.length
+                                        const allVerified = totalCount > 0 && verifiedCount === totalCount
+                                        const anyFailed = totalCount > 0 && verifiedCount < totalCount
 
-                                    if (allVerified) {
+                                        if (allVerified) {
+                                            return (
+                                                <Badge variant="default">
+                                                    <CircleCheck width="12" height="12" className="mr-1" />
+                                                    Fully Verified
+                                                </Badge>
+                                            )
+                                        }
+                                        if (anyFailed) {
+                                            return (
+                                                <Badge variant="destructive">Failed to verify records</Badge>
+                                            )
+                                        }
                                         return (
-                                            <Badge variant="default">
-                                                <CircleCheck width="12" height="12" className="mr-1" />
-                                                Fully Verified
-                                            </Badge>
+                                            <Badge variant="outline">No records</Badge>
                                         )
-                                    }
-                                    if (anyFailed) {
-                                        return (
-                                            <Badge variant="destructive">Failed to verify records</Badge>
-                                        )
-                                    }
-                                    return (
-                                        <Badge variant="outline">No records</Badge>
-                                    )
-                                })()}
+                                    })()}
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={handleZoneFileGeneration}
+                                        disabled={isGeneratingZoneFile || !authRecommendationsData?.verificationCheck?.dnsRecords?.length}
+                                        className="flex items-center gap-2"
+                                    >
+                                        <Download2 width="16" height="16" />
+                                        {isGeneratingZoneFile ? 'Generating...' : 'Zone File'}
+                                    </Button>
+                                </div>
                             </div>
                             <CardDescription className="text-muted-foreground">
-                                All DNS records managed for {domain}
+                                All DNS records managed for {domain} - Download as RFC1035 zone file
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">

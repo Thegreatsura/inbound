@@ -56,6 +56,18 @@ export const onboardingDemoEmails = pgTable('onboarding_demo_emails', {
 });
 
 // You can add more app-specific tables here
+// SES Tenants table - manages AWS SES tenant isolation for users
+export const sesTenants = pgTable('ses_tenants', {
+  id: varchar('id', { length: 255 }).primaryKey(),
+  userId: varchar('user_id', { length: 255 }).notNull().unique(), // 1:1 relationship with users
+  awsTenantId: varchar('aws_tenant_id', { length: 255 }).notNull().unique(), // AWS SES tenant ID
+  tenantName: varchar('tenant_name', { length: 255 }).notNull(), // Human-readable name
+  status: varchar('status', { length: 50 }).notNull().default('active'), // 'active', 'paused', 'suspended'
+  reputationPolicy: varchar('reputation_policy', { length: 20 }).notNull().default('standard'), // 'standard', 'strict', 'none'
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
 export const emailDomains = pgTable('email_domains', {
   id: varchar('id', { length: 255 }).primaryKey(),
   domain: varchar('domain', { length: 255 }).notNull().unique(),
@@ -78,6 +90,8 @@ export const emailDomains = pgTable('email_domains', {
   catchAllReceiptRuleName: varchar('catch_all_receipt_rule_name', { length: 255 }),
   // DMARC email configuration
   receiveDmarcEmails: boolean('receive_dmarc_emails').default(false), // Whether to receive DMARC report emails (dmarc@domain)
+  // Tenant association (NEW)
+  tenantId: varchar('tenant_id', { length: 255 }), // References sesTenants.id
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
   userId: varchar('user_id', { length: 255 }).notNull(),
@@ -95,6 +109,8 @@ export const emailAddresses = pgTable('email_addresses', {
   // VIP fields
   isVipEnabled: boolean('is_vip_enabled').default(false),
   vipConfigId: varchar('vip_config_id', { length: 255 }), // Link to vipConfigs table
+  // Tenant association (NEW)
+  tenantId: varchar('tenant_id', { length: 255 }), // References sesTenants.id
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
   userId: varchar('user_id', { length: 255 }).notNull(),
@@ -667,6 +683,10 @@ export type SesVerificationStatus = typeof SES_VERIFICATION_STATUS[keyof typeof 
 export type ProviderConfidence = typeof PROVIDER_CONFIDENCE[keyof typeof PROVIDER_CONFIDENCE];
 export type EmailStatus = typeof EMAIL_STATUS[keyof typeof EMAIL_STATUS];
 export type WebhookStatus = typeof WEBHOOK_STATUS[keyof typeof WEBHOOK_STATUS];
+// Type exports
+export type SESTenantsSchema = typeof sesTenants.$inferSelect;
+export type NewSESTenant = typeof sesTenants.$inferInsert;
+
 export type EndpointType = typeof ENDPOINT_TYPES[keyof typeof ENDPOINT_TYPES];
 export type WebhookFormat = typeof WEBHOOK_FORMATS[keyof typeof WEBHOOK_FORMATS];
 export type DeliveryType = typeof DELIVERY_TYPES[keyof typeof DELIVERY_TYPES];
