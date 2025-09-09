@@ -76,7 +76,7 @@ export function TeamSwitcher({
               />
             </button>
             <div className="text-left text-xl leading-tight group-data-[collapsible=icon]:hidden">
-              <span className="truncate font-semibold text-3xl -ml-2" style={{ fontFamily: 'Outfit' }}>
+              <span className="truncate font-semibold text-3xl -ml-2 font-outfit">
                 inbound
               </span>
             </div>

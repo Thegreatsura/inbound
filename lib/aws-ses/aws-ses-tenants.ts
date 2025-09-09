@@ -120,11 +120,36 @@ export class SESTenantManager {
       })
 
       console.log(`📡 Creating AWS SES tenant: ${finalTenantName}`)
-      const awsResponse = await this.sesv2Client.send(createCommand)
-      const awsTenantId = awsResponse.TenantId
-
-      if (!awsTenantId) {
-        throw new Error('Failed to create AWS SES tenant - no tenant ID returned')
+      let awsTenantId: string
+      
+      try {
+        const awsResponse = await this.sesv2Client.send(createCommand)
+        awsTenantId = awsResponse.TenantId || ''
+        
+        if (!awsTenantId) {
+          throw new Error('Failed to create AWS SES tenant - no tenant ID returned')
+        }
+        console.log(`✅ AWS SES tenant created with ID: ${awsTenantId}`)
+      } catch (error: any) {
+        // Handle case where tenant already exists in AWS
+        if (error?.name === 'AlreadyExistsException' || error?.message?.includes('already exists')) {
+          console.log(`📋 Tenant already exists in AWS, getting existing tenant details...`)
+          
+          // Get existing tenant details
+          const getTenantCommand = new GetTenantCommand({
+            TenantName: finalTenantName
+          })
+          
+          try {
+            const existingTenantResponse = await this.sesv2Client.send(getTenantCommand)
+            awsTenantId = existingTenantResponse.Tenant?.TenantId || ''
+            console.log(`✅ Using existing AWS tenant: ${awsTenantId}`)
+          } catch (getError) {
+            throw new Error(`Tenant exists but could not retrieve details: ${getError instanceof Error ? getError.message : 'Unknown error'}`)
+          }
+        } else {
+          throw error // Re-throw if not an "already exists" error
+        }
       }
 
       // Store in local database

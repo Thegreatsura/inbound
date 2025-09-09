@@ -215,7 +215,7 @@
   }
   body {
     @apply bg-sidebar text-foreground font-sans;
-    font-family: var(--font-outfit), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    font-family: var(--font-geist), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
     letter-spacing: -0.04em; /* Geist -4% tracking for body */    
     overscroll-behavior-y: none;
   }
@@ -264,9 +264,10 @@
     }
   }
 
-  /* Heading typography rules */
+  /* Heading typography rules - Outfit semibold for all headings and titles */
   h1, h2, h3, h4, h5, h6, .heading, .title {
     font-family: var(--font-outfit), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    font-weight: 600; /* semibold */
     letter-spacing: normal;
   }
   

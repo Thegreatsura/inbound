@@ -237,7 +237,7 @@ export default function EndpointsPage() {
 
   if (isLoading || migrationInProgress) {
     return (
-      <div className="min-h-screen p-4 font-outfit">
+      <div className="min-h-screen p-4">
         <div className="max-w-6xl mx-auto">
           <div className="flex items-center justify-center py-12">
             <div className="text-center">
@@ -258,7 +258,7 @@ export default function EndpointsPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen p-4 font-outfit">
+      <div className="min-h-screen p-4">
         <div className="max-w-6xl mx-auto">
           <Card className="border-destructive/50 bg-destructive/10">
             <CardContent className="p-6">
@@ -278,7 +278,7 @@ export default function EndpointsPage() {
 
   return (
     <>
-      <div className="min-h-screen p-4 font-outfit">
+      <div className="min-h-screen p-4">
         <div className="max-w-6xl mx-auto">
           <div className="flex items-center justify-between rounded-lg mb-6 mt-4">
             <div>
