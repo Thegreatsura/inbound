@@ -7,7 +7,7 @@ export default function BlogPostNotFound() {
       <SiteHeader />
       <div className="max-w-4xl mx-auto px-6 py-20 text-center">
         <div className="mb-8">
-          <h1 className="text-4xl md:text-5xl font-bold mb-6 leading-tight">
+          <h1 className="text-4xl md:text-5xl mb-6 leading-tight">
             Blog Post Not Found
           </h1>
           <p className="text-lg text-muted-foreground mb-8 leading-relaxed">

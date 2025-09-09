@@ -144,7 +144,7 @@ export default function WebhooksPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen p-4 font-outfit">
+      <div className="min-h-screen p-4">
         <div className="max-w-5xl mx-auto">
           <div className="flex items-center justify-center py-12">
             <div className="text-muted-foreground">Loading webhooks...</div>
@@ -156,7 +156,7 @@ export default function WebhooksPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen p-4 font-outfit">
+      <div className="min-h-screen p-4">
         <div className="max-w-5xl mx-auto">
           <Card className="border-destructive/50 bg-destructive/10">
             <CardContent className="p-6">
@@ -176,7 +176,7 @@ export default function WebhooksPage() {
 
     return (
     <>
-      <div className="min-h-screen p-4 font-outfit">
+      <div className="min-h-screen p-4">
         <div className="max-w-5xl mx-auto">
           {/* Compact Header */}
           <div className="flex items-center justify-between bg-slate-900 text-white rounded-lg p-4 mb-6">

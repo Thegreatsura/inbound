@@ -33,7 +33,7 @@ export function BlogCard({ blog, className = "" }: BlogCardProps) {
         )}
         <div className="flex flex-col gap-2">
           <h2
-            className="text-xl font-medium text-foreground group-hover:text-primary 
+            className="text-xl text-foreground group-hover:text-primary 
         transition-colors"
           >
             {blog.title}

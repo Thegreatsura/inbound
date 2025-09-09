@@ -19,7 +19,7 @@ export default function TermsPage() {
       {/* Content */}
       <main className="px-6 py-12">
         <div className="max-w-4xl mx-auto">
-          <h1 className="text-4xl font-bold text-gray-900 mb-8">Terms of Service</h1>
+          <h1 className="text-4xl text-gray-900 mb-8">Terms of Service</h1>
           
           <div className="prose prose-lg max-w-none">
             <p className="text-gray-600 mb-8">

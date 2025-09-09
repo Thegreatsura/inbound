@@ -9,17 +9,13 @@ import InboundIcon from '@/components/icons/inbound'
 
 export default function PricingPage() {
   return (
-    <div className="min-h-screen bg-background text-foreground font-['Outfit',sans-serif] relative">
-      {/* CSS Variables for theme */}
-      <style jsx global>{`
-        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@100;200;300;400;500;600;700;800;900&display=swap');
-      `}</style>
+    <div className="min-h-screen bg-background text-foreground relative">
 
       <SiteHeader />
 
       {/* Hero Section */}
       <section className="max-w-6xl mx-auto px-6 py-20 text-center">
-        <h1 className="text-4xl md:text-5xl font-bold mb-6 leading-tight">
+        <h1 className="text-4xl md:text-5xl mb-6 leading-tight">
           Simple, transparent pricing
         </h1>
         <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-16 leading-relaxed">
@@ -37,7 +33,7 @@ export default function PricingPage() {
       {/* FAQ Section */}
       <section className="bg-card py-20">
         <div className="max-w-4xl mx-auto px-6">
-          <h2 className="text-3xl font-bold text-center mb-4 text-foreground">Frequently asked questions</h2>
+          <h2 className="text-3xl text-center mb-4 text-foreground">Frequently asked questions</h2>
           <p className="text-muted-foreground text-center mb-12">
             Got questions? We've got answers.
           </p>
@@ -69,7 +65,7 @@ export default function PricingPage() {
 
       {/* CTA Section */}
       <section className="max-w-4xl mx-auto px-6 py-20 text-center">
-        <h2 className="text-3xl font-bold mb-4 text-foreground">Ready to get started?</h2>
+        <h2 className="text-3xl mb-4 text-foreground">Ready to get started?</h2>
         <p className="text-lg text-muted-foreground mb-12">
           Join thousands of developers who trust Inbound for their email infrastructure.
         </p>

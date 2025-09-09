@@ -210,7 +210,7 @@ export async function POST(request: NextRequest) {
             <img src="/vercel-oss.svg" alt="Vercel OSS" className="h-6 sm:h-8 p-2 sm:p-3 dark:invert-0 invert" />
           </div>
           
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-4 sm:mb-6 leading-tight text-foreground">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl mb-4 sm:mb-6 leading-tight text-foreground">
             <div className="flex flex-wrap items-center justify-center gap-1 sm:gap-2">
               <PaperPlane2 width={24} height={24} className="sm:w-[30px] sm:h-[30px] shrink-0" />
               <span>email platform for</span>
@@ -320,7 +320,7 @@ export async function POST(request: NextRequest) {
             <>
               <div key={i} className="grid md:grid-cols-4 gap-8 items-center">
                 <div className={`space-y-4 md:col-span-2 ${i % 2 === 1 ? 'md:order-2' : ''}`}>
-                  <h3 className="text-2xl font-bold text-[var(--text-primary)]">{story.title}</h3>
+                  <h3 className="text-2xl text-[var(--text-primary)]">{story.title}</h3>
                   <p className="text-lg text-[var(--text-secondary)] leading-relaxed">{story.description}</p>
                 </div>
                 <div className={`md:col-span-2 ${i % 2 === 1 ? 'md:order-1' : ''}`}>
@@ -409,12 +409,12 @@ export async function POST(request: NextRequest) {
           <Boxes />
         </div>
         <div className="max-w-6xl mx-auto px-6 relative z-10">
-          <h2 className="text-3xl font-bold text-center mb-12 text-foreground">let's be honest about email</h2>
+          <h2 className="text-3xl text-center mb-12 text-foreground">let's be honest about email</h2>
 
           <div className="grid md:grid-cols-4 gap-8 items-center">
             {/* What You're Probably Doing Now */}
             <div className="space-y-4 md:col-span-2">
-              <h3 className="text-2xl font-bold text-foreground">What You're Probably Doing Now</h3>
+              <h3 className="text-2xl text-foreground">What You're Probably Doing Now</h3>
               <div className="bg-muted/40 border border-border rounded-lg p-6 space-y-2 leading-relaxed text-foreground">
                 <p>• Googling "how to send email in Node.js" for the 17th time</p>
                 <p>• Wrestling with nodemailer configuration that breaks in production</p>
@@ -428,7 +428,7 @@ export async function POST(request: NextRequest) {
             {/* What You Could Be Doing */}
             <div className="md:col-span-2">
               <div className="space-y-4 mb-4">
-                <h3 className="text-2xl font-bold text-foreground">What You Could Be Doing</h3>
+                <h3 className="text-2xl text-foreground">What You Could Be Doing</h3>
               </div>
               <div className="bg-card border border-border rounded-lg overflow-hidden">
                 <div className="py-1.5 px-4 bg-muted/30 border-b border-border font-mono text-xs flex items-center gap-2 font-bold text-muted-foreground justify-between">

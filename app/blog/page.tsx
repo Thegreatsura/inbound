@@ -10,7 +10,7 @@ export default async function BlogPage() {
       <SiteHeader />
       {/* Hero Section */}
       <section className="max-w-6xl mx-auto px-6 py-20 text-center">
-        <h1 className="text-4xl md:text-5xl font-bold mb-6 leading-tight">
+        <h1 className="text-4xl md:text-5xl mb-6 leading-tight">
           Blog
         </h1>
         <p className="text-lg text-[var(--text-secondary)] max-w-2xl mx-auto mb-16 leading-relaxed">

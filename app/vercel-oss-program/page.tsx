@@ -115,7 +115,7 @@ function VercelOssProgramContent() {
               </svg>
               Exclusive Offer
             </div>
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-foreground leading-tight tracking-tight">
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl text-foreground leading-tight tracking-tight">
               Vercel OSS Program
             </h1>
             <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
@@ -130,7 +130,7 @@ function VercelOssProgramContent() {
           <Card className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20 border-green-200 dark:border-green-800">
             <CardContent className="p-8 lg:p-12">
               <div className="text-center space-y-6">
-                <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-foreground">
+                <h2 className="text-2xl sm:text-3xl lg:text-4xl text-foreground">
                   Get 1 Free Year of Inbound Scale
                 </h2>
 

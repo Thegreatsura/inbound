@@ -355,7 +355,7 @@ export default function OnboardingPage() {
   }
 
   return (
-    <div className="min-h-screen p-4 font-outfit">
+    <div className="min-h-screen p-4">
       <div className="max-w-4xl mx-auto mt-10">
         {/* Header */}
         <div className="mb-6 flex justify-between items-start">

@@ -64,7 +64,7 @@ export default function AmbassadorPage() {
 
     if (submitted) {
         return (
-            <div className="min-h-screen bg-[#1B1C1D] text-[#e5e5e5] font-['Outfit',sans-serif] relative">
+            <div className="min-h-screen bg-[#1B1C1D] text-[#e5e5e5] relative">
                 <SiteHeader />
                 <div className="max-w-4xl mx-auto px-6 py-20 relative z-10">
                     <div className="text-center">
@@ -77,7 +77,7 @@ export default function AmbassadorPage() {
                                 className="mx-auto rounded-lg"
                             />
                         </div>
-                        <h1 className="text-4xl font-bold mb-6">
+                        <h1 className="text-4xl mb-6">
                             <Highlighter action="underline" color="#6C47FF">
                                 Application Submitted!
                             </Highlighter>
@@ -122,10 +122,9 @@ export default function AmbassadorPage() {
     }
 
     return (
-        <div className="min-h-screen bg-[#1B1C1D] text-[#e5e5e5] font-['Outfit',sans-serif] relative">
+        <div className="min-h-screen bg-[#1B1C1D] text-[#e5e5e5] relative">
             {/* CSS Variables for theme */}
             <style jsx global>{`
-                @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@100;200;300;400;500;600;700;800;900&display=swap');
                 
                 :root {
                     --bg-primary: #1B1C1D;
@@ -158,7 +157,7 @@ export default function AmbassadorPage() {
                             priority
                         />
                     </div>
-                    <h1 className="text-4xl md:text-5xl font-bold mb-6">
+                    <h1 className="text-4xl md:text-5xl mb-6">
                         become an inbound <Highlighter action="underline" color="#6C47FF">ambassador</Highlighter>
                     </h1>
                     <p className="text-lg text-[var(--text-secondary)] max-w-3xl mx-auto leading-relaxed">
@@ -275,7 +274,7 @@ export default function AmbassadorPage() {
 
                 {/* What You'll Get Section */}
                 <div className="mt-16 text-center">
-                    <h2 className="text-2xl font-bold mb-8 text-[var(--text-primary)]">
+                    <h2 className="text-2xl mb-8 text-[var(--text-primary)]">
                         What You'll Get as an Ambassador
                     </h2>
                     <div className="grid md:grid-cols-3 gap-6">

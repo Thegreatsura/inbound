@@ -724,7 +724,7 @@ export default function DomainDetailPage() {
     const selectedEmails = emailAddresses.filter(email => selectedEmailIds.has(email.id))
 
     return (
-        <div className="h-full p-4 font-outfit">
+        <div className="h-full p-4">
             <div className="space-y-4">
                 {/* Back Button */}
                 <div className="flex items-center">
