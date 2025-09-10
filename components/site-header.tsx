@@ -35,6 +35,9 @@ export function SiteHeader() {
     if (href === '/pricing') {
       return pathname === '/pricing'
     }
+    if (href === '/examples') {
+      return pathname === '/examples'
+    }
     return false
   }
 
@@ -47,7 +50,15 @@ export function SiteHeader() {
         </Link>
         <nav className="hidden md:flex items-center gap-8 text-sm">
           <a href="/#features" className="text-muted-foreground hover:text-foreground transition-colors">features</a>
-          <a href="/#examples" className="text-muted-foreground hover:text-foreground transition-colors">examples</a>
+          <Link
+            href="/examples"
+            className={`transition-colors ${isActive('/examples')
+              ? 'text-foreground font-medium'
+              : 'text-muted-foreground hover:text-foreground'
+              }`}
+          >
+            examples
+          </Link>
           <Link
             href="/pricing"
             className={`transition-colors ${isActive('/pricing')

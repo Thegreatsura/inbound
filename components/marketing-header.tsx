@@ -108,6 +108,20 @@ export default async function MarketingHeader() {
                 </a>
               </DropdownMenuItem>
               
+              <DropdownMenuItem asChild className="p-0">
+                <a href="/examples" className="w-full cursor-pointer p-4 rounded-lg hover:bg-orange-50 hover:border-orange-200 border border-transparent transition-all duration-200 group">
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 group-hover:bg-orange-200 transition-colors">
+                      <Code2 className="w-4 h-4 text-orange-600 group-hover:text-orange-700" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-gray-900 text-sm group-hover:text-orange-900">Real-World Examples</div>
+                      <div className="text-xs text-gray-500 mt-1 group-hover:text-orange-600">6 practical use cases for email automation</div>
+                    </div>
+                  </div>
+                </a>
+              </DropdownMenuItem>
+              
               <DropdownMenuSeparator className="my-2" />
               
               <DropdownMenuItem asChild className="p-0">
