@@ -565,7 +565,7 @@ export default async function EmailAsWebhookPage() {
             <a href="/privacy" className="hover:text-gray-700 transition-colors">Privacy</a>
             <a href="/terms" className="hover:text-gray-700 transition-colors">Terms</a>
             <a href="/docs" className="hover:text-gray-700 transition-colors">Docs</a>
-            <a href="mailto:support@inbound.exon.dev" className="hover:text-gray-700 transition-colors">Support</a>
+            <a href="mailto:support@inbound.new" className="hover:text-gray-700 transition-colors">Support</a>
           </div>
         </div>
       </footer>

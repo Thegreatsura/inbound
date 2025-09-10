@@ -7,6 +7,14 @@ const nextConfig: NextConfig = {
   turbopack: {
     // Empty configuration to acknowledge Turbopack usage
   },
+  
+  // Performance optimizations for SEO and Core Web Vitals
+  experimental: {
+    optimizePackageImports: ['@inboundemail/sdk', 'lucide-react', 'framer-motion'],
+    scrollRestoration: true,
+  },
+  
+  // Image optimization for better performance
   images: {
     remotePatterns: [
       {
@@ -18,7 +26,21 @@ const nextConfig: NextConfig = {
         hostname: 'assets.basehub.com',
       }
     ],
+    formats: ['image/webp', 'image/avif'],
+    minimumCacheTTL: 86400, // 1 day cache for better performance
+    dangerouslyAllowSVG: true,
+    contentDispositionType: 'attachment',
+    contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
   },
+  
+  // Compression for better performance
+  compress: true,
+  
+  // Generate ETags for better caching
+  generateEtags: true,
+  
+  // Power monitoring for performance insights
+  poweredByHeader: false,
   async headers() {
     return [
       {

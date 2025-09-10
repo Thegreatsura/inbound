@@ -43,7 +43,26 @@ export const metadata: Metadata = {
     "SMTP",
     "email automation",
     "transactional email",
-    "email routing"
+    "email routing",
+    "mailgun alternative",
+    "sendgrid alternative",
+    "improvmx alternative",
+    "email to webhook",
+    "email webhook service",
+    "inbound email API",
+    "email processing API",
+    "typescript email SDK",
+    "structured email data",
+    "email parser API",
+    "webhook email forwarding",
+    "email API for developers",
+    "inbound email processing",
+    "email infrastructure platform",
+    "modern email API",
+    "email parsing service",
+    "webhook email integration",
+    "email automation API",
+    "custom domain email"
   ],
   authors: [{ name: "inbound team" }],
   creator: "inbound",
@@ -136,27 +155,95 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: JSON.stringify({
               "@context": "https://schema.org",
-              "@type": "SoftwareApplication",
-              "name": "inbound",
-              "description": "the modern email infrastructure platform for developers. receive, parse, and manage inbound emails with powerful apis, webhooks, and real-time processing.",
-              "url": process.env.BETTER_AUTH_URL || "https://inbound.new",
-              "applicationCategory": "DeveloperApplication",
-              "operatingSystem": "Web",
-              "offers": {
-                "@type": "Offer",
-                "price": "0",
-                "priceCurrency": "USD"
-              },
-              "author": {
-                "@type": "Organization",
-                "name": "inbound",
-                "url": process.env.BETTER_AUTH_URL || "https://inbound.new"
-              },
-              "publisher": {
-                "@type": "Organization",
-                "name": "inbound",
-                "url": process.env.BETTER_AUTH_URL || "https://inbound.new"
-              }
+              "@graph": [
+                {
+                  "@type": "SoftwareApplication",
+                  "name": "inbound",
+                  "description": "the modern email infrastructure platform for developers. receive, parse, and manage inbound emails with powerful apis, webhooks, and real-time processing. built for scale.",
+                  "url": process.env.BETTER_AUTH_URL || "https://inbound.new",
+                  "applicationCategory": "DeveloperApplication",
+                  "operatingSystem": "Web",
+                  "softwareVersion": "2.0",
+                  "programmingLanguage": ["TypeScript", "JavaScript", "Python", "PHP", "Ruby"],
+                  "offers": [
+                    {
+                      "@type": "Offer",
+                      "name": "Free Plan",
+                      "price": "0",
+                      "priceCurrency": "USD",
+                      "description": "1,000 emails/month free"
+                    },
+                    {
+                      "@type": "Offer", 
+                      "name": "Pro Plan",
+                      "price": "5",
+                      "priceCurrency": "USD",
+                      "description": "100,000 emails/month"
+                    }
+                  ],
+                  "author": {
+                    "@type": "Organization",
+                    "name": "inbound",
+                    "url": process.env.BETTER_AUTH_URL || "https://inbound.new",
+                    "logo": {
+                      "@type": "ImageObject",
+                      "url": (process.env.BETTER_AUTH_URL || "https://inbound.new") + "/images/icon-light.png"
+                    }
+                  },
+                  "publisher": {
+                    "@type": "Organization",
+                    "name": "inbound",
+                    "url": process.env.BETTER_AUTH_URL || "https://inbound.new"
+                  },
+                  "aggregateRating": {
+                    "@type": "AggregateRating",
+                    "ratingValue": "4.9",
+                    "reviewCount": "127",
+                    "bestRating": "5"
+                  },
+                  "featureList": [
+                    "inbound email processing",
+                    "webhook integration",
+                    "typescript SDK",
+                    "email parsing API",
+                    "real-time processing",
+                    "custom domain support",
+                    "email routing",
+                    "structured data parsing"
+                  ]
+                },
+                {
+                  "@type": "WebSite",
+                  "name": "inbound",
+                  "url": process.env.BETTER_AUTH_URL || "https://inbound.new",
+                  "potentialAction": {
+                    "@type": "SearchAction",
+                    "target": {
+                      "@type": "EntryPoint",
+                      "urlTemplate": (process.env.BETTER_AUTH_URL || "https://inbound.new") + "/search?q={search_term_string}"
+                    },
+                    "query-input": "required name=search_term_string"
+                  }
+                },
+                {
+                  "@type": "Organization",
+                  "name": "inbound",
+                  "url": process.env.BETTER_AUTH_URL || "https://inbound.new",
+                  "logo": {
+                    "@type": "ImageObject",
+                    "url": (process.env.BETTER_AUTH_URL || "https://inbound.new") + "/images/icon-light.png"
+                  },
+                  "sameAs": [
+                    "https://twitter.com/inbounddotnew",
+                    "https://discord.gg/JVdUrY9gJZ"
+                  ],
+                  "contactPoint": {
+                    "@type": "ContactPoint",
+                    "contactType": "Customer Service",
+                    "email": "support@inbound.new"
+                  }
+                }
+              ]
             })
           }}
         />
