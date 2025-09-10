@@ -78,6 +78,7 @@
     "@vercel/speed-insights": "^1.2.0",
     "ai": "5.0.15",
     "async_hooks": "^1.0.0",
+    "atmn": "^0.0.22",
     "autumn-js": "^0.0.47",
     "basehub": "^9.4.1",
     "better-auth": "^1.3.8",

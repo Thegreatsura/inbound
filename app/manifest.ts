@@ -1,7 +1,7 @@
 import { MetadataRoute } from 'next'
 
 export default function manifest(): MetadataRoute.Manifest {
-  const baseUrl = process.env.NEXT_PUBLIC_BETTER_AUTH_URL || 'https://inbound.exon.dev'
+  const baseUrl = process.env.NEXT_PUBLIC_BETTER_AUTH_URL || 'https://inbound.new'
   
   return {
     name: 'inbound - Email Infrastructure Platform',

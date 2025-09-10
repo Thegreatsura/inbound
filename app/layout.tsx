@@ -13,7 +13,7 @@ import { Databuddy } from "@databuddy/sdk"
 const outfit = Outfit({
   variable: "--font-outfit",
   subsets: ["latin"],
-  weight: ["400"], // Regular weight
+  weight: ["400", "500", "600", "700", "800", "900"], // Regular weight
 });
 
 const geist = Geist({
