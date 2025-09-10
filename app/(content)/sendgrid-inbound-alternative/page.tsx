@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth/auth"
 import { headers } from "next/headers"
 import CustomInboundIcon from "@/components/icons/customInbound"
 import type { Metadata } from 'next'
+import Link from 'next/link'
 
 // Nucleo icon imports
 import ArrowBoldRight from "@/components/icons/arrow-bold-right"
@@ -18,24 +19,44 @@ import Microchip from "@/components/icons/microchip"
 import CircleSparkle from "@/components/icons/circle-sparkle"
 import Check2 from "@/components/icons/check-2"
 import InboundIcon from "@/components/icons/inbound"
+import Code2 from "@/components/icons/code-2"
+import Clock2 from "@/components/icons/clock-2"
+import Database2 from "@/components/icons/database-2"
 
 export const metadata: Metadata = {
-  title: 'Best ImprovMX Alternative - Free Email Aliases For Custom Domains | Inbound',
-  description: 'Looking for an ImprovMX alternative? Get unlimited free email aliases, custom domain forwarding, and AI-powered webhook integration. Perfect for developers and businesses.',
-  keywords: 'ImprovMX alternative, free email aliases, custom domain email forwarding, email forwarding service, unlimited aliases, webhook integration, developer email tools',
+  title: 'Best SendGrid Inbound Parse Alternative - Modern Email Webhook API | inbound',
+  description: 'Replace SendGrid Inbound Parse with modern email processing. Get TypeScript SDK, structured data, and real-time webhooks. Better parsing, lower cost.',
+  keywords: [
+    'SendGrid Inbound Parse alternative',
+    'SendGrid replacement',
+    'inbound email parsing',
+    'email webhook API',
+    'email to webhook service',
+    'email parsing service',
+    'SendGrid alternative',
+    'TypeScript email SDK',
+    'structured email data',
+    'email infrastructure API',
+    'webhook email processing',
+    'better than SendGrid'
+  ],
   openGraph: {
-    title: 'Best ImprovMX Alternative - Free Email Aliases For Custom Domains',
-    description: 'Get unlimited free email aliases, custom domain forwarding, and AI-powered webhook integration. Perfect for developers and businesses.',
+    title: 'Best SendGrid Inbound Parse Alternative - Modern Email Webhook API',
+    description: 'Replace SendGrid Inbound Parse with modern email processing. Get TypeScript SDK, structured data, and real-time webhooks.',
     type: 'website',
+    url: 'https://inbound.new/sendgrid-inbound-alternative',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Best ImprovMX Alternative - Free Email Aliases For Custom Domains',
-    description: 'Get unlimited free email aliases, custom domain forwarding, and AI-powered webhook integration.',
+    title: 'Best SendGrid Inbound Parse Alternative - Modern Email Webhook API',
+    description: 'Replace SendGrid Inbound Parse with modern email processing. Get TypeScript SDK, structured data, and real-time webhooks.',
+  },
+  alternates: {
+    canonical: 'https://inbound.new/sendgrid-inbound-alternative'
   }
 }
 
-export default async function ImprovMXAlternativePage() {
+export default async function SendGridAlternativePage() {
   const session = await auth.api.getSession({
     headers: await headers()
   })
@@ -47,86 +68,86 @@ export default async function ImprovMXAlternativePage() {
         <div className="max-w-4xl mx-auto text-center">
           {/* Hero Section */}
           <div className="mb-16">
-            <div className="inline-flex items-center gap-2 bg-green-50 text-green-700 px-4 py-2 rounded-full text-sm font-medium mb-6">
+            <div className="inline-flex items-center gap-2 bg-blue-50 text-blue-700 px-4 py-2 rounded-full text-sm font-medium mb-6">
               <CircleCheck width="16" height="16" />
-              #1 ImprovMX Alternative for Developers
+              The Modern SendGrid Inbound Parse Alternative
             </div>
             
             <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6 leading-tight">
-              <span className="text-[#1C2894]">Free Email Aliases</span>
+              <span className="text-[#1C2894]">SendGrid Inbound Parse</span>
               <br />
-              For Custom Domains
+              Alternative for Modern Devs
             </h1>
             <p className="text-xl text-gray-600 mb-4 max-w-2xl mx-auto leading-relaxed">
-              The best ImprovMX alternative with unlimited free aliases, advanced webhook integration, 
-              and powerful API access. Perfect for developers, AI agents, and growing businesses.
+              Ditch SendGrid's outdated inbound parsing for a modern TypeScript-first email webhook API. 
+              Get structured data, real-time processing, and better developer experience at a fraction of the cost.
             </p>
 
             <div className="flex items-center gap-4 max-w-md mx-auto mt-8">
-              <Input type="email" placeholder="hello@yourdomain.com" />
+              <Input type="email" placeholder="support@yourapp.com" />
               <Button variant="primary" asChild>
                 {session ? (
-                  <a href="/add">
+                  <Link href="/add">
                     Start Free
                     <ArrowBoldRight width="12" height="12" className="ml-2" />
-                  </a>
+                  </Link>
                 ) : (
-                  <a href="/login">
+                  <Link href="/login">
                     Start Free
                     <ArrowBoldRight width="12" height="12" className="ml-2" />
-                  </a>
+                  </Link>
                 )}
               </Button>
             </div>
 
             <p className="text-sm text-gray-500 mt-3">
-              No credit card required • Set up in 2 minutes • Forever free tier
+              No credit card required • 1,000 emails/month free • Modern TypeScript SDK
             </p>
           </div>
 
           {/* Comparison Section */}
           <div className="mb-32">
-            <h2 className="text-3xl font-bold text-gray-900 mb-12">Why Choose Inbound Over ImprovMX?</h2>
+            <h2 className="text-3xl font-bold text-gray-900 mb-12">Why Developers Are Leaving SendGrid Inbound Parse</h2>
             
             <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto text-left">
-              {/* ImprovMX Column */}
+              {/* SendGrid Column */}
               <div className="bg-gray-50 rounded-xl p-8 border border-gray-200">
                 <div className="flex items-center gap-3 mb-6">
-                  <div className="w-10 h-10 bg-gray-200 rounded-lg flex items-center justify-center">
-                    <Envelope2 width="24" height="24" className="text-gray-600" />
+                  <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center text-white font-bold">
+                    SG
                   </div>
-                  <h3 className="text-xl font-bold text-gray-900">ImprovMX</h3>
+                  <h3 className="text-xl font-bold text-gray-900">SendGrid Inbound Parse</h3>
                 </div>
                 
                 <div className="space-y-4">
                   <div className="flex items-start gap-3">
                     <TabClose width="20" height="20" className="text-red-500 mt-0.5 flex-shrink-0" />
-                    <span className="text-gray-600">Limited to 25 free aliases</span>
+                    <span className="text-gray-600">Legacy webhook format</span>
                   </div>
                   <div className="flex items-start gap-3">
                     <TabClose width="20" height="20" className="text-red-500 mt-0.5 flex-shrink-0" />
-                    <span className="text-gray-600">Paid plans start at $9/month</span>
+                    <span className="text-gray-600">Manual form data parsing required</span>
                   </div>
                   <div className="flex items-start gap-3">
                     <TabClose width="20" height="20" className="text-red-500 mt-0.5 flex-shrink-0" />  
-                    <span className="text-gray-600">No email storage or IMAP access</span>
+                    <span className="text-gray-600">No TypeScript support or SDK</span>
                   </div>
                   <div className="flex items-start gap-3">
                     <TabClose width="20" height="20" className="text-red-500 mt-0.5 flex-shrink-0" />
-                    <span className="text-gray-600">Basic webhook support</span>
+                    <span className="text-gray-600">Complex attachment handling</span>
                   </div>
                   <div className="flex items-start gap-3">
                     <TabClose width="20" height="20" className="text-red-500 mt-0.5 flex-shrink-0" />
-                    <span className="text-gray-600">No AI agent integration</span>
+                    <span className="text-gray-600">No email threading or conversation tracking</span>
                   </div>
                   <div className="flex items-start gap-3">
                     <TabClose width="20" height="20" className="text-red-500 mt-0.5 flex-shrink-0" />
-                    <span className="text-gray-600">Limited API capabilities</span>
+                    <span className="text-gray-600">Part of expensive email platform</span>
                   </div>
                 </div>
               </div>
 
-              {/* Inbound Column */}
+              {/* inbound Column */}
               <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl p-8 border border-blue-200">
                 <div className="flex items-center gap-3 mb-6">
                   <CustomInboundIcon
@@ -141,27 +162,27 @@ export default async function ImprovMXAlternativePage() {
                 <div className="space-y-4">
                   <div className="flex items-start gap-3">
                     <Check2 width="20" height="20" className="text-green-500 mt-0.5 flex-shrink-0" />
-                    <span className="text-gray-700 font-medium">Unlimited free aliases per domain</span>
+                    <span className="text-gray-700 font-medium">Modern JSON webhook payloads</span>
                   </div>
                   <div className="flex items-start gap-3">
                     <Check2 width="20" height="20" className="text-green-500 mt-0.5 flex-shrink-0" />
-                    <span className="text-gray-700 font-medium">Forever free tier - no hidden costs</span>
+                    <span className="text-gray-700 font-medium">Structured, parsed email data</span>
                   </div>
                   <div className="flex items-start gap-3">
                     <Check2 width="20" height="20" className="text-green-500 mt-0.5 flex-shrink-0" />
-                    <span className="text-gray-700 font-medium">Full catch-all domain support</span>
+                    <span className="text-gray-700 font-medium">Full TypeScript SDK with types</span>
                   </div>
                   <div className="flex items-start gap-3">
                     <Check2 width="20" height="20" className="text-green-500 mt-0.5 flex-shrink-0" />
-                    <span className="text-gray-700 font-medium">Advanced webhook integration</span>
+                    <span className="text-gray-700 font-medium">Automatic attachment processing</span>
                   </div>
                   <div className="flex items-start gap-3">
                     <Check2 width="20" height="20" className="text-green-500 mt-0.5 flex-shrink-0" />
-                    <span className="text-gray-700 font-medium">AI agent & automation ready</span>
+                    <span className="text-gray-700 font-medium">Email threading & conversation tracking</span>
                   </div>
                   <div className="flex items-start gap-3">
                     <Check2 width="20" height="20" className="text-green-500 mt-0.5 flex-shrink-0" />
-                    <span className="text-gray-700 font-medium">Full REST API + TypeScript SDK</span>
+                    <span className="text-gray-700 font-medium">Dedicated email processing platform</span>
                   </div>
                 </div>
               </div>
@@ -170,169 +191,165 @@ export default async function ImprovMXAlternativePage() {
 
           {/* Features Section */}
           <div className="mb-32">
-            <h2 className="text-3xl font-bold text-gray-900 mb-12">Everything You Need for Custom Domain Email</h2>
+            <h2 className="text-3xl font-bold text-gray-900 mb-12">Modern Email Processing Features</h2>
             
             <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-              {/* Feature 1 */}
+              {/* TypeScript First */}
               <div className="text-center p-6">
                 <div className="w-16 h-16 bg-blue-100 rounded-xl flex items-center justify-center mx-auto mb-4">
-                  <Globe2 width="32" height="32" className="text-blue-600" />
+                  <Code2 width="32" height="32" className="text-blue-600" />
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-3">1 Free Domain</h3>
+                <h3 className="text-xl font-bold text-gray-900 mb-3">TypeScript First</h3>
                 <p className="text-gray-600">
-                  Connect one custom domain completely free. Verify ownership with simple DNS configuration and start receiving emails instantly.
+                  Full type safety with IntelliSense. Never guess webhook payload structure again.
                 </p>
               </div>
 
-              {/* Feature 2 */}
+              {/* Structured Data */}
               <div className="text-center p-6">
                 <div className="w-16 h-16 bg-green-100 rounded-xl flex items-center justify-center mx-auto mb-4">
-                  <Envelope2 width="32" height="32" className="text-green-600" />
+                  <Database2 width="32" height="32" className="text-green-600" />
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-3">Infinite Email Aliases</h3>
+                <h3 className="text-xl font-bold text-gray-900 mb-3">Structured Data</h3>
                 <p className="text-gray-600">
-                  Create unlimited individual aliases like hello@, support@, sales@ or set up a catch-all to receive emails sent to any address on your domain.
+                  Get parsed headers, body content, attachments, and metadata in a clean JSON format.
                 </p>
               </div>
 
-              {/* Feature 3 */}
+              {/* Real-time Processing */}
               <div className="text-center p-6">
                 <div className="w-16 h-16 bg-purple-100 rounded-xl flex items-center justify-center mx-auto mb-4">
-                  <ShieldCheck width="32" height="32" className="text-purple-600" />
+                  <Clock2 width="32" height="32" className="text-purple-600" />
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-3">Granular Email Blocking</h3>
+                <h3 className="text-xl font-bold text-gray-900 mb-3">Real-time Processing</h3>
                 <p className="text-gray-600">
-                  Advanced blocking controls let you stop spam from specific addresses, domains, or patterns while keeping your catch-all active.
+                  Webhooks delivered within seconds of email receipt. No delays or queuing issues.
                 </p>
               </div>
 
-              {/* Feature 4 */}
+              {/* Email Threading */}
               <div className="text-center p-6">
                 <div className="w-16 h-16 bg-yellow-100 rounded-xl flex items-center justify-center mx-auto mb-4">
                   <BoltLightning width="32" height="32" className="text-yellow-600" />
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-3">Webhook Integration</h3>
+                <h3 className="text-xl font-bold text-gray-900 mb-3">Email Threading</h3>
                 <p className="text-gray-600">
-                  Connect your email to any service or AI agent with reliable webhook delivery. Perfect for automation and custom workflows.
+                  Automatic conversation threading and In-Reply-To tracking for context-aware processing.
                 </p>
               </div>
 
-              {/* Feature 5 */}
+              {/* Easy Setup */}
               <div className="text-center p-6">
                 <div className="w-16 h-16 bg-indigo-100 rounded-xl flex items-center justify-center mx-auto mb-4">
                   <Microchip width="32" height="32" className="text-indigo-600" />
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-3">AI-Ready API</h3>
+                <h3 className="text-xl font-bold text-gray-900 mb-3">Easy Setup</h3>
                 <p className="text-gray-600">
-                  Full REST API and TypeScript SDK for developers. Build email-powered AI agents and automate your email infrastructure.
+                  One-click webhook configuration. No complex domain authentication or MX record guessing.
                 </p>
               </div>
 
-              {/* Feature 6 */}
+              {/* Reliable Delivery */}
               <div className="text-center p-6">
                 <div className="w-16 h-16 bg-red-100 rounded-xl flex items-center justify-center mx-auto mb-4">
                   <ShieldCheck width="32" height="32" className="text-red-600" />
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-3">Enterprise Security</h3>
+                <h3 className="text-xl font-bold text-gray-900 mb-3">Reliable Delivery</h3>
                 <p className="text-gray-600">
-                  Built on AWS with enterprise-grade security, SPF/DKIM/DMARC support, and comprehensive email verification for high deliverability.
+                  Automatic retries, failure handling, and delivery tracking. 99.9% webhook success rate.
                 </p>
               </div>
             </div>
           </div>
 
-          {/* Developer-Focused Section */}
+          {/* Code Comparison */}
           <div className="mb-32">
-            <h2 className="text-3xl font-bold text-gray-900 mb-6">Built for Developers & AI Builders</h2>
+            <h2 className="text-3xl font-bold text-gray-900 mb-6">See The Difference</h2>
             <p className="text-lg text-gray-600 mb-12 max-w-2xl mx-auto">
-              Unlike ImprovMX, Inbound is designed from the ground up for developers who need programmatic email control and AI integration.
+              Compare the developer experience between SendGrid's legacy inbound parse and inbound's modern approach.
             </p>
 
-            <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto text-left">
-              {/* Code Example */}
+            <div className="grid md:grid-cols-2 gap-8 max-w-6xl mx-auto text-left">
+              {/* SendGrid Code */}
               <div className="bg-gray-900 rounded-xl overflow-hidden">
                 <div className="px-6 py-4 border-b border-gray-800">
-                  <h3 className="text-white font-semibold">TypeScript SDK Example</h3>
+                  <h3 className="text-white font-semibold">SendGrid Inbound Parse</h3>
                 </div>
                 <div className="p-6 font-mono text-sm">
                   <pre className="text-gray-300 whitespace-pre-wrap">
-{`import { createInboundClient } from 'exon-inbound'
-
-const client = createInboundClient({
-  apiKey: process.env.INBOUND_API_KEY
-})
-
-// Create a new email address
-await client.emails.create({
-  email: 'support@yourdomain.com',
-  webhookUrl: 'https://api.yourapp.com/webhook'
-})
-
-// Set up catch-all for entire domain
-await client.domains.setCatchAll({
-  domain: 'yourdomain.com',
-  webhookUrl: 'https://api.yourapp.com/webhook',
-  blockList: ['spam@', 'abuse@']
+{`// SendGrid webhook handler
+app.post('/sendgrid-webhook', (req, res) => {
+  // Parse form data manually
+  const email = {
+    from: req.body.from,
+    to: req.body.to,
+    subject: req.body.subject,
+    text: req.body.text,
+    html: req.body.html
+  }
+  
+  // Handle attachments manually
+  const attachmentCount = parseInt(
+    req.body.attachment_info || '0'
+  )
+  
+  const attachments = []
+  for (let i = 1; i <= attachmentCount; i++) {
+    if (req.files[\`attachment\${i}\`]) {
+      // Manual file processing...
+    }
+  }
+  
+  // No type safety, manual parsing
+  console.log('Subject:', email.subject)
+  res.status(200).send('OK')
 })`}
                   </pre>
                 </div>
               </div>
 
-              {/* Features List */}
-              <div className="space-y-6">
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900 mb-3">Developer Experience</h3>
-                  <div className="space-y-3">
-                    <div className="flex items-start gap-3">
-                      <Check2 width="20" height="20" className="text-green-500 mt-1 flex-shrink-0" />
-                      <span className="text-gray-700">Full TypeScript SDK with type safety</span>
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <Check2 width="20" height="20" className="text-green-500 mt-1 flex-shrink-0" />
-                      <span className="text-gray-700">Comprehensive REST API documentation</span>
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <Check2 width="20" height="20" className="text-green-500 mt-1 flex-shrink-0" />
-                      <span className="text-gray-700">Webhook retry & failure handling</span>
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <Check2 width="20" height="20" className="text-green-500 mt-1 flex-shrink-0" />
-                      <span className="text-gray-700">Real-time email processing logs</span>
-                    </div>
-                  </div>
+              {/* inbound Code */}
+              <div className="bg-gray-900 rounded-xl overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-800">
+                  <h3 className="text-white font-semibold">inbound TypeScript SDK</h3>
                 </div>
-
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900 mb-3">AI Integration</h3>
-                  <div className="space-y-3">
-                    <div className="flex items-start gap-3">
-                      <Check2 width="20" height="20" className="text-green-500 mt-1 flex-shrink-0" />
-                      <span className="text-gray-700">Direct webhook delivery to AI agents</span>
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <Check2 width="20" height="20" className="text-green-500 mt-1 flex-shrink-0" />
-                      <span className="text-gray-700">Structured email parsing & metadata</span>
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <Check2 width="20" height="20" className="text-green-500 mt-1 flex-shrink-0" />
-                      <span className="text-gray-700">Auto-scaling email processing</span>
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <Check2 width="20" height="20" className="text-green-500 mt-1 flex-shrink-0" />
-                      <span className="text-gray-700">Built-in spam & security filtering</span>
-                    </div>
-                  </div>
+                <div className="p-6 font-mono text-sm">
+                  <pre className="text-gray-300 whitespace-pre-wrap">
+{`// inbound webhook handler (TypeScript)
+app.post('/inbound-webhook', (req, res) => {
+  const { email }: InboundWebhookPayload = req.body
+  
+  // Fully typed, structured data
+  const parsedEmail = email.parsedData
+  
+  // Type-safe access to all fields
+  console.log('From:', parsedEmail.from.address)
+  console.log('Subject:', parsedEmail.subject)
+  console.log('Text:', parsedEmail.textBody)
+  console.log('HTML:', parsedEmail.htmlBody)
+  
+  // Attachments already processed
+  parsedEmail.attachments.forEach(attachment => {
+    console.log('File:', attachment.filename)
+    console.log('Size:', attachment.size)
+    console.log('Type:', attachment.contentType)
+  })
+  
+  // IntelliSense works perfectly
+  res.status(200).json({ success: true })
+})`}
+                  </pre>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Migration Section */}
+          {/* Migration Guide */}
           <div className="mb-32">
             <div className="bg-gradient-to-br from-green-50 to-blue-50 rounded-2xl p-12 border border-green-200 text-center">
-              <h2 className="text-3xl font-bold text-gray-900 mb-6">Migrate from ImprovMX in Minutes</h2>
+              <h2 className="text-3xl font-bold text-gray-900 mb-6">Migrate from SendGrid in Minutes</h2>
               <p className="text-lg text-gray-600 mb-8 max-w-2xl mx-auto">
-                Switching from ImprovMX is simple. Keep your existing email addresses working while you transition to unlimited aliases and advanced features.
+                Keep your existing email flow while upgrading to modern, structured email processing.
               </p>
 
               <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto text-left mb-8">
@@ -341,8 +358,8 @@ await client.domains.setCatchAll({
                     1
                   </div>
                   <div>
-                    <h3 className="font-semibold text-gray-900 mb-2">Connect Your Domain</h3>
-                    <p className="text-gray-600 text-sm">Add your domain to Inbound and verify ownership with DNS records.</p>
+                    <h3 className="font-semibold text-gray-900 mb-2">Setup Domain</h3>
+                    <p className="text-gray-600 text-sm">Add your domain to inbound and verify with simple DNS records.</p>
                   </div>
                 </div>
                 
@@ -351,8 +368,8 @@ await client.domains.setCatchAll({
                     2
                   </div>
                   <div>
-                    <h3 className="font-semibold text-gray-900 mb-2">Configure Email Routing</h3>
-                    <p className="text-gray-600 text-sm">Set up your aliases or catch-all configuration with advanced blocking rules.</p>
+                    <h3 className="font-semibold text-gray-900 mb-2">Create Webhooks</h3>
+                    <p className="text-gray-600 text-sm">Replace SendGrid webhook URLs with inbound endpoints.</p>
                   </div>
                 </div>
                 
@@ -361,23 +378,23 @@ await client.domains.setCatchAll({
                     3
                   </div>
                   <div>
-                    <h3 className="font-semibold text-gray-900 mb-2">Update DNS & Go Live</h3>
-                    <p className="text-gray-600 text-sm">Update your MX records to point to Inbound and start receiving emails.</p>
+                    <h3 className="font-semibold text-gray-900 mb-2">Update Code</h3>
+                    <p className="text-gray-600 text-sm">Replace form parsing with typed webhook payloads.</p>
                   </div>
                 </div>
               </div>
 
               <Button variant="primary" size="lg" asChild>
                 {session ? (
-                  <a href="/add" className="flex items-center gap-2">
+                  <Link href="/add" className="flex items-center gap-2">
                     Start Migration Now
                     <ArrowBoldRight width="16" height="16" />
-                  </a>
+                  </Link>
                 ) : (
-                  <a href="/login" className="flex items-center gap-2">
+                  <Link href="/login" className="flex items-center gap-2">
                     Start Migration Now
                     <ArrowBoldRight width="16" height="16" />
-                  </a>
+                  </Link>
                 )}
               </Button>
             </div>
@@ -385,39 +402,39 @@ await client.domains.setCatchAll({
 
           {/* Pricing */}
           <div className="mb-32">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4 text-center">Transparent Pricing - No Surprises</h2>
+            <h2 className="text-3xl font-bold text-gray-900 mb-4 text-center">Simple, Affordable Pricing</h2>
             <p className="text-lg text-gray-600 mb-12 text-center max-w-2xl mx-auto">
-              Start free and scale as you grow. Unlike ImprovMX, our free tier includes unlimited aliases on one domain.
+              No hidden fees or complex SendGrid add-on pricing. Pay only for what you use with generous free tiers.
             </p>
             <PricingTable />
           </div>
 
           {/* CTA Section */}
           <div className="text-center">
-            <h2 className="text-3xl font-bold text-gray-900 mb-6">Ready to Switch from ImprovMX?</h2>
+            <h2 className="text-3xl font-bold text-gray-900 mb-6">Ready for Modern Email Processing?</h2>
             <p className="text-lg text-gray-600 mb-8 max-w-2xl mx-auto">
-              Join thousands of developers and businesses who have made the switch to unlimited email aliases and advanced automation.
+              Join developers who switched from SendGrid's legacy inbound parse to our TypeScript-first email platform.
             </p>
             
             <div className="flex items-center gap-4 max-w-md mx-auto mb-6">
               <Input type="email" placeholder="your@domain.com" />
               <Button variant="primary" asChild>
                 {session ? (
-                  <a href="/add">
+                  <Link href="/add">
                     Get Started Free
                     <ArrowBoldRight width="12" height="12" className="ml-2" />
-                  </a>
+                  </Link>
                 ) : (
-                  <a href="/login">
+                  <Link href="/login">
                     Get Started Free
                     <ArrowBoldRight width="12" height="12" className="ml-2" />
-                  </a>
+                  </Link>
                 )}
               </Button>
             </div>
 
             <p className="text-sm text-gray-500">
-              ✓ No credit card required ✓ 5-minute setup ✓ Unlimited aliases ✓ 24/7 support
+              ✓ 1,000 emails/month free ✓ TypeScript SDK ✓ No setup fees ✓ 5-minute migration
             </p>
           </div>
         </div>
@@ -438,10 +455,11 @@ await client.domains.setCatchAll({
             <a href="/privacy" className="hover:text-gray-700 transition-colors">Privacy</a>
             <a href="/terms" className="hover:text-gray-700 transition-colors">Terms</a>
             <a href="/docs" className="hover:text-gray-700 transition-colors">Docs</a>
-            <a href="mailto:support@inbound.new" className="hover:text-gray-700 transition-colors">Support</a>
+            <a href="mailto:support@inbound.exon.dev" className="hover:text-gray-700 transition-colors">Support</a>
           </div>
         </div>
       </footer>
     </div>
   )
 }
+

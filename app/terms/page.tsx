@@ -208,8 +208,8 @@ export default function TermsPage() {
               <div className="bg-gray-50 p-4 rounded-lg mt-4">
                 <p className="text-gray-700">
                   <strong>EXON ENTERPRISE LLC</strong><br />
-                  Email: legal@inbound.exon.dev<br />
-                  Website: inbound.exon.dev
+                  Email: legal@inbound.new<br />
+                  Website: inbound.new
                 </p>
               </div>
             </section>
@@ -228,7 +228,7 @@ export default function TermsPage() {
             <a href="/privacy" className="hover:text-gray-700 transition-colors">Privacy</a>
             <a href="/terms" className="hover:text-gray-700 transition-colors">Terms</a>
             <a href="/docs" className="hover:text-gray-700 transition-colors">Docs</a>
-            <a href="mailto:support@inbound.exon.dev" className="hover:text-gray-700 transition-colors">Support</a>
+            <a href="mailto:support@inbound.new" className="hover:text-gray-700 transition-colors">Support</a>
           </div>
         </div>
       </footer>
