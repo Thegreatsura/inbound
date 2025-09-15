@@ -22,7 +22,7 @@ import type { InboundWebhookPayload, InboundEmailAddress, InboundEmailHeaders } 
 // POST /api/v2/endpoints/{id}/test types
 export interface PostEndpointTestRequest {
   id: string // from params
-  webhookFormat?: 'inbound' | 'discord' | 'slack' // optional, defaults to 'inbound'
+  webhookFormat?: WebhookFormat // optional, defaults to 'inbound'
   overrideUrl?: string // optional, overrides saved webhook URL for this test only
 }
 
@@ -34,7 +34,7 @@ export interface PostEndpointTestResponse {
   responseBody?: string
   error?: string
   testPayload?: any
-  webhookFormat?: 'inbound' | 'discord' | 'slack'
+  webhookFormat?: WebhookFormat
   urlTested?: string
 }
 
@@ -176,6 +176,37 @@ function buildMockInboundWebhookPayload(endpoint: { id: string; name: string; ty
   return payload
 }
 
+function resolveEffectiveUrl(overrideUrl?: string, fallbackUrl?: string): string {
+  const raw = (overrideUrl && overrideUrl.trim()) || (fallbackUrl && String(fallbackUrl).trim()) || ''
+  if (!raw) throw new Error('No URL configured for webhook test')
+  let u: URL
+  try { u = new URL(raw) } catch { throw new Error('Invalid URL') }
+  if (u.protocol !== 'http:' && u.protocol !== 'https:') throw new Error('Only http/https URLs are allowed')
+  const host = u.hostname.toLowerCase()
+  if (host === 'localhost' || host === '127.0.0.1' || host === '::1' || host.endsWith('.local')) {
+    throw new Error('Local addresses are not allowed')
+  }
+  const ipv4 = host.match(/^\d{1,3}(?:\.\d{1,3}){3}$/)
+  if (ipv4) {
+    const [a,b] = host.split('.').map(Number)
+    if (a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || a === 127 || (a === 169 && b === 254)) {
+      throw new Error('Private IPs are not allowed')
+    }
+  }
+  return u.toString()
+}
+
+function maskUrl(u: string): string {
+  try {
+    const url = new URL(u)
+    url.username = ''
+    url.password = ''
+    url.search = ''
+    return url.toString()
+  } catch {
+    return '[invalid URL]'
+  }
+}
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -267,8 +298,8 @@ export async function POST(
     switch (endpoint.type) {
       case 'webhook':
         try {
-          const effectiveUrl = (requestData.overrideUrl && requestData.overrideUrl.trim()) ? requestData.overrideUrl.trim() : config.url
-          console.log('🔗 Testing webhook endpoint:', effectiveUrl, requestData.overrideUrl ? '(override)' : '')
+          const effectiveUrl = resolveEffectiveUrl(requestData.overrideUrl, config.url)
+          console.log('🔗 Testing webhook endpoint:', maskUrl(effectiveUrl), requestData.overrideUrl ? '(override)' : '')
           console.log('📋 Using webhook format:', preferredFormat)
 
           // Parse custom headers safely (applies to all formats)
@@ -297,13 +328,16 @@ export async function POST(
               ...customHeaders
             }
 
-            console.log('📤 Sending test payload to webhook (inbound):', effectiveUrl)
+            console.log('📤 Sending test payload to webhook (inbound):', maskUrl(effectiveUrl))
 
+            const timeoutMs = (Number.isFinite(Number(config.timeout)) ? Math.max(1, Math.min(120, Number(config.timeout))) : 30) * 1000
             const response = await fetch(effectiveUrl, {
               method: 'POST',
               headers: requestHeaders,
               body: JSON.stringify(testPayload),
-              signal: AbortSignal.timeout((config.timeout || 30) * 1000)
+              redirect: 'error',
+              referrerPolicy: 'no-referrer',
+              signal: AbortSignal.timeout(timeoutMs)
             })
 
             const responseTime = Date.now() - startTime
@@ -347,13 +381,16 @@ export async function POST(
               ...customHeaders
             }
 
-            console.log('📤 Sending test payload to webhook (discord/slack):', effectiveUrl)
+            console.log('📤 Sending test payload to webhook (discord/slack):', maskUrl(effectiveUrl))
 
+            const timeoutMs2 = (Number.isFinite(Number(config.timeout)) ? Math.max(1, Math.min(120, Number(config.timeout))) : 30) * 1000
             const response = await fetch(effectiveUrl, {
               method: 'POST',
               headers: requestHeaders,
               body: JSON.stringify(testPayload),
-              signal: AbortSignal.timeout((config.timeout || 30) * 1000)
+              redirect: 'error',
+              referrerPolicy: 'no-referrer',
+              signal: AbortSignal.timeout(timeoutMs2)
             })
 
             const responseTime = Date.now() - startTime

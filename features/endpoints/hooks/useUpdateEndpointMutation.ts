@@ -25,9 +25,11 @@ export const useUpdateEndpointMutation = () => {
   
   return useMutation({
     mutationFn: updateEndpoint,
-    onSuccess: () => {
-      // Invalidate and refetch endpoints list
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['endpoints'] })
+      if (variables?.id) {
+        queryClient.invalidateQueries({ queryKey: ['endpoint', variables.id] })
+      }
     },
   })
 } 

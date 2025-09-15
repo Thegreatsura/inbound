@@ -1,49 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
-import type { EndpointConfig } from '../types'
+import type { EndpointWithStats, EndpointConfig } from '../types'
 
-export type GetEndpointByIdResponse = {
-  id: string
-  name: string
-  type: 'webhook' | 'email' | 'email_group'
-  webhookFormat?: 'inbound' | 'discord' | 'slack'
-  config: EndpointConfig
-  isActive: boolean
-  description: string | null
-  userId: string
-  createdAt: string | null
-  updatedAt: string | null
-  groupEmails: string[] | null
-  deliveryStats: {
-    total: number
-    successful: number
-    failed: number
-    lastDelivery: string | null
-  }
-  recentDeliveries: Array<{
-    id: string
-    emailId: string
-    deliveryType: string
-    status: string
-    attempts: number
-    lastAttemptAt: string | null
-    responseData: any
-    createdAt: string | null
-  }>
-  associatedEmails: Array<{
-    id: string
-    address: string
-    isActive: boolean
-    createdAt: string | null
-  }>
-  catchAllDomains: Array<{
-    id: string
-    domain: string
-    status: string
-  }>
-}
+type EndpointByIdResponse = Omit<EndpointWithStats, 'config'> & { config: EndpointConfig }
 
 export const useEndpointByIdQuery = (endpointId: string | null) => {
-  return useQuery<GetEndpointByIdResponse>({
+  return useQuery<EndpointByIdResponse>({
     queryKey: ['endpoint', endpointId],
     queryFn: async () => {
       if (!endpointId) throw new Error('Endpoint ID is required')
@@ -52,7 +13,7 @@ export const useEndpointByIdQuery = (endpointId: string | null) => {
         const error = await response.json().catch(() => ({}))
         throw new Error(error.error || `Failed to load endpoint (${response.status})`)
       }
-      return response.json()
+      return response.json() as Promise<EndpointByIdResponse>
     },
     enabled: !!endpointId,
     staleTime: 60 * 1000,

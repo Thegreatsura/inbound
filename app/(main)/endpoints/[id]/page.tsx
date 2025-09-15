@@ -94,7 +94,6 @@ export default function EndpointDetailsPage() {
       name: data.name,
       description: data.description || '',
       isActive: data.isActive ?? true,
-      webhookFormat: data.type === 'webhook' ? (data as any).webhookFormat ?? 'inbound' : undefined,
     })
 
     if (data.type === 'webhook') {
@@ -105,10 +104,10 @@ export default function EndpointDetailsPage() {
     if (data.type === 'webhook') {
       const wc = cfg as WebhookConfig
       setWebhookConfig({
-        url: wc.url || '',
-        timeout: wc.timeout || 30,
-        retryAttempts: wc.retryAttempts || 3,
-        headers: wc.headers || {},
+        url: wc.url ?? '',
+        timeout: wc.timeout ?? 30,
+        retryAttempts: wc.retryAttempts ?? 3,
+        headers: wc.headers ?? {},
       })
     } else if (data.type === 'email') {
       const ec = cfg as EmailForwardConfig
@@ -137,9 +136,14 @@ export default function EndpointDetailsPage() {
   useEffect(() => {
     if (data?.type === 'webhook') {
       setTestFormat(webhookFormat || 'inbound')
-      setOverrideUrl(webhookConfig.url || '')
     }
-  }, [data?.type, webhookFormat, webhookConfig.url])
+  }, [data?.type, webhookFormat])
+
+  useEffect(() => {
+    if (data?.type === 'webhook') {
+      setOverrideUrl(prev => prev || webhookConfig.url || '')
+    }
+  }, [data?.type, webhookConfig.url])
 
   useEffect(() => {
     if (logEndRef.current) {
@@ -168,6 +172,13 @@ export default function EndpointDetailsPage() {
     const urlToUse = (overrideUrl && overrideUrl.trim()) || webhookConfig.url || ''
     if (!urlToUse) {
       setErrors(prev => ({ ...prev, url: 'URL is required to run a test' }))
+      return
+    }
+    try {
+      new URL(urlToUse)
+    } catch {
+      setErrors(prev => ({ ...prev, url: 'Please enter a valid URL' }))
+      appendLog('[error] Invalid URL')
       return
     }
     appendLog(`[request] POST ${urlToUse} format=${testFormat}`)
@@ -205,10 +216,10 @@ export default function EndpointDetailsPage() {
           newErrors.url = 'Please enter a valid URL'
         }
       }
-      if (webhookConfig.timeout && (webhookConfig.timeout < 1 || webhookConfig.timeout > 300)) {
+      if (webhookConfig.timeout != null && (webhookConfig.timeout < 1 || webhookConfig.timeout > 300)) {
         newErrors.timeout = 'Timeout must be between 1 and 300 seconds'
       }
-      if (webhookConfig.retryAttempts && (webhookConfig.retryAttempts < 0 || webhookConfig.retryAttempts > 10)) {
+      if (webhookConfig.retryAttempts != null && (webhookConfig.retryAttempts < 0 || webhookConfig.retryAttempts > 10)) {
         newErrors.retryAttempts = 'Retry attempts must be between 0 and 10'
       }
     }
@@ -535,8 +546,13 @@ export default function EndpointDetailsPage() {
                       type="number"
                       min="1"
                       max="300"
-                      value={webhookConfig.timeout || ''}
-                      onChange={(e) => setWebhookConfig(prev => ({ ...prev, timeout: parseInt(e.target.value) || 30 }))}
+                      value={webhookConfig.timeout ?? ''}
+                      onChange={(e) =>
+                        setWebhookConfig(prev => ({
+                          ...prev,
+                          timeout: e.target.value === '' ? undefined : Number(e.target.value),
+                        }))
+                      }
                       className={errors.timeout ? 'border-red-500' : ''}
                     />
                     {errors.timeout && <p className="text-sm text-red-500">{errors.timeout}</p>}
@@ -549,8 +565,13 @@ export default function EndpointDetailsPage() {
                       type="number"
                       min="0"
                       max="10"
-                      value={webhookConfig.retryAttempts || ''}
-                      onChange={(e) => setWebhookConfig(prev => ({ ...prev, retryAttempts: parseInt(e.target.value) || 3 }))}
+                      value={webhookConfig.retryAttempts ?? ''}
+                      onChange={(e) =>
+                        setWebhookConfig(prev => ({
+                          ...prev,
+                          retryAttempts: e.target.value === '' ? undefined : Number(e.target.value),
+                        }))
+                      }
                       className={errors.retryAttempts ? 'border-red-500' : ''}
                     />
                     {errors.retryAttempts && <p className="text-sm text-red-500">{errors.retryAttempts}</p>}

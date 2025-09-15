@@ -499,7 +499,16 @@ export default function EndpointsPage() {
                     <div
                       key={endpoint.id}
                       className="flex items-center gap-4 px-5 py-4 transition-colors cursor-pointer hover:bg-muted/50 relative"
+                      role="link"
+                      tabIndex={0}
+                      aria-label={`Open ${endpoint.name}`}
                       onClick={() => router.push(`/endpoints/${endpoint.id}`)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          router.push(`/endpoints/${endpoint.id}`)
+                        }
+                      }}
                     >
                       {/* Endpoint Icon with Status */}
                       <div className="flex-shrink-0">
