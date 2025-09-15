@@ -173,47 +173,47 @@ export const receivedEmails = pgTable('received_emails', { // deprecating.... us
   id: varchar('id', { length: 255 }).primaryKey(),
   sesEventId: varchar('ses_event_id', { length: 255 }).notNull(), // Reference to sesEvents table
   messageId: varchar('message_id', { length: 255 }).notNull(),
-  
+
   // Basic email fields
   from: varchar('from', { length: 255 }).notNull(),
   to: text('to').notNull(), // JSON string for multiple recipients
   recipient: varchar('recipient', { length: 255 }).notNull(), // Specific recipient for this record
   subject: text('subject'),
-  
+
   // Parsed email data from parseEmail function
   fromParsed: text('from_parsed'), // JSON: { text: string, addresses: Array<{name: string|null, address: string|null}> }
   toParsed: text('to_parsed'), // JSON: same structure as fromParsed
   ccParsed: text('cc_parsed'), // JSON: same structure as fromParsed
   bccParsed: text('bcc_parsed'), // JSON: same structure as fromParsed
   replyToParsed: text('reply_to_parsed'), // JSON: same structure as fromParsed
-  
+
   // Email content
   textBody: text('text_body'), // Plain text body
   htmlBody: text('html_body'), // HTML body
   rawEmailContent: text('raw_email_content'), // Full raw email content
-  
+
   // Email metadata
   inReplyTo: varchar('in_reply_to', { length: 255 }), // Message ID this is replying to
   references: text('references'), // JSON array of referenced message IDs
   priority: varchar('priority', { length: 50 }), // Email priority
-  
+
   // Attachments and headers
   attachments: text('attachments'), // JSON array of attachment metadata
   headers: text('headers'), // JSON object of all email headers
-  
+
   // Timestamps
   emailDate: timestamp('email_date'), // Date from email headers
   receivedAt: timestamp('received_at').notNull(),
   processedAt: timestamp('processed_at'),
-  
+
   // Status and tracking
   status: varchar('status', { length: 50 }).notNull(), // 'received', 'processing', 'forwarded', 'failed'
   isRead: boolean('is_read').default(false), // Track read/unread status
   readAt: timestamp('read_at'), // When the email was marked as read
-  
+
   // Legacy metadata field for backward compatibility
   metadata: text('metadata'), // JSON string
-  
+
   userId: varchar('user_id', { length: 255 }).notNull(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
@@ -224,52 +224,52 @@ export const parsedEmails = pgTable('parsed_emails', { // deprecating.... use st
   id: varchar('id', { length: 255 }).primaryKey(),
   emailId: varchar('email_id', { length: 255 }).notNull(), // Reference to receivedEmails table
   messageId: varchar('message_id', { length: 255 }), // Parsed message ID from email headers
-  
+
   // Email addresses - storing as text for the full address info, and separate columns for quick queries
   fromText: text('from_text'), // Full "Name <email@domain.com>" format
   fromAddress: varchar('from_address', { length: 255 }), // Just the email address for indexing
   fromName: varchar('from_name', { length: 255 }), // Just the display name
-  
+
   toText: text('to_text'), // Full to addresses text
   toAddresses: text('to_addresses'), // JSON array of {name, address} objects
-  
+
   ccText: text('cc_text'), // Full CC addresses text  
   ccAddresses: text('cc_addresses'), // JSON array of {name, address} objects
-  
+
   bccText: text('bcc_text'), // Full BCC addresses text
   bccAddresses: text('bcc_addresses'), // JSON array of {name, address} objects
-  
+
   replyToText: text('reply_to_text'), // Full reply-to text
   replyToAddresses: text('reply_to_addresses'), // JSON array of {name, address} objects
-  
+
   // Email content
   subject: text('subject'), // Parsed subject
   textBody: text('text_body'), // Plain text body
   htmlBody: text('html_body'), // HTML body
-  
+
   // Email threading and references
   inReplyTo: varchar('in_reply_to', { length: 255 }), // Message ID this is replying to
   references: text('references'), // JSON array of referenced message IDs
-  
+
   // Email metadata
   priority: varchar('priority', { length: 50 }), // Email priority (high, normal, low)
   emailDate: timestamp('email_date'), // Date from email headers
-  
+
   // Attachments and headers
   attachments: text('attachments'), // JSON array of attachment metadata
   attachmentCount: integer('attachment_count').default(0), // Quick count for queries
   hasAttachments: boolean('has_attachments').default(false), // Quick boolean for queries
-  
+
   headers: text('headers'), // JSON object of all email headers
-  
+
   // Content flags for quick queries
   hasTextBody: boolean('has_text_body').default(false),
   hasHtmlBody: boolean('has_html_body').default(false),
-  
+
   // Parsing metadata
   parseSuccess: boolean('parse_success').default(true), // Whether parsing was successful
   parseError: text('parse_error'), // Any parsing errors encountered
-  
+
   // Timestamps
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
@@ -279,37 +279,37 @@ export const structuredEmails = pgTable('structured_emails', {
   id: varchar('id', { length: 255 }).primaryKey(),
   emailId: varchar('email_id', { length: 255 }).notNull(), // Reference to receivedEmails table
   sesEventId: varchar('ses_event_id', { length: 255 }).notNull(), // Reference to sesEvents table
-  
+
   // Core email fields matching ParsedEmailData
   messageId: varchar('message_id', { length: 255 }), // string | undefined
   date: timestamp('date'), // Date | undefined  
   subject: text('subject'), // string | undefined
-  
+
   // Address fields - stored as JSON matching ParsedEmailAddress structure
   fromData: text('from_data'), // ParsedEmailAddress | null - JSON: { text: string, addresses: Array<{name: string|null, address: string|null}> }
   toData: text('to_data'), // ParsedEmailAddress | null
   ccData: text('cc_data'), // ParsedEmailAddress | null
   bccData: text('bcc_data'), // ParsedEmailAddress | null
   replyToData: text('reply_to_data'), // ParsedEmailAddress | null
-  
+
   // Threading fields
   inReplyTo: varchar('in_reply_to', { length: 255 }), // string | undefined
   references: text('references'), // string[] | undefined - stored as JSON array
-  
+
   // Content fields
   textBody: text('text_body'), // string | undefined
   htmlBody: text('html_body'), // string | undefined
   rawContent: text('raw_content'), // string | undefined (raw field from ParsedEmailData)
-  
+
   // Attachments - stored as JSON array matching ParsedEmailData structure
   attachments: text('attachments'), // Array<{filename: string | undefined, contentType: string | undefined, size: number | undefined, contentId: string | undefined, contentDisposition: string | undefined}>
-  
+
   // Headers - stored as JSON object matching enhanced headers structure
   headers: text('headers'), // Record<string, any> with specific typed properties
-  
+
   // Priority field
   priority: varchar('priority', { length: 50 }), // string | false | undefined
-  
+
   // Processing metadata
   parseSuccess: boolean('parse_success').default(true),
   parseError: text('parse_error'),
@@ -317,7 +317,7 @@ export const structuredEmails = pgTable('structured_emails', {
   readAt: timestamp('read_at'), // When the email was marked as read
   isArchived: boolean('is_archived').default(false),
   archivedAt: timestamp('archived_at'), // When the email was archived
-  
+
   // User and timestamps
   userId: varchar('user_id', { length: 255 }).notNull(),
   createdAt: timestamp('created_at').defaultNow(),
@@ -405,7 +405,7 @@ export const blockedEmails = pgTable('blocked_emails', {
 // Sent Emails table - stores emails sent through the API
 export const sentEmails = pgTable('sent_emails', {
   id: varchar('id', { length: 255 }).primaryKey(),
-  
+
   // Sender and recipient information
   from: varchar('from', { length: 500 }).notNull(), // Full "Name <email@domain.com>" format
   fromAddress: varchar('from_address', { length: 255 }).notNull(), // Just the email address for validation
@@ -414,17 +414,17 @@ export const sentEmails = pgTable('sent_emails', {
   cc: text('cc'), // JSON array of email addresses
   bcc: text('bcc'), // JSON array of email addresses
   replyTo: text('reply_to'), // JSON array of email addresses
-  
+
   // Email content
   subject: text('subject').notNull(),
   textBody: text('text_body'),
   htmlBody: text('html_body'),
-  
+
   // Headers and metadata
   headers: text('headers'), // JSON object of custom headers
   attachments: text('attachments'), // JSON array of attachment metadata
   tags: text('tags'), // JSON array of email tags (Resend-compatible)
-  
+
   // Delivery status
   status: varchar('status', { length: 50 }).notNull().default('pending'), // 'pending', 'sent', 'failed'
   messageId: varchar('message_id', { length: 255 }), // Provider message ID after sending
@@ -432,10 +432,10 @@ export const sentEmails = pgTable('sent_emails', {
   providerResponse: text('provider_response'), // Full response from provider
   sentAt: timestamp('sent_at'), // When the email was actually sent
   failureReason: text('failure_reason'), // If failed, why
-  
+
   // Idempotency
   idempotencyKey: varchar('idempotency_key', { length: 256 }), // For preventing duplicates
-  
+
   // User and timestamps
   userId: varchar('user_id', { length: 255 }).notNull(),
   createdAt: timestamp('created_at').defaultNow(),
@@ -446,12 +446,12 @@ export const sentEmails = pgTable('sent_emails', {
 export const scheduledEmails = pgTable('scheduled_emails', {
   id: varchar('id', { length: 255 }).primaryKey(),
   userId: varchar('user_id', { length: 255 }).notNull(),
-  
+
   // Scheduling information
   scheduledAt: timestamp('scheduled_at').notNull(), // When to send the email
   timezone: varchar('timezone', { length: 50 }).default('UTC'), // User's timezone for natural language parsing
   status: varchar('status', { length: 50 }).notNull().default('scheduled'), // 'scheduled', 'processing', 'sent', 'failed', 'cancelled'
-  
+
   // Email content (same structure as sentEmails but for future sending)
   fromAddress: varchar('from_address', { length: 500 }).notNull(), // Full "Name <email@domain.com>" format
   fromDomain: varchar('from_domain', { length: 255 }).notNull(), // Domain part for validation
@@ -459,26 +459,30 @@ export const scheduledEmails = pgTable('scheduled_emails', {
   ccAddresses: text('cc_addresses'), // JSON array of email addresses
   bccAddresses: text('bcc_addresses'), // JSON array of email addresses
   replyToAddresses: text('reply_to_addresses'), // JSON array of email addresses
-  
+
   // Email content
   subject: text('subject').notNull(),
   textBody: text('text_body'),
   htmlBody: text('html_body'),
-  
+
   // Headers and metadata
   headers: text('headers'), // JSON object of custom headers
   attachments: text('attachments'), // JSON array of attachment data (base64 or S3 references)
   tags: text('tags'), // JSON array of email tags (Resend-compatible)
-  
+
   // Processing metadata
   attempts: integer('attempts').default(0), // Number of send attempts
   maxAttempts: integer('max_attempts').default(3), // Maximum retry attempts
   nextRetryAt: timestamp('next_retry_at'), // When to retry if failed
   lastError: text('last_error'), // Last error message if failed
-  
+
   // Idempotency
   idempotencyKey: varchar('idempotency_key', { length: 256 }), // For preventing duplicates
-  
+
+  // QStash integration fields
+  qstashScheduleId: varchar('qstash_schedule_id', { length: 255 }), // QStash schedule/message ID
+  qstashDlqId: varchar('qstash_dlq_id', { length: 255 }), // Dead Letter Queue ID if failed
+
   // Audit and tracking
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
@@ -489,7 +493,7 @@ export const scheduledEmails = pgTable('scheduled_emails', {
 // Scheduled email status constants
 export const SCHEDULED_EMAIL_STATUS = {
   SCHEDULED: 'scheduled',
-  PROCESSING: 'processing', 
+  PROCESSING: 'processing',
   SENT: 'sent',
   FAILED: 'failed',
   CANCELLED: 'cancelled'
@@ -552,7 +556,7 @@ export const DOMAIN_STATUS = {
 
 export const SES_VERIFICATION_STATUS = {
   PENDING: 'Pending',
-  SUCCESS: 'Success', 
+  SUCCESS: 'Success',
   FAILED: 'Failed'
 } as const;
 
