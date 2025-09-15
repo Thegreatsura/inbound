@@ -1,7 +1,8 @@
 "use client"
 
 import { useState, useEffect } from 'react'
-import { useTestEndpointMutation, type WebhookFormat, type TestEndpointResponse } from '@/features/endpoints/hooks'
+import { useTestEndpointMutation, type TestEndpointResponse } from '@/features/endpoints/hooks'
+import { WebhookFormat } from '@/lib/db/schema'
 import { Endpoint } from '@/features/endpoints/types'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
