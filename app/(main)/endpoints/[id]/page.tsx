@@ -151,6 +151,18 @@ export default function EndpointDetailsPage() {
     setLogLines(prev => [...prev, { ts: new Date(), text }])
   }
 
+  const formatLabel = (val: WebhookFormat) => {
+    switch (val) {
+      case 'discord':
+        return 'Discord'
+      case 'slack':
+        return 'Slack'
+      case 'inbound':
+      default:
+        return 'Inbound'
+    }
+  }
+
   const handleRunWebhookTest = async () => {
     if (!data) return
     const urlToUse = (overrideUrl && overrideUrl.trim()) || webhookConfig.url || ''
@@ -428,9 +440,9 @@ export default function EndpointDetailsPage() {
                     </div>
                     <div className="space-y-1">
                       <Label htmlFor="testFormat" className="text-xs text-muted-foreground">Format</Label>
-                      <Select value={testFormat} onValueChange={(v: WebhookFormat) => setTestFormat(v)}>
+                      <Select value={testFormat} defaultValue={testFormat} onValueChange={(v: WebhookFormat) => setTestFormat(v)}>
                         <SelectTrigger id="testFormat">
-                          <SelectValue placeholder="Select format" />
+                          <SelectValue placeholder={formatLabel(testFormat)} />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="inbound">Inbound</SelectItem>

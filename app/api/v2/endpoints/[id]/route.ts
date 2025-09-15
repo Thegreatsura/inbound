@@ -5,6 +5,7 @@ import { endpoints, emailGroups, endpointDeliveries, emailAddresses, emailDomain
 import { eq, and, desc, count } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import type { UpdateEndpointData, Endpoint, EndpointConfig } from '@/features/endpoints/types'
+import type { WebhookFormat } from '@/lib/db/schema'
 
 /**
  * GET /api/v2/endpoints/{id}
@@ -255,6 +256,7 @@ export interface PutEndpointByIdRequest {
     description?: string
     isActive?: boolean
     config?: EndpointConfig
+    webhookFormat?: WebhookFormat
 }
 
 export interface PutEndpointByIdResponse {
@@ -289,12 +291,13 @@ export async function PUT(
         }
         console.log('✅ Authentication successful for userId:', userId)
 
-        const data: UpdateEndpointData = await request.json()
+        const data: UpdateEndpointData & { webhookFormat?: WebhookFormat } = await request.json()
         console.log('📝 Update data received:', {
             hasName: !!data.name,
             hasDescription: !!data.description,
             hasIsActive: data.isActive !== undefined,
-            hasConfig: !!data.config
+            hasConfig: !!data.config,
+            hasWebhookFormat: data.webhookFormat !== undefined
         })
 
         // Check if endpoint exists and belongs to user
@@ -344,6 +347,9 @@ export async function PUT(
         if (data.description !== undefined) updateData.description = data.description
         if (data.isActive !== undefined) updateData.isActive = data.isActive
         if (data.config !== undefined) updateData.config = JSON.stringify(data.config)
+        if (data.webhookFormat !== undefined && existingEndpoint[0].type === 'webhook') {
+            updateData.webhookFormat = data.webhookFormat
+        }
 
         console.log('💾 Updating endpoint with fields:', Object.keys(updateData))
 

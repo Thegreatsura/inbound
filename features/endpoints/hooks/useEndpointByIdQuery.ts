@@ -5,6 +5,7 @@ export type GetEndpointByIdResponse = {
   id: string
   name: string
   type: 'webhook' | 'email' | 'email_group'
+  webhookFormat?: 'inbound' | 'discord' | 'slack'
   config: EndpointConfig
   isActive: boolean
   description: string | null
