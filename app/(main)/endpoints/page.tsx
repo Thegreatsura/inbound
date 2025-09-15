@@ -1,8 +1,9 @@
 "use client"
 
 import React, { useState, useEffect, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import { useEndpointsQuery, useMigrationMutation, useUpdateEndpointMutation } from '@/features/endpoints/hooks'
-import { CreateEndpointDialog, EditEndpointDialog, DeleteEndpointDialog, TestEndpointDialog } from '@/components/endpoints'
+import { CreateEndpointDialog, DeleteEndpointDialog, TestEndpointDialog } from '@/components/endpoints'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -18,7 +19,6 @@ import Envelope from '@/components/icons/envelope'
 import Users6 from '@/components/icons/users-6'
 import Globe2 from '@/components/icons/globe-2'
 import CirclePlay from '@/components/icons/circle-play'
-import Gear2 from '@/components/icons/gear-2'
 import Trash2 from '@/components/icons/trash-2'
 import Magnifier2 from '@/components/icons/magnifier-2'
 import Filter2 from '@/components/icons/filter-2'
@@ -36,6 +36,7 @@ type FilterStatus = 'all' | 'active' | 'disabled'
 type SortBy = 'newest' | 'oldest'
 
 export default function EndpointsPage() {
+  const router = useRouter()
   // Search and filter state
   const [searchQuery, setSearchQuery] = useState('')
   const [filterType, setFilterType] = useState<FilterType>('all')
@@ -68,7 +69,7 @@ export default function EndpointsPage() {
   }, [migrationChecked, migrationInProgress, endpoints])
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
-  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  // const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deleteMultipleDialogOpen, setDeleteMultipleDialogOpen] = useState(false)
   const [testDialogOpen, setTestDialogOpen] = useState(false)
@@ -169,10 +170,10 @@ export default function EndpointsPage() {
     setTestDialogOpen(true)
   }
 
-  const handleEditEndpoint = (endpoint: EndpointWithStats) => {
-    setSelectedEndpoint(endpoint)
-    setEditDialogOpen(true)
-  }
+  // const handleEditEndpoint = (endpoint: EndpointWithStats) => {
+  //   setSelectedEndpoint(endpoint)
+  //   setEditDialogOpen(true)
+  // }
 
   const handleDeleteEndpoint = (endpoint: EndpointWithStats) => {
     setSelectedEndpoint(endpoint)
@@ -497,7 +498,8 @@ export default function EndpointsPage() {
                   return (
                     <div
                       key={endpoint.id}
-                      className="flex items-center gap-4 px-5 py-4 transition-colors cursor-pointer hover:bg-muted/50"
+                      className="flex items-center gap-4 px-5 py-4 transition-colors cursor-pointer hover:bg-muted/50 relative"
+                      onClick={() => router.push(`/endpoints/${endpoint.id}`)}
                     >
                       {/* Endpoint Icon with Status */}
                       <div className="flex-shrink-0">
@@ -525,18 +527,33 @@ export default function EndpointsPage() {
                       </div>
 
                       {/* Actions */}
-                      <div className="flex items-center gap-1 ml-4">
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => updateMutation.mutate({ id: endpoint.id, data: { isActive: !endpoint.isActive } })} title={endpoint.isActive ? 'Disable' : 'Enable'}>
+                      <div className="flex items-center gap-1 ml-4 relative z-10">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-9 w-9 p-0"
+                          onClick={(e) => { e.stopPropagation(); updateMutation.mutate({ id: endpoint.id, data: { isActive: !endpoint.isActive } }) }}
+                          title={endpoint.isActive ? 'Disable' : 'Enable'}
+                        >
                           {endpoint.isActive ? <BadgeCheck2 width="16" height="16" /> : <Ban2 width="16" height="16" />}
                         </Button>
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => handleTestEndpoint(endpoint)} title="Test">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-9 w-9 p-0"
+                          onClick={(e) => { e.stopPropagation(); handleTestEndpoint(endpoint) }}
+                          title="Test"
+                        >
                           <CirclePlay width="16" height="16" />
                         </Button>
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => handleDeleteEndpoint(endpoint)} title="Delete">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-9 w-9 p-0"
+                          onClick={(e) => { e.stopPropagation(); handleDeleteEndpoint(endpoint) }}
+                          title="Delete"
+                        >
                           <Trash2 width="16" height="16" />
-                        </Button>
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => handleEditEndpoint(endpoint)} title="Settings">
-                          <Gear2 width="16" height="16" />
                         </Button>
                       </div>
                     </div>
@@ -553,11 +570,7 @@ export default function EndpointsPage() {
         onOpenChange={setCreateDialogOpen}
       />
 
-      <EditEndpointDialog
-        open={editDialogOpen}
-        onOpenChange={setEditDialogOpen}
-        endpoint={selectedEndpoint}
-      />
+      {/* Settings dialog removed in favor of dedicated page */}
 
       <DeleteEndpointDialog
         open={deleteDialogOpen}

@@ -23,6 +23,7 @@ import type { InboundWebhookPayload, InboundEmailAddress, InboundEmailHeaders } 
 export interface PostEndpointTestRequest {
   id: string // from params
   webhookFormat?: 'inbound' | 'discord' | 'slack' // optional, defaults to 'inbound'
+  overrideUrl?: string // optional, overrides saved webhook URL for this test only
 }
 
 export interface PostEndpointTestResponse {
@@ -34,6 +35,7 @@ export interface PostEndpointTestResponse {
   error?: string
   testPayload?: any
   webhookFormat?: 'inbound' | 'discord' | 'slack'
+  urlTested?: string
 }
 
 // Build a mock payload that matches the exact real webhook payload structure
@@ -194,7 +196,7 @@ export async function POST(
     console.log('✅ Authentication successful for userId:', userId)
 
     // Parse request body for webhook format preference
-    let requestData: { webhookFormat?: WebhookFormat } = {}
+    let requestData: { webhookFormat?: WebhookFormat; overrideUrl?: string } = {}
     try {
       const body = await request.text()
       if (body.trim()) {
@@ -265,7 +267,8 @@ export async function POST(
     switch (endpoint.type) {
       case 'webhook':
         try {
-          console.log('🔗 Testing webhook endpoint:', config.url)
+          const effectiveUrl = (requestData.overrideUrl && requestData.overrideUrl.trim()) ? requestData.overrideUrl.trim() : config.url
+          console.log('🔗 Testing webhook endpoint:', effectiveUrl, requestData.overrideUrl ? '(override)' : '')
           console.log('📋 Using webhook format:', preferredFormat)
 
           // Parse custom headers safely (applies to all formats)
@@ -294,9 +297,9 @@ export async function POST(
               ...customHeaders
             }
 
-            console.log('📤 Sending test payload to webhook (inbound):', config.url)
+            console.log('📤 Sending test payload to webhook (inbound):', effectiveUrl)
 
-            const response = await fetch(config.url, {
+            const response = await fetch(effectiveUrl, {
               method: 'POST',
               headers: requestHeaders,
               body: JSON.stringify(testPayload),
@@ -320,7 +323,8 @@ export async function POST(
               statusCode: response.status,
               responseBody: responseBody.substring(0, 1000),
               testPayload,
-              webhookFormat: preferredFormat
+              webhookFormat: preferredFormat,
+              urlTested: effectiveUrl
             }
 
             console.log(`${response.ok ? '✅' : '❌'} Webhook test ${response.ok ? 'passed' : 'failed'}: ${response.status} in ${responseTime}ms`)
@@ -343,9 +347,9 @@ export async function POST(
               ...customHeaders
             }
 
-            console.log('📤 Sending test payload to webhook (discord/slack):', config.url)
+            console.log('📤 Sending test payload to webhook (discord/slack):', effectiveUrl)
 
-            const response = await fetch(config.url, {
+            const response = await fetch(effectiveUrl, {
               method: 'POST',
               headers: requestHeaders,
               body: JSON.stringify(testPayload),
@@ -369,7 +373,8 @@ export async function POST(
               statusCode: response.status,
               responseBody: responseBody.substring(0, 1000),
               testPayload,
-              webhookFormat: preferredFormat
+              webhookFormat: preferredFormat,
+              urlTested: effectiveUrl
             }
 
             console.log(`${response.ok ? '✅' : '❌'} Webhook test ${response.ok ? 'passed' : 'failed'}: ${response.status} in ${responseTime}ms`)
