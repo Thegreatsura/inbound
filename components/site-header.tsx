@@ -38,6 +38,9 @@ export function SiteHeader() {
     if (href === '/examples') {
       return pathname === '/examples'
     }
+    if (href === '/blog') {
+      return pathname.startsWith('/blog')
+    }
     return false
   }
 
@@ -69,6 +72,15 @@ export function SiteHeader() {
             pricing
           </Link>
           <Link href="/docs" className="text-muted-foreground hover:text-foreground transition-colors">docs</Link>
+          <Link
+            href="/blog"
+            className={`transition-colors ${isActive('/blog')
+              ? 'text-foreground font-medium'
+              : 'text-muted-foreground hover:text-foreground'
+              }`}
+          >
+            blog
+          </Link>
         </nav>
         <div className="flex items-center gap-2">
           {session?.user ? (

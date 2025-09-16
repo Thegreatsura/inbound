@@ -1,4 +1,6 @@
 import { Pump } from "basehub/react-pump";
+import { basehub } from "basehub";
+import type { Metadata } from "next";
 import { RichText } from "basehub/react-rich-text";
 import { BaseHubImage } from "basehub/next-image";
 import { SiteHeader } from "@/components/site-header";
@@ -12,7 +14,7 @@ import { generateBlogPostsQuery } from "@/features/blog/utils/blog-query";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft } from "lucide-react";
+import ArrowBoldLeft from "@/components/icons/arrow-bold-left";
 import { Separator } from "@/components/ui/separator";
 
 interface BlogPostPageProps {
@@ -49,7 +51,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
               <article className="relative flex flex-col gap-12 max-w-none">
                 <Button variant="secondary" asChild className="w-fit">
                   <Link href="/blog">
-                    <ArrowLeft /> All blogs
+                    <ArrowBoldLeft width="18" height="18" /> All blogs
                   </Link>
                 </Button>
 
@@ -135,4 +137,38 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
       </div>
     </>
   );
+}
+
+export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
+  const { blogPosts } = await basehub().query({
+    blogPosts: generateBlogPostsQuery(),
+  });
+
+  // Reuse existing mapper to find the specific post
+  const { getBlogPostBySlug } = await import("@/features/blog/utils/blog-mapper");
+  const blog = getBlogPostBySlug(blogPosts, params.slug);
+
+  if (!blog) {
+    return {
+      title: "Blog",
+    };
+  }
+
+  const imageUrl = blog.image?.url || "/opengraph-image.png";
+
+  return {
+    title: blog.title,
+    description: blog.description,
+    openGraph: {
+      title: blog.title,
+      description: blog.description,
+      images: [{ url: imageUrl }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: blog.title,
+      description: blog.description,
+      images: [imageUrl],
+    },
+  };
 }

@@ -9,6 +9,7 @@ import { QueryProvider } from "@/components/providers/query-provider";
 import { SpeedInsights } from "@vercel/speed-insights/next"
 import Script from "next/script";
 import { Databuddy } from "@databuddy/sdk"
+import { Toolbar } from "basehub/next-toolbar"
 
 const outfit = Outfit({
   variable: "--font-outfit",
@@ -301,6 +302,7 @@ export default function RootLayout({
             <SpeedInsights />
           </AutumnProvider>
         </QueryProvider>
+        <Toolbar />
       </body>
       <DubAnalytics domainsConfig={{
         refer: "inbd.link"

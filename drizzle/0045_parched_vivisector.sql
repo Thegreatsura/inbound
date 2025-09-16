@@ -1,0 +1,1 @@
+DROP TABLE "dub_oauth_integrations" CASCADE;

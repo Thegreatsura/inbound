@@ -5,6 +5,7 @@ import Envelope2 from "@/components/icons/envelope-2"
 import ShieldCheck from "@/components/icons/shield-check"
 import Code2 from "@/components/icons/code-2"
 import File2 from "@/components/icons/file-2"
+import BookOpen2 from "@/components/icons/book-open-2"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -133,6 +134,20 @@ export default async function MarketingHeader() {
                     <div className="flex-1 min-w-0">
                       <div className="font-medium text-gray-900 text-sm group-hover:text-purple-900">Changelog</div>
                       <div className="text-xs text-gray-500 mt-1 group-hover:text-purple-600">Latest updates and improvements</div>
+                    </div>
+                  </div>
+                </a>
+              </DropdownMenuItem>
+
+              <DropdownMenuItem asChild className="p-0">
+                <a href="/blog" className="w-full cursor-pointer p-4 rounded-lg hover:bg-indigo-50 hover:border-indigo-200 border border-transparent transition-all duration-200 group">
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 group-hover:bg-indigo-200 transition-colors">
+                      <BookOpen2 className="w-4 h-4 text-indigo-600 group-hover:text-indigo-700" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-gray-900 text-sm group-hover:text-indigo-900">Blog</div>
+                      <div className="text-xs text-gray-500 mt-1 group-hover:text-indigo-600">Latest news, updates, and insights</div>
                     </div>
                   </div>
                 </a>
