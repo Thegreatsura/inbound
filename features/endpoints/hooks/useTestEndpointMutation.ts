@@ -1,10 +1,10 @@
-import { useMutation } from '@tanstack/react-query'
-
-export type WebhookFormat = 'inbound' | 'discord' | 'slack'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import type { WebhookFormat } from '@/lib/db/schema'
 
 export type TestEndpointRequest = {
   id: string
   webhookFormat?: WebhookFormat
+  overrideUrl?: string
 }
 
 export type TestEndpointResponse = {
@@ -16,10 +16,11 @@ export type TestEndpointResponse = {
   error?: string
   testPayload?: any
   webhookFormat?: WebhookFormat
+  urlTested?: string
 }
 
 async function testEndpoint(params: TestEndpointRequest): Promise<TestEndpointResponse> {
-  const { id, webhookFormat } = params
+  const { id, webhookFormat, overrideUrl } = params
   
   // Use v2 API endpoint
   const response = await fetch(`/api/v2/endpoints/${id}/test`, {
@@ -27,12 +28,22 @@ async function testEndpoint(params: TestEndpointRequest): Promise<TestEndpointRe
     headers: {
       'Content-Type': 'application/json',
     },
-    body: webhookFormat ? JSON.stringify({ webhookFormat }) : undefined,
+    body: JSON.stringify({
+      ...(webhookFormat ? { webhookFormat } : {}),
+      ...(overrideUrl ? { overrideUrl } : {}),
+    }),
   })
   
   if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.error || 'Failed to test endpoint')
+    let message = 'Failed to test endpoint'
+    try {
+      const err = await response.json()
+      message = err.error || message
+    } catch {
+      const text = await response.text().catch(() => '')
+      message = text || message
+    }
+    throw new Error(message)
   }
   
   return await response.json()
@@ -42,4 +53,4 @@ export const useTestEndpointMutation = () => {
   return useMutation({
     mutationFn: testEndpoint,
   })
-} 
+}
