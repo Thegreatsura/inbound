@@ -1248,16 +1248,19 @@ export default function DomainDetailPage() {
                                                                 if (endpoint) {
                                                                     const EndpointIcon = getEndpointIcon(endpoint)
                                                                     return (
-                                                                        <div className="flex items-center gap-1.5">
+                                                                        <Link 
+                                                                            href={`/endpoints/${routing.id}`}
+                                                                            className="flex items-center gap-1.5 hover:opacity-80 transition-opacity"
+                                                                        >
                                                                             <CustomInboundIcon
                                                                                 Icon={EndpointIcon}
                                                                                 size={25}
                                                                                 backgroundColor={getEndpointIconColor(endpoint)}
                                                                             />
-                                                                            <span className={`font-medium`} style={{ color: getEndpointIconColor(endpoint) }}>
+                                                                            <span className={`font-medium hover:underline`} style={{ color: getEndpointIconColor(endpoint) }}>
                                                                                 {routing.name}
                                                                             </span>
-                                                                        </div>
+                                                                        </Link>
                                                                     )
                                                                 }
                                                             } else if (routing.type === 'webhook' && routing.id) {
@@ -1330,7 +1333,28 @@ export default function DomainDetailPage() {
                                         </div>
 
                                         <div className="flex flex-col sm:flex-row gap-3">
-                                            {!domainDetailsData.isCatchAllEnabled && (
+                                            {domainDetailsData.isCatchAllEnabled && domainDetailsData.catchAllEndpoint ? (
+                                                <div className="flex-1 flex items-center gap-3 p-3 bg-muted/50 rounded-lg border border-border">
+                                                    <div className="text-sm text-muted-foreground">Currently routing to:</div>
+                                                    <Link 
+                                                        href={`/endpoints/${domainDetailsData.catchAllEndpoint.id}`}
+                                                        className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+                                                    >
+                                                        <CustomInboundIcon
+                                                            Icon={getEndpointIcon(domainDetailsData.catchAllEndpoint)}
+                                                            size={16}
+                                                            backgroundColor={getEndpointIconColor(domainDetailsData.catchAllEndpoint)}
+                                                        />
+                                                        <span className="font-medium hover:underline" style={{ color: getEndpointIconColor(domainDetailsData.catchAllEndpoint) }}>
+                                                            {domainDetailsData.catchAllEndpoint.name}
+                                                        </span>
+                                                    </Link>
+                                                </div>
+                                            ) : domainDetailsData.isCatchAllEnabled ? (
+                                                <div className="flex-1 flex items-center gap-3 p-3 bg-muted/50 rounded-lg border border-border">
+                                                    <div className="text-sm text-muted-foreground">Currently routing to: Store in Inbound</div>
+                                                </div>
+                                            ) : (
                                                 <div className="flex-1">
                                                     <Select
                                                         value={catchAllEndpointId}
