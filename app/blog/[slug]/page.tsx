@@ -1,7 +1,6 @@
 import { Pump } from "basehub/react-pump";
 import { basehub } from "basehub";
 import type { Metadata } from "next";
-import { RichText } from "basehub/react-rich-text";
 import { BaseHubImage } from "basehub/next-image";
 import { SiteHeader } from "@/components/site-header";
 import {
@@ -10,6 +9,7 @@ import {
   getNextBlogPost,
 } from "@/features/blog/utils/blog-mapper";
 import { BlogNavigation } from "@/features/blog/components/blog-navigation";
+import { RichTextRenderer } from "@/features/blog/components/rich-text-renderer";
 import { generateBlogPostsQuery } from "@/features/blog/utils/blog-query";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -113,9 +113,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
                 {/* Blog content */}
                 <div className="prose max-w-none">
                   {blog.content?.json.content ? (
-                    <RichText components={{}}>
-                      {blog.content.json.content}
-                    </RichText>
+                    <RichTextRenderer content={blog.content.json.content} />
                   ) : (
                     <p className="text-muted-foreground">
                       Content not available for this blog post.
