@@ -40,6 +40,28 @@ export function mapBlogPost(blog: BaseBlogPost): BlogPost {
 export function mapBlogPosts(blogPosts: any): BlogPost[] {
   const blogs: BlogPost[] = [];
 
+  // Handle new list structure
+  if (blogPosts.blogPosts?.items) {
+    blogPosts.blogPosts.items.forEach((blogPost: any) => {
+      if (
+        blogPost &&
+        typeof blogPost === "object" &&
+        blogPost._id &&
+        blogPost._slug &&
+        blogPost.title &&
+        blogPost.description
+      ) {
+        try {
+          blogs.push(mapBlogPost(blogPost as BaseBlogPost));
+        } catch (error) {
+          console.warn(`Failed to map blog post "${blogPost._id}":`, error);
+        }
+      }
+    });
+    return blogs;
+  }
+
+  // Fallback: Handle legacy individual document structure for backward compatibility
   Object.keys(blogPosts).forEach((key) => {
     if (key.startsWith("_") || key === "__typename") {
       return; // Skip system properties

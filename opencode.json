@@ -1,0 +1,14 @@
+{
+    "$schema": "https://opencode.ai/config.json",
+    "mcp": {
+        "basehub": {
+            "type": "remote",
+            "url": "https://basehub.com/api/mcp",
+            "enabled": true,
+            "headers": {
+                "Authorization": "Bearer bshb_mcp_bCP9AcdFyzChi70XwUWWA3996gqebtEnp9dCnNoHODKwo4e5iHVUhU9VFKQmRhZ6"
+            }
+
+        }
+    }
+}
