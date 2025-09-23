@@ -99,7 +99,7 @@ export interface BlockColor {
     __typename: 'BlockColor'
 }
 
-export type BlockDocument = (BlogPosts | SimplifyingEmailForDevelopers | WhyEmailTemplatesStickToA600pxWidthAndDoesItStillMatter | _AgentInboundianBlogger) & { __isUnion?: true }
+export type BlockDocument = (BlogPosts | BlogPostsItem | BlogPosts_1 | _AgentInboundianBlogger | blogPostsItem_AsList) & { __isUnion?: true }
 
 export interface BlockDocumentSys {
     apiNamePath: Scalars['String']
@@ -158,20 +158,7 @@ export interface BlockImage {
     __typename: 'BlockImage'
 }
 
-export interface BlockList {
-    _analyticsKey: Scalars['String']
-    _dashboardUrl: Scalars['String']
-    _id: Scalars['String']
-    _idPath: Scalars['String']
-    _meta: ListMeta
-    /** The key used to search from the frontend. */
-    _searchKey: Scalars['String']
-    _slug: Scalars['String']
-    _slugPath: Scalars['String']
-    _sys: BlockDocumentSys
-    _title: Scalars['String']
-    __typename: string
-}
+export type BlockList = (BlogPosts_1 | blogPostsItem_AsList) & { __isUnion?: true }
 
 export interface BlockOgImage {
     height: Scalars['Int']
@@ -182,7 +169,7 @@ export interface BlockOgImage {
 
 
 /** Rich text block */
-export type BlockRichText = (Content | Content_1) & { __isUnion?: true }
+export type BlockRichText = (Content) & { __isUnion?: true }
 
 export interface BlockVideo {
     aspectRatio: Scalars['String']
@@ -207,9 +194,52 @@ export interface BlogPosts {
     _slugPath: Scalars['String']
     _sys: BlockDocumentSys
     _title: Scalars['String']
-    simplifyingEmailForDevelopers: SimplifyingEmailForDevelopers
-    whyEmailTemplatesStickToA600pxWidthAndDoesItStillMatter: WhyEmailTemplatesStickToA600pxWidthAndDoesItStillMatter
+    blogPosts: BlogPosts_1
     __typename: 'BlogPosts'
+}
+
+export interface BlogPostsItem {
+    _analyticsKey: Scalars['String']
+    _dashboardUrl: Scalars['String']
+    /** Array of search highlight information with field names and HTML markup */
+    _highlight: (SearchHighlight[] | null)
+    _id: Scalars['String']
+    _idPath: Scalars['String']
+    _slug: Scalars['String']
+    _slugPath: Scalars['String']
+    _sys: BlockDocumentSys
+    _title: Scalars['String']
+    authorImage: BlockImage
+    authorName: (Scalars['String'] | null)
+    authorPosition: (Scalars['String'] | null)
+    content: (Content | null)
+    description: Scalars['String']
+    image: BlockImage
+    /** ISO 8601 date string. */
+    publishedDate: (Scalars['String'] | null)
+    title: Scalars['String']
+    __typename: 'BlogPostsItem'
+}
+
+export type BlogPostsItemOrderByEnum = '_sys_createdAt__ASC' | '_sys_createdAt__DESC' | '_sys_hash__ASC' | '_sys_hash__DESC' | '_sys_id__ASC' | '_sys_id__DESC' | '_sys_lastModifiedAt__ASC' | '_sys_lastModifiedAt__DESC' | '_sys_slug__ASC' | '_sys_slug__DESC' | '_sys_title__ASC' | '_sys_title__DESC' | 'authorImage__ASC' | 'authorImage__DESC' | 'authorName__ASC' | 'authorName__DESC' | 'authorPosition__ASC' | 'authorPosition__DESC' | 'content__ASC' | 'content__DESC' | 'description__ASC' | 'description__DESC' | 'image__ASC' | 'image__DESC' | 'publishedDate__ASC' | 'publishedDate__DESC' | 'title__ASC' | 'title__DESC'
+
+export interface BlogPosts_1 {
+    _analyticsKey: Scalars['String']
+    _dashboardUrl: Scalars['String']
+    _id: Scalars['String']
+    _idPath: Scalars['String']
+    _meta: ListMeta
+    /** The key used to search from the frontend. */
+    _searchKey: Scalars['String']
+    _slug: Scalars['String']
+    _slugPath: Scalars['String']
+    _sys: BlockDocumentSys
+    _title: Scalars['String']
+    /** Returns the first item in the list, or null if the list is empty. Useful when you expect only one result. */
+    item: (BlogPostsItem | null)
+    /** Returns the list of items after filtering and paginating according to the arguments sent by the client. */
+    items: BlogPostsItem[]
+    __typename: 'BlogPosts_1'
 }
 
 export interface Content {
@@ -225,21 +255,6 @@ export interface ContentRichText {
     content: Scalars['BSHBRichTextContentSchema']
     toc: Scalars['BSHBRichTextTOCSchema']
     __typename: 'ContentRichText'
-}
-
-export interface Content_1 {
-    html: Scalars['String']
-    json: Content_1RichText
-    markdown: Scalars['String']
-    plainText: Scalars['String']
-    readingTime: Scalars['Int']
-    __typename: 'Content_1'
-}
-
-export interface Content_1RichText {
-    content: Scalars['BSHBRichTextContentSchema']
-    toc: Scalars['BSHBRichTextTOCSchema']
-    __typename: 'Content_1RichText'
 }
 
 export interface GetUploadSignedURL {
@@ -297,6 +312,8 @@ export interface Query {
     _agent: (_AgentInboundianBlogger | null)
     /** Query across the custom AI agents in the repository. */
     _agents: _agents
+    /** Query across all of the instances of a component. Pass in filters and sorts if you want, and get each instance via the `items` key. */
+    _componentInstances: _components
     /** The diff between the current branch and the head commit. */
     _diff: Scalars['JSON']
     /** The structure of the repository. Used by START. */
@@ -316,7 +333,7 @@ export interface RepoSys {
     __typename: 'RepoSys'
 }
 
-export type RichTextJson = (BaseRichTextJson | ContentRichText | Content_1RichText) & { __isUnion?: true }
+export type RichTextJson = (BaseRichTextJson | ContentRichText) & { __isUnion?: true }
 
 export interface SearchHighlight {
     /** The field/path that was matched (e.g., "title", "body.content") */
@@ -324,27 +341,6 @@ export interface SearchHighlight {
     /** HTML snippet with <mark> tags around the matched terms */
     snippet: Scalars['String']
     __typename: 'SearchHighlight'
-}
-
-export interface SimplifyingEmailForDevelopers {
-    _analyticsKey: Scalars['String']
-    _dashboardUrl: Scalars['String']
-    _id: Scalars['String']
-    _idPath: Scalars['String']
-    _slug: Scalars['String']
-    _slugPath: Scalars['String']
-    _sys: BlockDocumentSys
-    _title: Scalars['String']
-    authorImage: BlockImage
-    authorName: (Scalars['String'] | null)
-    authorPosition: (Scalars['String'] | null)
-    content: (Content | null)
-    description: Scalars['String']
-    image: BlockImage
-    /** ISO 8601 date string. */
-    publishedDate: (Scalars['String'] | null)
-    title: Scalars['String']
-    __typename: 'SimplifyingEmailForDevelopers'
 }
 
 export interface TransactionStatus {
@@ -367,27 +363,6 @@ export interface Variant {
     isDefault: Scalars['Boolean']
     label: Scalars['String']
     __typename: 'Variant'
-}
-
-export interface WhyEmailTemplatesStickToA600pxWidthAndDoesItStillMatter {
-    _analyticsKey: Scalars['String']
-    _dashboardUrl: Scalars['String']
-    _id: Scalars['String']
-    _idPath: Scalars['String']
-    _slug: Scalars['String']
-    _slugPath: Scalars['String']
-    _sys: BlockDocumentSys
-    _title: Scalars['String']
-    authorImage: BlockImage
-    authorName: (Scalars['String'] | null)
-    authorPosition: (Scalars['String'] | null)
-    content: (Content_1 | null)
-    description: Scalars['String']
-    image: BlockImage
-    /** ISO 8601 date string. */
-    publishedDate: (Scalars['String'] | null)
-    title: Scalars['String']
-    __typename: 'WhyEmailTemplatesStickToA600pxWidthAndDoesItStillMatter'
 }
 
 export interface _AgentInboundianBlogger {
@@ -489,6 +464,30 @@ export interface _agents {
     __typename: '_agents'
 }
 
+export interface _components {
+    blogPostsItem: blogPostsItem_AsList
+    __typename: '_components'
+}
+
+export interface blogPostsItem_AsList {
+    _analyticsKey: Scalars['String']
+    _dashboardUrl: Scalars['String']
+    _id: Scalars['String']
+    _idPath: Scalars['String']
+    _meta: ListMeta
+    /** The key used to search from the frontend. */
+    _searchKey: Scalars['String']
+    _slug: Scalars['String']
+    _slugPath: Scalars['String']
+    _sys: BlockDocumentSys
+    _title: Scalars['String']
+    /** Returns the first item in the list, or null if the list is empty. Useful when you expect only one result. */
+    item: (BlogPostsItem | null)
+    /** Returns the list of items after filtering and paginating according to the arguments sent by the client. */
+    items: BlogPostsItem[]
+    __typename: 'blogPostsItem_AsList'
+}
+
 export interface BaseRichTextJsonGenqlSelection{
     blocks?: boolean | number
     content?: boolean | number
@@ -548,9 +547,10 @@ export interface BlockDocumentGenqlSelection{
     _sys?: BlockDocumentSysGenqlSelection
     _title?: boolean | number
     on_BlogPosts?: BlogPostsGenqlSelection
-    on_SimplifyingEmailForDevelopers?: SimplifyingEmailForDevelopersGenqlSelection
-    on_WhyEmailTemplatesStickToA600pxWidthAndDoesItStillMatter?: WhyEmailTemplatesStickToA600pxWidthAndDoesItStillMatterGenqlSelection
+    on_BlogPostsItem?: BlogPostsItemGenqlSelection
+    on_BlogPosts_1?: BlogPosts_1GenqlSelection
     on__AgentInboundianBlogger?: _AgentInboundianBloggerGenqlSelection
+    on_blogPostsItem_AsList?: blogPostsItem_AsListGenqlSelection
     __typename?: boolean | number
     __fragmentOn?: "BlockDocument"
 }
@@ -633,6 +633,8 @@ export interface BlockListGenqlSelection{
     _slugPath?: boolean | number
     _sys?: BlockDocumentSysGenqlSelection
     _title?: boolean | number
+    on_BlogPosts_1?: BlogPosts_1GenqlSelection
+    on_blogPostsItem_AsList?: blogPostsItem_AsListGenqlSelection
     __typename?: boolean | number
     __fragmentOn?: "BlockList"
 }
@@ -660,7 +662,6 @@ export interface BlockRichTextGenqlSelection{
     /** Words per minute, defaults to average 183wpm */
     wpm?: (Scalars['Int'] | null)} } | boolean | number
     on_Content?: ContentGenqlSelection
-    on_Content_1?: Content_1GenqlSelection
     __typename?: boolean | number
     __fragmentOn?: "BlockRichText"
 }
@@ -695,10 +696,83 @@ export interface BlogPostsGenqlSelection{
     _slugPath?: boolean | number
     _sys?: BlockDocumentSysGenqlSelection
     _title?: boolean | number
-    simplifyingEmailForDevelopers?: SimplifyingEmailForDevelopersGenqlSelection
-    whyEmailTemplatesStickToA600pxWidthAndDoesItStillMatter?: WhyEmailTemplatesStickToA600pxWidthAndDoesItStillMatterGenqlSelection
+    blogPosts?: (BlogPosts_1GenqlSelection & { __args?: {
+    /** Filter by a field. */
+    filter?: (BlogPostsItemFilterInput | null), 
+    /** Limit the number of items returned. Defaults to 500. */
+    first?: (Scalars['Int'] | null), 
+    /** Order by a field. */
+    orderBy?: (BlogPostsItemOrderByEnum | null), 
+    /** Search configuration */
+    search?: (BlogPostsItemSearchInput | null), 
+    /** Skip the first n items. */
+    skip?: (Scalars['Int'] | null)} })
     __typename?: boolean | number
     __fragmentOn?: "BlogPosts"
+}
+
+export interface BlogPostsItemGenqlSelection{
+    _analyticsKey?: { __args: {
+    /**
+     * The scope of the analytics key. Use `send` for just ingesting data. Use `query` if you need to show an analytics data in your website.
+     * 
+     * Have in mind, if you expose your `query` analytics key in the frontend, you'll be exposing all of this block's analytics data to the public. This is generally safe, but it might not be in your case.
+     */
+    scope?: (AnalyticsKeyScope | null)} } | boolean | number
+    _dashboardUrl?: boolean | number
+    /** Array of search highlight information with field names and HTML markup */
+    _highlight?: SearchHighlightGenqlSelection
+    _id?: boolean | number
+    _idPath?: boolean | number
+    _slug?: boolean | number
+    _slugPath?: boolean | number
+    _sys?: BlockDocumentSysGenqlSelection
+    _title?: boolean | number
+    authorImage?: BlockImageGenqlSelection
+    authorName?: boolean | number
+    authorPosition?: boolean | number
+    content?: ContentGenqlSelection
+    description?: boolean | number
+    image?: BlockImageGenqlSelection
+    /** ISO 8601 date string. */
+    publishedDate?: boolean | number
+    title?: boolean | number
+    __typename?: boolean | number
+    __fragmentOn?: "BlogPostsItem"
+}
+
+export interface BlogPostsItemFilterInput {AND?: (BlogPostsItemFilterInput | null),OR?: (BlogPostsItemFilterInput | null),_id?: (StringFilter | null),_slug?: (StringFilter | null),_sys_apiNamePath?: (StringFilter | null),_sys_createdAt?: (DateFilter | null),_sys_hash?: (StringFilter | null),_sys_id?: (StringFilter | null),_sys_idPath?: (StringFilter | null),_sys_lastModifiedAt?: (DateFilter | null),_sys_slug?: (StringFilter | null),_sys_slugPath?: (StringFilter | null),_sys_title?: (StringFilter | null),_title?: (StringFilter | null),authorName?: (StringFilter | null),authorPosition?: (StringFilter | null),description?: (StringFilter | null),publishedDate?: (DateFilter | null),title?: (StringFilter | null)}
+
+export interface BlogPostsItemSearchInput {
+/** Searchable fields for query */
+by?: (Scalars['String'][] | null),
+/** Search query */
+q?: (Scalars['String'] | null)}
+
+export interface BlogPosts_1GenqlSelection{
+    _analyticsKey?: { __args: {
+    /**
+     * The scope of the analytics key. Use `send` for just ingesting data. Use `query` if you need to show an analytics data in your website.
+     * 
+     * Have in mind, if you expose your `query` analytics key in the frontend, you'll be exposing all of this block's analytics data to the public. This is generally safe, but it might not be in your case.
+     */
+    scope?: (AnalyticsKeyScope | null)} } | boolean | number
+    _dashboardUrl?: boolean | number
+    _id?: boolean | number
+    _idPath?: boolean | number
+    _meta?: ListMetaGenqlSelection
+    /** The key used to search from the frontend. */
+    _searchKey?: boolean | number
+    _slug?: boolean | number
+    _slugPath?: boolean | number
+    _sys?: BlockDocumentSysGenqlSelection
+    _title?: boolean | number
+    /** Returns the first item in the list, or null if the list is empty. Useful when you expect only one result. */
+    item?: BlogPostsItemGenqlSelection
+    /** Returns the list of items after filtering and paginating according to the arguments sent by the client. */
+    items?: BlogPostsItemGenqlSelection
+    __typename?: boolean | number
+    __fragmentOn?: "BlogPosts_1"
 }
 
 export interface ContentGenqlSelection{
@@ -722,29 +796,6 @@ export interface ContentRichTextGenqlSelection{
     toc?: boolean | number
     __typename?: boolean | number
     __fragmentOn?: "ContentRichText"
-}
-
-export interface Content_1GenqlSelection{
-    html?: { __args: {
-    /** It automatically generates a unique id for each heading present in the HTML. Enabled by default. */
-    slugs?: (Scalars['Boolean'] | null), 
-    /** Inserts a table of contents at the beginning of the HTML. */
-    toc?: (Scalars['Boolean'] | null)} } | boolean | number
-    json?: Content_1RichTextGenqlSelection
-    markdown?: boolean | number
-    plainText?: boolean | number
-    readingTime?: { __args: {
-    /** Words per minute, defaults to average 183wpm */
-    wpm?: (Scalars['Int'] | null)} } | boolean | number
-    __typename?: boolean | number
-    __fragmentOn?: "Content_1"
-}
-
-export interface Content_1RichTextGenqlSelection{
-    content?: boolean | number
-    toc?: boolean | number
-    __typename?: boolean | number
-    __fragmentOn?: "Content_1RichText"
 }
 
 export interface DateFilter {eq?: (Scalars['DateTime'] | null),isAfter?: (Scalars['DateTime'] | null),isBefore?: (Scalars['DateTime'] | null),isNull?: (Scalars['Boolean'] | null),neq?: (Scalars['DateTime'] | null),onOrAfter?: (Scalars['DateTime'] | null),onOrBefore?: (Scalars['DateTime'] | null)}
@@ -857,6 +908,8 @@ export interface QueryGenqlSelection{
     id: Scalars['String']} })
     /** Query across the custom AI agents in the repository. */
     _agents?: _agentsGenqlSelection
+    /** Query across all of the instances of a component. Pass in filters and sorts if you want, and get each instance via the `items` key. */
+    _componentInstances?: _componentsGenqlSelection
     /** The diff between the current branch and the head commit. */
     _diff?: { __args: {
     /** Simplified diff returns only the items array showing statuses. */
@@ -897,7 +950,6 @@ export interface RichTextJsonGenqlSelection{
     toc?: boolean | number
     on_BaseRichTextJson?: BaseRichTextJsonGenqlSelection
     on_ContentRichText?: ContentRichTextGenqlSelection
-    on_Content_1RichText?: Content_1RichTextGenqlSelection
     __typename?: boolean | number
     __fragmentOn?: "RichTextJson"
 }
@@ -912,34 +964,6 @@ export interface SearchHighlightGenqlSelection{
 }
 
 export interface SelectFilter {excludes?: (Scalars['String'] | null),excludesAll?: (Scalars['String'][] | null),includes?: (Scalars['String'] | null),includesAll?: (Scalars['String'][] | null),includesAny?: (Scalars['String'][] | null),isEmpty?: (Scalars['Boolean'] | null)}
-
-export interface SimplifyingEmailForDevelopersGenqlSelection{
-    _analyticsKey?: { __args: {
-    /**
-     * The scope of the analytics key. Use `send` for just ingesting data. Use `query` if you need to show an analytics data in your website.
-     * 
-     * Have in mind, if you expose your `query` analytics key in the frontend, you'll be exposing all of this block's analytics data to the public. This is generally safe, but it might not be in your case.
-     */
-    scope?: (AnalyticsKeyScope | null)} } | boolean | number
-    _dashboardUrl?: boolean | number
-    _id?: boolean | number
-    _idPath?: boolean | number
-    _slug?: boolean | number
-    _slugPath?: boolean | number
-    _sys?: BlockDocumentSysGenqlSelection
-    _title?: boolean | number
-    authorImage?: BlockImageGenqlSelection
-    authorName?: boolean | number
-    authorPosition?: boolean | number
-    content?: ContentGenqlSelection
-    description?: boolean | number
-    image?: BlockImageGenqlSelection
-    /** ISO 8601 date string. */
-    publishedDate?: boolean | number
-    title?: boolean | number
-    __typename?: boolean | number
-    __fragmentOn?: "SimplifyingEmailForDevelopers"
-}
 
 export interface StringFilter {contains?: (Scalars['String'] | null),endsWith?: (Scalars['String'] | null),eq?: (Scalars['String'] | null),in?: (Scalars['String'][] | null),isNull?: (Scalars['Boolean'] | null),matches?: (StringMatchesFilter | null),notEq?: (Scalars['String'] | null),notIn?: (Scalars['String'][] | null),startsWith?: (Scalars['String'] | null)}
 
@@ -967,34 +991,6 @@ export interface VariantGenqlSelection{
     label?: boolean | number
     __typename?: boolean | number
     __fragmentOn?: "Variant"
-}
-
-export interface WhyEmailTemplatesStickToA600pxWidthAndDoesItStillMatterGenqlSelection{
-    _analyticsKey?: { __args: {
-    /**
-     * The scope of the analytics key. Use `send` for just ingesting data. Use `query` if you need to show an analytics data in your website.
-     * 
-     * Have in mind, if you expose your `query` analytics key in the frontend, you'll be exposing all of this block's analytics data to the public. This is generally safe, but it might not be in your case.
-     */
-    scope?: (AnalyticsKeyScope | null)} } | boolean | number
-    _dashboardUrl?: boolean | number
-    _id?: boolean | number
-    _idPath?: boolean | number
-    _slug?: boolean | number
-    _slugPath?: boolean | number
-    _sys?: BlockDocumentSysGenqlSelection
-    _title?: boolean | number
-    authorImage?: BlockImageGenqlSelection
-    authorName?: boolean | number
-    authorPosition?: boolean | number
-    content?: Content_1GenqlSelection
-    description?: boolean | number
-    image?: BlockImageGenqlSelection
-    /** ISO 8601 date string. */
-    publishedDate?: boolean | number
-    title?: boolean | number
-    __typename?: boolean | number
-    __fragmentOn?: "WhyEmailTemplatesStickToA600pxWidthAndDoesItStillMatter"
 }
 
 export interface _AgentInboundianBloggerGenqlSelection{
@@ -1105,6 +1101,48 @@ export interface _agentsGenqlSelection{
     __fragmentOn?: "_agents"
 }
 
+export interface _componentsGenqlSelection{
+    blogPostsItem?: (blogPostsItem_AsListGenqlSelection & { __args?: {
+    /** Filter by a field. */
+    filter?: (BlogPostsItemFilterInput | null), 
+    /** Limit the number of items returned. Defaults to 500. */
+    first?: (Scalars['Int'] | null), 
+    /** Order by a field. */
+    orderBy?: (BlogPostsItemOrderByEnum | null), 
+    /** Search configuration */
+    search?: (BlogPostsItemSearchInput | null), 
+    /** Skip the first n items. */
+    skip?: (Scalars['Int'] | null)} })
+    __typename?: boolean | number
+    __fragmentOn?: "_components"
+}
+
+export interface blogPostsItem_AsListGenqlSelection{
+    _analyticsKey?: { __args: {
+    /**
+     * The scope of the analytics key. Use `send` for just ingesting data. Use `query` if you need to show an analytics data in your website.
+     * 
+     * Have in mind, if you expose your `query` analytics key in the frontend, you'll be exposing all of this block's analytics data to the public. This is generally safe, but it might not be in your case.
+     */
+    scope?: (AnalyticsKeyScope | null)} } | boolean | number
+    _dashboardUrl?: boolean | number
+    _id?: boolean | number
+    _idPath?: boolean | number
+    _meta?: ListMetaGenqlSelection
+    /** The key used to search from the frontend. */
+    _searchKey?: boolean | number
+    _slug?: boolean | number
+    _slugPath?: boolean | number
+    _sys?: BlockDocumentSysGenqlSelection
+    _title?: boolean | number
+    /** Returns the first item in the list, or null if the list is empty. Useful when you expect only one result. */
+    item?: BlogPostsItemGenqlSelection
+    /** Returns the list of items after filtering and paginating according to the arguments sent by the client. */
+    items?: BlogPostsItemGenqlSelection
+    __typename?: boolean | number
+    __fragmentOn?: "blogPostsItem_AsList"
+}
+
 export interface FragmentsMap {
   BaseRichTextJson: {
     root: BaseRichTextJson,
@@ -1158,6 +1196,14 @@ export interface FragmentsMap {
     root: BlogPosts,
     selection: BlogPostsGenqlSelection,
 }
+  BlogPostsItem: {
+    root: BlogPostsItem,
+    selection: BlogPostsItemGenqlSelection,
+}
+  BlogPosts_1: {
+    root: BlogPosts_1,
+    selection: BlogPosts_1GenqlSelection,
+}
   Content: {
     root: Content,
     selection: ContentGenqlSelection,
@@ -1165,14 +1211,6 @@ export interface FragmentsMap {
   ContentRichText: {
     root: ContentRichText,
     selection: ContentRichTextGenqlSelection,
-}
-  Content_1: {
-    root: Content_1,
-    selection: Content_1GenqlSelection,
-}
-  Content_1RichText: {
-    root: Content_1RichText,
-    selection: Content_1RichTextGenqlSelection,
 }
   GetUploadSignedURL: {
     root: GetUploadSignedURL,
@@ -1206,10 +1244,6 @@ export interface FragmentsMap {
     root: SearchHighlight,
     selection: SearchHighlightGenqlSelection,
 }
-  SimplifyingEmailForDevelopers: {
-    root: SimplifyingEmailForDevelopers,
-    selection: SimplifyingEmailForDevelopersGenqlSelection,
-}
   TransactionStatus: {
     root: TransactionStatus,
     selection: TransactionStatusGenqlSelection,
@@ -1217,10 +1251,6 @@ export interface FragmentsMap {
   Variant: {
     root: Variant,
     selection: VariantGenqlSelection,
-}
-  WhyEmailTemplatesStickToA600pxWidthAndDoesItStillMatter: {
-    root: WhyEmailTemplatesStickToA600pxWidthAndDoesItStillMatter,
-    selection: WhyEmailTemplatesStickToA600pxWidthAndDoesItStillMatterGenqlSelection,
 }
   _AgentInboundianBlogger: {
     root: _AgentInboundianBlogger,
@@ -1249,5 +1279,13 @@ export interface FragmentsMap {
   _agents: {
     root: _agents,
     selection: _agentsGenqlSelection,
+}
+  _components: {
+    root: _components,
+    selection: _componentsGenqlSelection,
+}
+  blogPostsItem_AsList: {
+    root: blogPostsItem_AsList,
+    selection: blogPostsItem_AsListGenqlSelection,
 }
 }

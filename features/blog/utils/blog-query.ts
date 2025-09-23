@@ -23,14 +23,17 @@ export const BLOG_POST_FIELDS = {
 };
 
 export function generateBlogPostsQuery() {
-  // Select all blog post entries defined under the BlogPosts block
-  // This avoids maintaining a separate list of known post keys
-  const query: any = {
-    _title: true,
-    simplifyingEmailForDevelopers: BLOG_POST_FIELDS,
-    whyEmailTemplatesStickToA600pxWidthAndDoesItStillMatter: BLOG_POST_FIELDS,
-  };
+   // Query blog posts from the dynamic list structure
+   const query: any = {
+     _title: true,
+     blogPosts: {
+       items: BLOG_POST_FIELDS,
+       _meta: {
+         totalCount: true,
+       },
+     },
+   };
 
-  return query;
-}
+   return query;
+ }
 
