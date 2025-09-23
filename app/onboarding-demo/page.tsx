@@ -40,6 +40,9 @@ export default function OnboardingDemoPage() {
     receivedAt: string
   } | null>(null)
 
+  // Theme management for easter egg
+  const [theme, setTheme] = useState<'light' | 'dark'>('dark')
+
   // Set default demo email when session loads
   useEffect(() => {
     if (session?.user?.email && !demoEmail) {
@@ -79,6 +82,30 @@ export default function OnboardingDemoPage() {
 
     return () => clearInterval(interval)
   }, [pollEndTime, isListeningForReply])
+
+  // Initialize theme from localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('theme')
+      const initialTheme = saved === 'light' ? 'light' : 'dark'
+      setTheme(initialTheme)
+    } catch { }
+  }, [])
+
+  // Theme toggle function (easter egg)
+  const toggleTheme = () => {
+    try {
+      const next = theme === 'light' ? 'dark' : 'light'
+      setTheme(next)
+      localStorage.setItem('theme', next)
+      const d = document.documentElement
+      if (next === 'light') d.classList.remove('dark')
+      else d.classList.add('dark')
+      
+      // Fun toast message for the easter egg
+      toast.success(`Switched to ${next} mode! 🎨`)
+    } catch { }
+  }
 
   const handleCreateApiKey = async () => {
     try {
@@ -313,12 +340,30 @@ export default function OnboardingDemoPage() {
           {/* Main Header */}
           <div className="max-w-4xl mx-auto px-20 py-12 pb-16">
             <h1 className="text-4xl font-semibold text-foreground mb-4 tracking-[-0.02em]">
-              {"Let's send your first email."}
+              Let's send (and receive!) your first{" "}
+              <span 
+                className="cursor-pointer hover:text-primary transition-colors duration-200 hover:scale-105 inline-block transform"
+                onClick={toggleTheme}
+                title="Click me! 🎨"
+              >
+                email
+              </span>
+              .
             </h1>
             <p className="text-base text-muted-foreground font-medium tracking-[-0.02em]">
               We will walk you through sending and receiving emails with inbound's SDK. Get typesafe webhooks with full
               email data for maximum observability.
             </p>
+            
+            <div className="mt-6">
+              <Button
+                variant="outline"
+                onClick={() => router.push('/logs')}
+                className="text-muted-foreground hover:text-foreground border-border hover:border-foreground/20"
+              >
+                Skip to Dashboard
+              </Button>
+            </div>
           </div>
 
           <div className="border-t border-dashed border-border"></div>
@@ -351,7 +396,7 @@ export default function OnboardingDemoPage() {
             {!apiKeyCreated ? (
               <Button
                 onClick={handleCreateApiKey}
-                className="bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-3 rounded-lg font-medium text-sm"
+                className="bg-primary hover:bg-primary/90 px-6 py-3 rounded-lg font-medium text-sm"
                 disabled={currentStep !== 1 || createApiKeyMutation.isPending}
               >
                 {createApiKeyMutation.isPending ? 'Creating...' : 'Create API Key'}

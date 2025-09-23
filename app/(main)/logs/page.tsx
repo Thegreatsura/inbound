@@ -716,11 +716,11 @@ export default function LogsPage() {
         <div className="mb-6">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-2xl font-semibold text-foreground mb-1 tracking-tight font-outfit">
-                Email Flow
+              <h2 className="text-2xl font-semibold text-foreground mb-1 tracking-tight">
+                Logs
               </h2>
               <p className="text-muted-foreground text-sm font-medium">
-                {stats?.totalEmails || 0} total logs found ({stats?.inbound || 0} inbound, {stats?.outbound || 0} outbound)
+                {stats?.totalEmails || 0} logs
               </p>
             </div>
             <Button

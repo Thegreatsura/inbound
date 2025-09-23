@@ -11,8 +11,8 @@
  * to provide consistent navigation experience across the application.
  */
 import Webhook from "@/components/icons/webhook"
-import ChartActivity2 from "@/components/icons/chart-activity-2"
 import Gear2 from "@/components/icons/gear-2"
+import Key2 from "@/components/icons/key-2"
 import Shield2 from "@/components/icons/shield-2"
 import Globe2 from "@/components/icons/globe-2"
 import Cloud2 from "@/components/icons/cloud-2"
@@ -58,10 +58,10 @@ export const navigationConfig: NavigationConfig = {
       description: "Manage webhook and email forwarding endpoints"
     },
     {
-      title: "Analytics",
-      url: "/analytics",
-      icon: ChartActivity2,
-      description: "View detailed analytics"
+      title: "API Keys",
+      url: "/api-keys",
+      icon: Key2,
+      description: "Manage API keys for programmatic access"
     },
     {
       title: "Settings",
