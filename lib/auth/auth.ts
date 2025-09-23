@@ -253,44 +253,20 @@ export const auth = betterAuth({
     ],
     hooks: {
         after: createAuthMiddleware(async (ctx) => {
-            // Check if this is a new user creation event
-            if (ctx.path.startsWith("/sign-up") || (ctx.path.startsWith("/sign-in") && ctx.context.newSession)) {
-                const newSession = ctx.context.newSession;
-                if (newSession?.user) {
-                    const user = newSession.user;
-                    console.log(`🎉 New user detected: ${user.email} (${user.id})`);
-                    
-                    try {
-                        // Check if this user already has onboarding record (to avoid duplicates on social sign-in)
-                        const existingOnboarding = await db
-                            .select()
-                            .from(schema.userOnboarding)
-                            .where(eq(schema.userOnboarding.userId, user.id))
-                            .limit(1);
-                        
-                        if (existingOnboarding.length === 0) {
-                            console.log(`📝 Creating onboarding record for user ${user.id}`);
-                            
-                            // Create onboarding record
-                            const onboardingId = nanoid();
-                            await db.insert(schema.userOnboarding).values({
-                                id: onboardingId,
-                                userId: user.id,
-                                isCompleted: false,
-                                defaultEndpointCreated: false,
-                                createdAt: new Date(),
-                                updatedAt: new Date(),
-                            });
-                            
-                            // Note: User will manually create their first endpoint through the onboarding UI
-                            console.log(`ℹ️ Onboarding record created for user ${user.id}. User will create endpoints manually.`);
-                        } else {
-                            console.log(`ℹ️ Onboarding record already exists for user ${user.id}`);
-                        }
-                    } catch (error) {
-                        console.error(`❌ Error creating onboarding data for user ${user.id}:`, error);
-                        // Don't throw error to avoid blocking the auth flow
-                    }
+            // Check if this is actually a new user creation (not just a login)
+            if (ctx.context.newSession?.user) {
+                const user = ctx.context.newSession.user;
+                
+                // Check if user was created very recently (within last 10 seconds)
+                // This indicates actual signup vs existing user login
+                const userCreatedAt = new Date(user.createdAt);
+                const now = new Date();
+                const timeDiffSeconds = (now.getTime() - userCreatedAt.getTime()) / 1000;
+                
+                if (timeDiffSeconds < 10) {
+                    console.log('New user signed up with email: ', user.email);
+                } else {
+                    console.log('Existing user logged in with email: ', user.email);
                 }
             }
         })
