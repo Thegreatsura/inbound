@@ -1,22 +1,11 @@
-import {
-  Body,
-  Container,
-  Head,
-  Heading,
-  Html,
-  Img,
-  Link,
-  Preview,
-  Section,
-  Text,
-} from '@react-email/components';
-import * as React from 'react';
+import { Body, Head, Html, Preview } from '@react-email/components'
+import * as React from 'react'
 
 interface FeedbackEmailProps {
-  userFirstname?: string;
-  userEmail: string;
-  feedback: string;
-  submittedAt?: string;
+  userFirstname?: string
+  userEmail: string
+  feedback: string
+  submittedAt?: string
 }
 
 export const FeedbackEmail = ({
@@ -26,158 +15,165 @@ export const FeedbackEmail = ({
   submittedAt = new Date().toLocaleDateString(),
 }: FeedbackEmailProps) => (
   <Html>
-    <Head />
-    <Preview>New feedback from {userFirstname} - inbound</Preview>
-    <Body style={main}>
-      <Container style={container}>
+    <Head>
+      <style>{`* { font-family: Outfit, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; letter-spacing: -0.02em; }`}</style>
+    </Head>
+    <Preview>New feedback from {userFirstname} • inbound</Preview>
+    <Body style={body}>
+      <div style={card}>
         {/* Header */}
-        <Section style={headerSection}>
-          <div style={logoContainer}>
-            <Img
-              src="https://inbound.new/inbound-wordmark.png"
-              alt="inbound"
-              width="200"
-              height="60"
-              style={wordmarkStyle}
-            />
-          </div>
-        </Section>
-        
-        <Text style={text}>
-          Hey Ryan! 👋
-        </Text>
-        
-        <Text style={text}>
-          You've received new feedback from <strong>{userFirstname}</strong> ({userEmail}).
-        </Text>
+        <div style={header}>
+          <div style={brandText}>inbound</div>
+          <h1 style={title}>New feedback received</h1>
+          <p style={subtitle}>
+            From <strong style={{ color: '#1f2937' }}>{userFirstname}</strong> ({userEmail})
+          </p>
+        </div>
+      
 
-        <Section style={detailsSection}>
-          <Text style={detailText}>
-            📅 Submitted on {submittedAt}
-          </Text>
-        </Section>
+        {/* Feedback */}
+        <div style={block}>
+          <div style={blockHeader}>Message</div>
+          <p style={blockBody}>{feedback}</p>
+        </div>
 
-        <Section style={feedbackSection}>
-          <Heading style={feedbackHeading}>💬 Feedback</Heading>
-          <Text style={feedbackText}>
-            {feedback}
-          </Text>
-        </Section>
-
-        <Text style={text}>
-          You can reply directly to this email to respond to {userFirstname}.
-          <br/>
-          <br/>
-          - inbound feedback system
-        </Text>
-
-        <Section style={footerSection}>
-          <Text style={footerText}>
-            <Link href="https://inbound.new/dashboard" style={link}>dashboard</Link> • <Link href="https://inbound.new/docs" style={link}>docs</Link>
-          </Text>
-        </Section>
-      </Container>
+        {/* Footer */}
+        <div style={footer}>
+          <p style={footerText}>You can reply directly to this email to respond to {userFirstname}.</p>
+          <p style={links}>
+            <a href="https://inbound.new/dashboard" style={link}>dashboard</a>
+            <span style={dot}>•</span>
+            <a href="https://inbound.new/docs" style={link}>docs</a>
+          </p>
+        </div>
+      </div>
     </Body>
   </Html>
-);
+)
 
-export default FeedbackEmail;
+export default FeedbackEmail
 
-// Styles
-const main = {
-  backgroundColor: '#f8fafc',
-  fontFamily: 'Outfit, Arial, sans-serif',
-};
+// Light-only modern styles
+const body = {
+  margin: 0,
+  padding: 20,
+  background: '#ffffff',
+}
 
-const container = {
-  backgroundColor: '#ffffff',
+const card = {
+  maxWidth: 640,
   margin: '0 auto',
-  padding: '20px 0 48px',
-  marginBottom: '64px',
-  borderRadius: '12px',
-  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-};
+  background: '#ffffff',
+  borderRadius: 20,
+  border: '1px solid rgba(0,0,0,0.08)',
+  padding: 28,
+}
 
-const headerSection = {
-  textAlign: 'center' as const,
-  padding: '32px 0 24px',
-  borderBottom: '1px solid #e2e8f0',
-  marginBottom: '32px',
-};
+const header = {
+  textAlign: 'left' as const,
+  marginBottom: 16,
+}
 
-const logoContainer = {
-  textAlign: 'center' as const,
-  marginBottom: '0',
-};
+const brandText = {
+  fontSize: 24,
+  fontWeight: 600,
+  color: '#1f2937',
+  marginBottom: 10,
+}
 
-const wordmarkStyle = {
-  maxWidth: '100%',
-  height: 'auto',
-};
+const title = {
+  margin: '0 0 6px 0',
+  fontSize: 26,
+  lineHeight: 1.25,
+  color: '#111827',
+}
 
-const detailsSection = {
-  backgroundColor: '#f8fafc',
-  padding: '20px 24px',
-};
+const subtitle = {
+  margin: 0,
+  color: '#6b7280',
+  fontSize: 14,
+}
 
-const detailText = {
+const metaTable = {
+  marginTop: 8,
+  marginBottom: 4,
+} as const
+
+const metaCellLeft = {
+  padding: '0 12px 0 0',
+  verticalAlign: 'top' as const,
+}
+
+const metaDividerCell = {
+  width: 1,
+  borderLeft: '1px solid rgba(0,0,0,0.12)',
+}
+
+const metaCellRight = {
+  padding: '0 0 0 12px',
+  verticalAlign: 'top' as const,
+}
+
+const metaLabel = {
+  color: '#6b7280',
+  fontSize: 12,
+}
+
+const metaValue = {
+  color: '#111827',
+  fontSize: 14,
+  fontWeight: 500,
+}
+
+
+const block = {
+  background: '#f8fafc',
+  border: '1px solid rgba(0,0,0,0.06)',
+  borderRadius: 14,
+  padding: 16,
+  marginTop: 8,
+}
+
+const blockHeader = {
   color: '#334155',
-  fontSize: '14px',
-  lineHeight: '22px',
-  margin: '0',
-  fontFamily: 'Outfit, Arial, sans-serif',
-  wordBreak: 'break-word' as const,
-};
+  fontWeight: 600,
+  fontSize: 14,
+  marginBottom: 8,
+}
 
-const feedbackSection = {
-  backgroundColor: '#f8fafc',
-  padding: '24px',
-  margin: '24px 0',
-};
-
-const feedbackHeading = {
+const blockBody = {
   color: '#334155',
-  fontSize: '18px',
-  fontWeight: '600',
-  margin: '0 0 16px 0',
-  fontFamily: 'Outfit, Arial, sans-serif',
-};
-
-const feedbackText = {
-  color: '#334155',
-  fontSize: '16px',
+  fontSize: 16,
   lineHeight: '24px',
-  margin: '0',
-  fontFamily: 'Outfit, Arial, sans-serif',
+  margin: 0,
   whiteSpace: 'pre-wrap' as const,
-};
+}
 
-const footerSection = {
+const footer = {
   textAlign: 'center' as const,
-  marginTop: '40px',
-  paddingTop: '20px',
-  borderTop: '1px solid #e2e8f0',
-};
-
-const text = {
-  color: '#334155',
-  fontSize: '16px',
-  lineHeight: '24px',
-  margin: '16px 24px',
-  fontFamily: 'Outfit, Arial, sans-serif',
-};
+  marginTop: 20,
+  paddingTop: 12,
+  borderTop: '1px solid rgba(0,0,0,0.08)'
+}
 
 const footerText = {
-  color: '#64748b',
-  fontSize: '14px',
-  lineHeight: '24px',
-  margin: '0',
-  fontFamily: 'Outfit, Arial, sans-serif',
-  textAlign: 'center' as const,
-};
+  color: '#6b7280',
+  fontSize: 12,
+  margin: '0 0 8px 0',
+}
+
+const links = {
+  margin: 0,
+}
 
 const link = {
   color: '#6C47FF',
   textDecoration: 'underline',
-  fontWeight: '500',
-}; 
+  fontWeight: 500,
+  fontSize: 14,
+}
+
+const dot = {
+  color: '#9ca3af',
+  margin: '0 8px',
+}

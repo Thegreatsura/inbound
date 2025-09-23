@@ -158,9 +158,9 @@ export function DeleteEndpointDialog({ open, onOpenChange, endpoint }: DeleteEnd
             </div>
           </div>
 
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-            <p className="text-sm text-yellow-800">
-              <strong>Note:</strong> Any email addresses using this endpoint will be automatically switched to "store-only" mode (emails will be received and stored but not forwarded).
+          <div className="bg-muted border border-border rounded-lg p-3">
+            <p className="text-sm text-muted-foreground">
+              <strong className="text-foreground font-medium">Note:</strong> Any email addresses using this endpoint will be automatically switched to "store-only" mode (emails will be received and stored but not forwarded).
             </p>
           </div>
         </div>

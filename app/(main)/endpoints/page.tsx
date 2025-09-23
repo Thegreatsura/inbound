@@ -281,47 +281,29 @@ export default function EndpointsPage() {
     <>
       <div className="min-h-screen p-4">
         <div className="max-w-6xl mx-auto">
-          <div className="flex items-center justify-between rounded-lg mb-6 mt-4">
-            <div>
-              <h1 className="text-2xl font-semibold mb-1">Endpoint Management</h1>
-              <div className="flex items-center gap-4 text-sm">
-                <span>{totalEndpoints} endpoints</span>
-                <span>{activeEndpoints} active</span>
-                {webhookCount > 0 && (
-                  <span className="flex items-center gap-1">
-                    <BoltLightning width="12" height="12" />
-                    {webhookCount} webhooks
-                  </span>
-                )}
-                {emailCount > 0 && (
-                  <span className="flex items-center gap-1">
-                    <Envelope width="12" height="12" />
-                    {emailCount} email forwards
-                  </span>
-                )}
-                {emailGroupCount > 0 && (
-                  <span className="flex items-center gap-1">
-                    <Users6 width="12" height="12" />
-                    {emailGroupCount} email groups
-                  </span>
-                )}
+          <div className="mb-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-semibold text-foreground mb-1 tracking-tight">Endpoints</h2>
+                <p className="text-muted-foreground text-sm font-medium">
+                  {totalEndpoints} endpoints
+                </p>
               </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="secondary"
-                size="default"
-                onClick={() => refetch()}
-                disabled={isLoading}
-                className="bg-secondary text-secondary-foreground hover:bg-secondary/80"
-              >
-                <Refresh2 width="12" height="12" className="mr-1" />
-                Refresh
-              </Button>
-              <Button size="default" onClick={() => setCreateDialogOpen(true)}>
-                <CirclePlus width="12" height="12" className="mr-1" />
-                Add Endpoint
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button size="default" onClick={() => setCreateDialogOpen(true)}>
+                  <CirclePlus width="12" height="12" className="mr-1" />
+                  Add Endpoint
+                </Button>
+                <Button
+                  variant="outline"
+                  size="default"
+                  onClick={() => refetch()}
+                  disabled={isLoading}
+                >
+                  <Refresh2 width="14" height="14" className="mr-2" />
+                  Refresh
+                </Button>
+              </div>
             </div>
           </div>
 

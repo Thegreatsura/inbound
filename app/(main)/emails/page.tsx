@@ -93,8 +93,8 @@ export default function EmailsPage() {
   }
 
   return (
-    <div className="min-h-screen">
-      <div className="max-w-6xl mx-auto p-4">
+    <div className="min-h-screen  p-4">
+      <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="mb-6">
           <div className="flex items-center justify-between">
@@ -225,7 +225,7 @@ export default function EmailsPage() {
                       {getDomainStatusText(domain)}
                     </Badge>
                   </div>
-                  
+
                   <ApiIdLabel id={domain.id} size="sm" />
 
                   <div className="flex items-center gap-2">
