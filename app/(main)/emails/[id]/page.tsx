@@ -59,6 +59,8 @@ import {
 } from '@/components/ui/select'
 import AddDomainForm from '@/components/add-domain-form'
 import { DeleteConfirmationDialog } from '@/components/ui/delete-confirmation-dialog'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import ChevronDown from '@/components/icons/chevron-down'
 
 // React Query hooks for v2 API
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -88,6 +90,8 @@ import type {
 import { updateDomainDmarcSettings } from '@/app/actions/domains'
 import { ApiIdLabel } from '@/components/api-id-label'
 import { copyAndSaveZoneFile, type DnsRecord as ZoneDnsRecord } from '@/lib/utils/zone-file-generator'
+import ArrowBoldRight from '@/components/icons/arrow-bold-right'
+import CircleXmark from '@/components/icons/circle-xmark'
 
 export default function DomainDetailPage() {
     const { data: session } = useSession()
@@ -724,7 +728,7 @@ export default function DomainDetailPage() {
     const selectedEmails = emailAddresses.filter(email => selectedEmailIds.has(email.id))
 
     return (
-        <div className="h-full p-4">
+        <div className="h-full p-4 max-w-5xl mx-auto">
             <div className="space-y-4">
                 {/* Back Button */}
                 <div className="flex items-center">
@@ -764,12 +768,12 @@ export default function DomainDetailPage() {
                         ) : status === DOMAIN_STATUS.PENDING ? (
                             <Badge className="px-2.5 py-0.5 text-xs" variant="secondary">
                                 <Clock2 width="12" height="12" className="mr-1" />
-                                Pending
+                                Verification Pending
                             </Badge>
                         ) : (
                             <Badge className="px-2.5 py-0.5 text-xs" variant="destructive">
-                                <ObjRemove width="12" height="12" className="mr-1" />
-                                Failed
+                                <CircleXmark width="12" height="12" className="mr-1" />
+                                Verification Failed
                             </Badge>
                         )}
                         <Button
@@ -850,12 +854,6 @@ export default function DomainDetailPage() {
                     </div>
                 </div>
 
-                {/* Success banner when all DNS records are verified */}
-                {/* {status === DOMAIN_STATUS.VERIFIED && authRecommendationsData?.verificationCheck?.dnsRecords && authRecommendationsData.verificationCheck.dnsRecords.length > 0 && authRecommendationsData.verificationCheck.dnsRecords.every((r: any) => r.isVerified) && (
-                    <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm text-primary">
-                        Well done! All the DNS records are verified. You are ready to start building and sending emails with this domain.
-                    </div>
-                )} */}
 
                 {/* Show AddDomainForm for pending domains */}
                 {status === DOMAIN_STATUS.PENDING && (
@@ -1320,6 +1318,7 @@ export default function DomainDetailPage() {
                                 <>
                                     <Separator />
                                     <div className="space-y-3">
+                                        <div className="text-foreground text-lg font-medium">Advanced Setup</div>
                                         <div className="flex items-center justify-between">
                                             <div>
                                                 <div className="font-medium text-foreground">Catch-all Configuration</div>
@@ -1334,18 +1333,19 @@ export default function DomainDetailPage() {
 
                                         <div className="flex flex-col sm:flex-row gap-3">
                                             {domainDetailsData.isCatchAllEnabled && domainDetailsData.catchAllEndpoint ? (
-                                                <div className="flex-1 flex items-center gap-3 p-3 bg-muted/50 rounded-lg border border-border">
+                                                <div className="flex-1 flex items-center gap-3">
                                                     <div className="text-sm text-muted-foreground">Currently routing to:</div>
+                                                    
+                                                    <ArrowBoldRight width="16" height="16" className='text-muted-foreground' />
                                                     <Link 
                                                         href={`/endpoints/${domainDetailsData.catchAllEndpoint.id}`}
                                                         className="flex items-center gap-2 hover:opacity-80 transition-opacity"
                                                     >
-                                                        <CustomInboundIcon
-                                                            Icon={getEndpointIcon(domainDetailsData.catchAllEndpoint)}
-                                                            size={16}
-                                                            backgroundColor={getEndpointIconColor(domainDetailsData.catchAllEndpoint)}
-                                                        />
-                                                        <span className="font-medium hover:underline" style={{ color: getEndpointIconColor(domainDetailsData.catchAllEndpoint) }}>
+                                                        {(() => {
+                                                            const Icon = getEndpointIcon(domainDetailsData.catchAllEndpoint)
+                                                            return <Icon width="16" height="16" style={{ color: getEndpointIconColor(domainDetailsData.catchAllEndpoint) }} />
+                                                        })()}
+                                                        <span className="text-sm font-medium hover:underline" style={{ color: getEndpointIconColor(domainDetailsData.catchAllEndpoint) }}>
                                                             {domainDetailsData.catchAllEndpoint.name}
                                                         </span>
                                                     </Link>
@@ -1395,7 +1395,7 @@ export default function DomainDetailPage() {
                                                     </Select>
                                                 </div>
                                             )}
-                                            <div className={domainDetailsData.isCatchAllEnabled ? "w-full" : "w-full sm:w-auto sm:min-w-[140px]"}>
+                                            <div className={"w-full sm:w-auto sm:min-w-[140px]"}>
                                                 <Button
                                                     variant={domainDetailsData.isCatchAllEnabled ? "destructive" : "secondary"}
                                                     className="h-10 w-full"
@@ -1415,8 +1415,8 @@ export default function DomainDetailPage() {
 
                 {/* DMARC Configuration - Only show for verified domains */}
                 {showEmailSection && (
-                    <div className="space-y-4">
-                        <div className="flex items-center justify-between border border-border rounded-xl p-4">
+                    <div className="space-y-3">
+                        <div className="flex items-center justify-between">
                             <div>
                                 <div className="font-medium text-foreground">DMARC Email Delivery</div>
                                 <div className="text-sm text-muted-foreground">
@@ -1429,7 +1429,7 @@ export default function DomainDetailPage() {
                             <div className="w-full sm:w-auto sm:min-w-[140px]">
                                 <Button
                                     variant={domainWithMailFrom?.receiveDmarcEmails ? "destructive" : "secondary"}
-                                    className="h-10 w-full sm:w-auto"
+                                    className="h-10 w-full"
                                     onClick={toggleDmarcEmails}
                                 >
                                     {domainWithMailFrom?.receiveDmarcEmails ? 'Disable Routing' : 'Enable Routing'}
@@ -1440,57 +1440,55 @@ export default function DomainDetailPage() {
                 )}
 
                 {/* DNS Records Overview - Show all DNS records for verified domains */}
-                {status === DOMAIN_STATUS.VERIFIED && authRecommendationsData?.verificationCheck?.dnsRecords && (
-                    <Card className="bg-card border-border rounded-xl">
-                        <CardHeader className="pb-4">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                    <Globe2 width="20" height="20" className="text-primary" />
-                                    <CardTitle className="text-foreground text-lg">DNS Records</CardTitle>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                    {(() => {
-                                        const allRecords = authRecommendationsData.verificationCheck.dnsRecords || []
-                                        const verifiedCount = allRecords.filter((r: any) => r.isVerified).length
-                                        const totalCount = allRecords.length
-                                        const allVerified = totalCount > 0 && verifiedCount === totalCount
-                                        const anyFailed = totalCount > 0 && verifiedCount < totalCount
-
-                                        if (allVerified) {
-                                            return (
-                                                <Badge variant="default">
-                                                    <CircleCheck width="12" height="12" className="mr-1" />
-                                                    Fully Verified
-                                                </Badge>
-                                            )
-                                        }
-                                        if (anyFailed) {
-                                            return (
-                                                <Badge variant="destructive">Failed to verify records</Badge>
-                                            )
-                                        }
-                                        return (
-                                            <Badge variant="outline">No records</Badge>
-                                        )
-                                    })()}
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={handleZoneFileGeneration}
-                                        disabled={isGeneratingZoneFile || !authRecommendationsData?.verificationCheck?.dnsRecords?.length}
-                                        className="flex items-center gap-2"
-                                    >
-                                        <Download2 width="16" height="16" />
-                                        {isGeneratingZoneFile ? 'Generating...' : 'Zone File'}
-                                    </Button>
-                                </div>
+                {authRecommendationsData?.verificationCheck?.dnsRecords && (
+                    <Collapsible defaultOpen={status !== DOMAIN_STATUS.VERIFIED}>
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <Globe2 width="20" height="20" className="text-primary" />
+                                <div className="text-foreground text-lg font-medium">DNS Records</div>
                             </div>
-                            <CardDescription className="text-muted-foreground">
-                                All DNS records managed for {domain} - Download as RFC1035 zone file
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div className="rounded-[11px] md:rounded-[13px] overflow-hidden bg-[var(--dns-table-bg)]">
+                            <div className="flex items-center gap-3">
+                                {(() => {
+                                    const allRecords = authRecommendationsData.verificationCheck.dnsRecords || []
+                                    const verifiedCount = allRecords.filter((r: any) => r.isVerified).length
+                                    const totalCount = allRecords.length
+                                    const allVerified = totalCount > 0 && verifiedCount === totalCount
+                                    const anyFailed = totalCount > 0 && verifiedCount < totalCount
+
+                                    if (allVerified) {
+                                        return (
+                                            <Badge variant="default">
+                                                <CircleCheck width="12" height="12" className="mr-1" />
+                                                Fully Verified
+                                            </Badge>
+                                        )
+                                    }
+                                    if (anyFailed) {
+                                        return (
+                                            <Badge variant="destructive" className='text-xs'>Failed to verify records</Badge>
+                                        )
+                                    }
+                                    return (
+                                        <Badge variant="outline">No records</Badge>
+                                    )
+                                })()}
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleZoneFileGeneration}
+                                    disabled={isGeneratingZoneFile || !authRecommendationsData?.verificationCheck?.dnsRecords?.length}
+                                    className="flex items-center gap-2"
+                                >
+                                    <Download2 width="16" height="16" />
+                                    {isGeneratingZoneFile ? 'Generating...' : 'Zone File'}
+                                </Button>
+                                <CollapsibleTrigger className="h-8 w-8 inline-flex items-center justify-center rounded hover:bg-muted">
+                                    <ChevronDown width="16" height="16" />
+                                </CollapsibleTrigger>
+                            </div>
+                        </div>
+                        <CollapsibleContent>
+                            <div className="rounded-[11px] md:rounded-[13px] overflow-hidden bg-[var(--dns-table-bg)] mt-3">
                                 <div className="px-4 py-3">
                                     <div className="flex">
                                         <div className="w-[20%] pr-4">
@@ -1596,8 +1594,8 @@ export default function DomainDetailPage() {
                                     })}
                                 </div>
                             </div>
-                        </CardContent>
-                    </Card>
+                        </CollapsibleContent>
+                    </Collapsible>
                 )}
 
                 {/* Endpoint Management Dialog */}

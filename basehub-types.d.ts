@@ -99,7 +99,7 @@ export interface BlockColor {
     __typename: 'BlockColor'
 }
 
-export type BlockDocument = (BlogPosts | BlogPostsItem | BlogPosts_1 | _AgentInboundianBlogger | blogPostsItem_AsList) & { __isUnion?: true }
+export type BlockDocument = (BlogPosts | BlogPostsItem | BlogPosts_1 | UntitledComponent | _AgentInboundianBlogger | blogPostsItem_AsList | untitledComponent_AsList) & { __isUnion?: true }
 
 export interface BlockDocumentSys {
     apiNamePath: Scalars['String']
@@ -158,7 +158,7 @@ export interface BlockImage {
     __typename: 'BlockImage'
 }
 
-export type BlockList = (BlogPosts_1 | blogPostsItem_AsList) & { __isUnion?: true }
+export type BlockList = (BlogPosts_1 | blogPostsItem_AsList | untitledComponent_AsList) & { __isUnion?: true }
 
 export interface BlockOgImage {
     height: Scalars['Int']
@@ -221,7 +221,7 @@ export interface BlogPostsItem {
     __typename: 'BlogPostsItem'
 }
 
-export type BlogPostsItemOrderByEnum = '_sys_createdAt__ASC' | '_sys_createdAt__DESC' | '_sys_hash__ASC' | '_sys_hash__DESC' | '_sys_id__ASC' | '_sys_id__DESC' | '_sys_lastModifiedAt__ASC' | '_sys_lastModifiedAt__DESC' | '_sys_slug__ASC' | '_sys_slug__DESC' | '_sys_title__ASC' | '_sys_title__DESC' | 'authorImage__ASC' | 'authorImage__DESC' | 'authorName__ASC' | 'authorName__DESC' | 'authorPosition__ASC' | 'authorPosition__DESC' | 'content__ASC' | 'content__DESC' | 'description__ASC' | 'description__DESC' | 'image__ASC' | 'image__DESC' | 'publishedDate__ASC' | 'publishedDate__DESC' | 'title__ASC' | 'title__DESC'
+export type BlogPostsItemOrderByEnum = '_sys_createdAt__ASC' | '_sys_createdAt__DESC' | '_sys_hash__ASC' | '_sys_hash__DESC' | '_sys_id__ASC' | '_sys_id__DESC' | '_sys_lastModifiedAt__ASC' | '_sys_lastModifiedAt__DESC' | '_sys_slug__ASC' | '_sys_slug__DESC' | '_sys_title__ASC' | '_sys_title__DESC' | 'authorImage__ASC' | 'authorImage__DESC' | 'authorName__ASC' | 'authorName__DESC' | 'authorPosition__ASC' | 'authorPosition__DESC' | 'content__ASC' | 'content__DESC' | 'description__ASC' | 'description__DESC' | 'image__ASC' | 'image__DESC' | 'publishedDate__ASC' | 'publishedDate__DESC' | 'title__ASC' | 'title__DESC' | 'untitled__ASC' | 'untitled__DESC'
 
 export interface BlogPosts_1 {
     _analyticsKey: Scalars['String']
@@ -252,6 +252,7 @@ export interface Content {
 }
 
 export interface ContentRichText {
+    blocks: UnionUntitledComponent[]
     content: Scalars['BSHBRichTextContentSchema']
     toc: Scalars['BSHBRichTextTOCSchema']
     __typename: 'ContentRichText'
@@ -355,6 +356,24 @@ export interface TransactionStatus {
 }
 
 export type TransactionStatusEnum = 'Cancelled' | 'Completed' | 'Failed' | 'Running' | 'Scheduled'
+
+export type UnionUntitledComponent = (UntitledComponent) & { __isUnion?: true }
+
+export interface UntitledComponent {
+    _analyticsKey: Scalars['String']
+    _dashboardUrl: Scalars['String']
+    /** Array of search highlight information with field names and HTML markup */
+    _highlight: (SearchHighlight[] | null)
+    _id: Scalars['String']
+    _idPath: Scalars['String']
+    _slug: Scalars['String']
+    _slugPath: Scalars['String']
+    _sys: BlockDocumentSys
+    _title: Scalars['String']
+    __typename: 'UntitledComponent'
+}
+
+export type UntitledComponentOrderByEnum = '_sys_createdAt__ASC' | '_sys_createdAt__DESC' | '_sys_hash__ASC' | '_sys_hash__DESC' | '_sys_id__ASC' | '_sys_id__DESC' | '_sys_lastModifiedAt__ASC' | '_sys_lastModifiedAt__DESC' | '_sys_slug__ASC' | '_sys_slug__DESC' | '_sys_title__ASC' | '_sys_title__DESC'
 
 export interface Variant {
     apiName: Scalars['String']
@@ -466,6 +485,7 @@ export interface _agents {
 
 export interface _components {
     blogPostsItem: blogPostsItem_AsList
+    untitled: untitledComponent_AsList
     __typename: '_components'
 }
 
@@ -486,6 +506,25 @@ export interface blogPostsItem_AsList {
     /** Returns the list of items after filtering and paginating according to the arguments sent by the client. */
     items: BlogPostsItem[]
     __typename: 'blogPostsItem_AsList'
+}
+
+export interface untitledComponent_AsList {
+    _analyticsKey: Scalars['String']
+    _dashboardUrl: Scalars['String']
+    _id: Scalars['String']
+    _idPath: Scalars['String']
+    _meta: ListMeta
+    /** The key used to search from the frontend. */
+    _searchKey: Scalars['String']
+    _slug: Scalars['String']
+    _slugPath: Scalars['String']
+    _sys: BlockDocumentSys
+    _title: Scalars['String']
+    /** Returns the first item in the list, or null if the list is empty. Useful when you expect only one result. */
+    item: (UntitledComponent | null)
+    /** Returns the list of items after filtering and paginating according to the arguments sent by the client. */
+    items: UntitledComponent[]
+    __typename: 'untitledComponent_AsList'
 }
 
 export interface BaseRichTextJsonGenqlSelection{
@@ -549,8 +588,10 @@ export interface BlockDocumentGenqlSelection{
     on_BlogPosts?: BlogPostsGenqlSelection
     on_BlogPostsItem?: BlogPostsItemGenqlSelection
     on_BlogPosts_1?: BlogPosts_1GenqlSelection
+    on_UntitledComponent?: UntitledComponentGenqlSelection
     on__AgentInboundianBlogger?: _AgentInboundianBloggerGenqlSelection
     on_blogPostsItem_AsList?: blogPostsItem_AsListGenqlSelection
+    on_untitledComponent_AsList?: untitledComponent_AsListGenqlSelection
     __typename?: boolean | number
     __fragmentOn?: "BlockDocument"
 }
@@ -635,6 +676,7 @@ export interface BlockListGenqlSelection{
     _title?: boolean | number
     on_BlogPosts_1?: BlogPosts_1GenqlSelection
     on_blogPostsItem_AsList?: blogPostsItem_AsListGenqlSelection
+    on_untitledComponent_AsList?: untitledComponent_AsListGenqlSelection
     __typename?: boolean | number
     __fragmentOn?: "BlockList"
 }
@@ -792,6 +834,7 @@ export interface ContentGenqlSelection{
 }
 
 export interface ContentRichTextGenqlSelection{
+    blocks?: UnionUntitledComponentGenqlSelection
     content?: boolean | number
     toc?: boolean | number
     __typename?: boolean | number
@@ -983,6 +1026,42 @@ export interface TransactionStatusGenqlSelection{
     __fragmentOn?: "TransactionStatus"
 }
 
+export interface UnionUntitledComponentGenqlSelection{
+    on_UntitledComponent?:UntitledComponentGenqlSelection,
+    on_BlockDocument?: BlockDocumentGenqlSelection,
+    __typename?: boolean | number,
+    __fragmentOn?: "UnionUntitledComponent"
+}
+
+export interface UntitledComponentGenqlSelection{
+    _analyticsKey?: { __args: {
+    /**
+     * The scope of the analytics key. Use `send` for just ingesting data. Use `query` if you need to show an analytics data in your website.
+     * 
+     * Have in mind, if you expose your `query` analytics key in the frontend, you'll be exposing all of this block's analytics data to the public. This is generally safe, but it might not be in your case.
+     */
+    scope?: (AnalyticsKeyScope | null)} } | boolean | number
+    _dashboardUrl?: boolean | number
+    /** Array of search highlight information with field names and HTML markup */
+    _highlight?: SearchHighlightGenqlSelection
+    _id?: boolean | number
+    _idPath?: boolean | number
+    _slug?: boolean | number
+    _slugPath?: boolean | number
+    _sys?: BlockDocumentSysGenqlSelection
+    _title?: boolean | number
+    __typename?: boolean | number
+    __fragmentOn?: "UntitledComponent"
+}
+
+export interface UntitledComponentFilterInput {AND?: (UntitledComponentFilterInput | null),OR?: (UntitledComponentFilterInput | null),_id?: (StringFilter | null),_slug?: (StringFilter | null),_sys_apiNamePath?: (StringFilter | null),_sys_createdAt?: (DateFilter | null),_sys_hash?: (StringFilter | null),_sys_id?: (StringFilter | null),_sys_idPath?: (StringFilter | null),_sys_lastModifiedAt?: (DateFilter | null),_sys_slug?: (StringFilter | null),_sys_slugPath?: (StringFilter | null),_sys_title?: (StringFilter | null),_title?: (StringFilter | null)}
+
+export interface UntitledComponentSearchInput {
+/** Searchable fields for query */
+by?: (Scalars['String'][] | null),
+/** Search query */
+q?: (Scalars['String'] | null)}
+
 export interface VariantGenqlSelection{
     apiName?: boolean | number
     color?: boolean | number
@@ -1113,6 +1192,17 @@ export interface _componentsGenqlSelection{
     search?: (BlogPostsItemSearchInput | null), 
     /** Skip the first n items. */
     skip?: (Scalars['Int'] | null)} })
+    untitled?: (untitledComponent_AsListGenqlSelection & { __args?: {
+    /** Filter by a field. */
+    filter?: (UntitledComponentFilterInput | null), 
+    /** Limit the number of items returned. Defaults to 500. */
+    first?: (Scalars['Int'] | null), 
+    /** Order by a field. */
+    orderBy?: (UntitledComponentOrderByEnum | null), 
+    /** Search configuration */
+    search?: (UntitledComponentSearchInput | null), 
+    /** Skip the first n items. */
+    skip?: (Scalars['Int'] | null)} })
     __typename?: boolean | number
     __fragmentOn?: "_components"
 }
@@ -1141,6 +1231,32 @@ export interface blogPostsItem_AsListGenqlSelection{
     items?: BlogPostsItemGenqlSelection
     __typename?: boolean | number
     __fragmentOn?: "blogPostsItem_AsList"
+}
+
+export interface untitledComponent_AsListGenqlSelection{
+    _analyticsKey?: { __args: {
+    /**
+     * The scope of the analytics key. Use `send` for just ingesting data. Use `query` if you need to show an analytics data in your website.
+     * 
+     * Have in mind, if you expose your `query` analytics key in the frontend, you'll be exposing all of this block's analytics data to the public. This is generally safe, but it might not be in your case.
+     */
+    scope?: (AnalyticsKeyScope | null)} } | boolean | number
+    _dashboardUrl?: boolean | number
+    _id?: boolean | number
+    _idPath?: boolean | number
+    _meta?: ListMetaGenqlSelection
+    /** The key used to search from the frontend. */
+    _searchKey?: boolean | number
+    _slug?: boolean | number
+    _slugPath?: boolean | number
+    _sys?: BlockDocumentSysGenqlSelection
+    _title?: boolean | number
+    /** Returns the first item in the list, or null if the list is empty. Useful when you expect only one result. */
+    item?: UntitledComponentGenqlSelection
+    /** Returns the list of items after filtering and paginating according to the arguments sent by the client. */
+    items?: UntitledComponentGenqlSelection
+    __typename?: boolean | number
+    __fragmentOn?: "untitledComponent_AsList"
 }
 
 export interface FragmentsMap {
@@ -1248,6 +1364,10 @@ export interface FragmentsMap {
     root: TransactionStatus,
     selection: TransactionStatusGenqlSelection,
 }
+  UntitledComponent: {
+    root: UntitledComponent,
+    selection: UntitledComponentGenqlSelection,
+}
   Variant: {
     root: Variant,
     selection: VariantGenqlSelection,
@@ -1287,5 +1407,9 @@ export interface FragmentsMap {
   blogPostsItem_AsList: {
     root: blogPostsItem_AsList,
     selection: blogPostsItem_AsListGenqlSelection,
+}
+  untitledComponent_AsList: {
+    root: untitledComponent_AsList,
+    selection: untitledComponent_AsListGenqlSelection,
 }
 }

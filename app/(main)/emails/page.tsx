@@ -42,35 +42,35 @@ export default function EmailsPage() {
 
 
 
-  // Helper functions for domain status
+  // Helper functions for domain status (only Active/Inactive)
+  const isActive = (d: DomainWithStats) => d.status === 'verified' && d.canReceiveEmails
+
   const getDomainStatusDot = (domain: DomainWithStats) => {
-    if (domain.status === 'verified' && domain.canReceiveEmails) {
-      return <div className="w-2 h-2 rounded-full bg-green-500" />
-    } else if (domain.status === 'verified') {
-      return <div className="w-2 h-2 rounded-full bg-yellow-500" />
-    } else {
-      return <div className="w-2 h-2 rounded-full bg-red-500" />
-    }
+    return <div className={`w-2 h-2 rounded-full ${isActive(domain) ? 'bg-green-500' : 'bg-red-500'}`} />
   }
 
   const getDomainStatusText = (domain: DomainWithStats) => {
-    if (domain.status === 'verified' && domain.canReceiveEmails) {
-      return "Active"
-    } else if (domain.status === 'verified') {
-      return "Verified"
-    } else {
-      return "Pending"
-    }
+    return isActive(domain) ? "Active" : "Inactive"
   }
 
 
   // Process and filter data
   const domains = domainsResponse?.data || []
 
-  // Filter domains based on search query
-  const filteredDomains = domains.filter(domain => {
-    if (!debouncedSearch) return true
-    return domain.domain.toLowerCase().includes(debouncedSearch.toLowerCase())
+  // Filter domains based on search query and status dropdown
+  const q = debouncedSearch.trim().toLowerCase()
+  const statusMatch = (d: DomainWithStats) =>
+    debouncedStatus === 'all'
+      ? true
+      : debouncedStatus === 'active'
+        ? isActive(d)
+        : debouncedStatus === 'inactive'
+          ? !isActive(d)
+          : true
+
+  const filteredDomains = domains.filter(d => {
+    const textMatch = !q || d.domain.toLowerCase().includes(q) || d.id.toLowerCase().includes(q)
+    return textMatch && statusMatch(d)
   })
 
   // Error state
@@ -147,12 +147,13 @@ export default function EmailsPage() {
                 <SelectItem value="all">All Status</SelectItem>
                 <SelectItem value="active">Active</SelectItem>
                 <SelectItem value="inactive">Inactive</SelectItem>
-                <SelectItem value="configured">Configured</SelectItem>
-                <SelectItem value="unconfigured">Unconfigured</SelectItem>
               </SelectContent>
             </Select>
 
-            {(searchQuery || statusFilter !== 'all') && (
+            {/* Clear button moved below to prevent layout shift */}
+          </div>
+          {(searchQuery || statusFilter !== 'all') && (
+            <div className="mt-2">
               <Button
                 variant="ghost"
                 size="sm"
@@ -160,13 +161,13 @@ export default function EmailsPage() {
                   setSearchQuery('')
                   setStatusFilter('all')
                 }}
-                className="h-9"
+                className="h-8"
               >
                 <Filter2 width="14" height="14" className="mr-2" />
-                Clear
+                Clear filters
               </Button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </div>
 
