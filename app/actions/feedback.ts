@@ -4,7 +4,6 @@ import { auth } from '@/lib/auth/auth'
 import { headers } from 'next/headers'
 import { Resend } from 'resend'
 import { render } from '@react-email/render'
-import FeedbackModernEmail from '@/emails/feedback-modern'
 import { Inbound } from '@inboundemail/sdk'
 import FeedbackEmail from '@/emails/feedback'
 
