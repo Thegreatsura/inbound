@@ -1,14 +1,16 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import Envelope2 from "@/components/icons/envelope-2"
-import Calendar2 from "@/components/icons/calendar-2"
-import Link from "next/link"
+import * as React from "react";
+import Envelope2 from "@/components/icons/envelope-2";
+import Calendar2 from "@/components/icons/calendar-2";
+import Link from "next/link";
+import { updateUserProfile } from "@/app/actions/primary";
+import { toast } from "sonner";
 
-import { NavMain } from "@/components/nav-main"
-import { NavSecondary } from "@/components/nav-secondary"
-import { NavUser } from "@/components/nav-user"
-import { FeedbackDialog } from "@/components/feedback-dialog"
+import { NavMain } from "@/components/nav-main";
+import { NavSecondary } from "@/components/nav-secondary";
+import { NavUser } from "@/components/nav-user";
+import { FeedbackDialog } from "@/components/feedback-dialog";
 import {
   Sidebar,
   SidebarContent,
@@ -19,43 +21,74 @@ import {
   SidebarGroupContent,
   SidebarMenuItem,
   SidebarMenuButton,
-} from "@/components/ui/sidebar"
-import { TeamSwitcher } from "./ui/team-switcher"
-import { useSession } from "@/lib/auth/auth-client"
-import { navigationConfig, isUserAdmin, filterNavigationByFeatureFlags } from "@/lib/navigation"
-import Book2 from "./icons/book-2"
-import { Collapsible } from "./ui/collapsible"
-import { Button } from "./ui/button"
-import EnvelopePlus from "./icons/envelope-plus"
+} from "@/components/ui/sidebar";
+import { TeamSwitcher } from "./ui/team-switcher";
+import { useSession } from "@/lib/auth/auth-client";
+import {
+  navigationConfig,
+  isUserAdmin,
+  filterNavigationByFeatureFlags,
+} from "@/lib/navigation";
+import Book2 from "./icons/book-2";
+import { Collapsible } from "./ui/collapsible";
+import { Button } from "./ui/button";
+import EnvelopePlus from "./icons/envelope-plus";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "./ui/card";
+import { Input } from "./ui/input";
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const { data: session } = useSession()
+  const { data: session } = useSession();
+  const [isUpdating, setIsUpdating] = React.useState(false);
+
+  const handleUpdateProfile = async (formData: FormData) => {
+    setIsUpdating(true);
+    try {
+      const result = await updateUserProfile(formData);
+      
+      if (result.error) {
+        toast.error(result.error);
+      } else if (result.success) {
+        toast.success(result.message || "Name updated successfully!");
+        window.location.reload();
+      }
+    } catch (error) {
+      toast.error("Failed to update name. Please try again.");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
 
   // Don't render sidebar if no session (this shouldn't happen due to layout protection)
   if (!session?.user) {
-    return null
+    return null;
   }
 
   const userData = {
     name: session.user.name || "User",
     email: session.user.email,
     avatar: session.user.image || "",
-    plan: "Pro" // You can get this from subscription data later
-  }
+    plan: "Pro", // You can get this from subscription data later
+  };
 
   // Check if user is admin
-  const userIsAdmin = isUserAdmin(session.user.role || "user")
+  const userIsAdmin = isUserAdmin(session.user.role || "user");
 
   // Filter navigation items based on user's feature flags
   const filteredMainNav = filterNavigationByFeatureFlags(
     navigationConfig.main,
     (session.user as any).featureFlags || null
-  )
+  );
 
   const filteredFeaturesNav = filterNavigationByFeatureFlags(
     navigationConfig.features,
     (session.user as any).featureFlags || null
-  )
+  );
 
   const data = {
     user: userData,
@@ -63,7 +96,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     navFeatures: filteredFeaturesNav,
     navSecondary: navigationConfig.secondary,
     navAdmin: userIsAdmin ? navigationConfig.admin : [],
-  }
+  };
 
   return (
     <Sidebar variant="inset" collapsible="icon" {...props}>
@@ -81,8 +114,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   // className="w-full rounded-[9px] bg-[#8161FF] text-white shadow-[0_-1px_1.25px_0_rgba(0,0,0,0.25)_inset,1px_1.25px_2.3px_0_rgba(255,255,255,0.26)_inset] hover:bg-[#8161FF] active:bg-[#7758ff] px-[18px] dark:bg-[#4a0198] dark:hover:bg-[#5201a8] dark:active:bg-[#3e017f] dark:shadow-[1px_1.25px_2.3px_0px_inset_rgba(255,255,255,0.1)]"
                   asChild
                 >
-                  <a href="/add" className="flex items-center gap-2 w-full justify-between">
-                    <span className="group-data-[collapsible=icon]:hidden">new inbound</span>
+                  <a
+                    href="/add"
+                    className="flex items-center gap-2 w-full justify-between"
+                  >
+                    <span className="group-data-[collapsible=icon]:hidden">
+                      new inbound
+                    </span>
                     <EnvelopePlus className="h-4 w-4" />
                   </a>
                 </Button>
@@ -90,10 +128,43 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {/* If a user doesn't have a name set, show a small card saying, "I didn't catch your name..."  */}
+        {!session.user.name && (
+          <SidebarGroup>
+            <Card className="w-full bg-card border-border rounded-xl ">
+              <CardContent className="p-3 space-y-3">
+                <span className="text-sm font-semibold">hey 👋, didn't catch your name...</span>
+                <form action={handleUpdateProfile} className="space-y-2">
+                  <Input 
+                    name="name" 
+                    placeholder="Enter your name" 
+                    required
+                    minLength={1}
+                    maxLength={255}
+                    disabled={isUpdating}
+                    className="text-sm"
+                  />
+                  <Button 
+                    type="submit" 
+                    size="sm"
+                    disabled={isUpdating}
+                    className="w-full"
+                  >
+                    {isUpdating ? "Updating..." : "Update"}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          </SidebarGroup>
+        )}
+
         {/* GENERAL section */}
 
         <div className="px-2 mt-1">
-          <span className="ml-2 text-[13px] font-semibold tracking-[0.08em] text-foreground/30">GENERAL</span>
+          <span className="ml-2 text-[13px] font-semibold tracking-[0.08em] text-foreground/30">
+            GENERAL
+          </span>
         </div>
         <NavMain items={data.navMain} />
 
@@ -101,7 +172,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         {data.navFeatures.length > 0 && (
           <div className="mt-4">
             <div className="px-2 mb-1">
-              <span className="ml-2 text-[13px] font-semibold tracking-[0.08em] text-foreground/30">FEATURES</span>
+              <span className="ml-2 text-[13px] font-semibold tracking-[0.08em] text-foreground/30">
+                FEATURES
+              </span>
             </div>
             <NavSecondary items={data.navFeatures} />
           </div>
@@ -111,7 +184,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         {data.navAdmin.length > 0 && (
           <div className="mt-4">
             <div className="px-2 mb-1">
-              <span className="ml-2 text-[13px] font-semibold tracking-[0.08em] text-foreground/30">ADMIN</span>
+              <span className="ml-2 text-[13px] font-semibold tracking-[0.08em] text-foreground/30">
+                ADMIN
+              </span>
             </div>
             <NavSecondary items={data.navAdmin} />
           </div>
@@ -123,12 +198,18 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         )}
 
         {/* Bottom quick links (Docs, Feedback, Book a Call, Onboarding) */}
-        <SidebarGroup className={`${data.navSecondary.length > 0 ? 'mt-4' : 'mt-auto'}`}>
+        <SidebarGroup
+          className={`${data.navSecondary.length > 0 ? "mt-4" : "mt-auto"}`}
+        >
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton tooltip="Docs" asChild>
-                  <a href="https://docs.inbound.new" target="_blank" rel="noopener noreferrer">
+                  <a
+                    href="https://docs.inbound.new"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
                     <Book2 className="h-4 w-4" />
                     <span>Docs</span>
                   </a>
@@ -139,7 +220,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton tooltip="Book a Call" asChild>
-                  <a href="https://cal.inbound.new" target="_blank" rel="noopener noreferrer">
+                  <a
+                    href="https://cal.inbound.new"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
                     <Calendar2 className="h-4 w-4" />
                     <span>Book a Call</span>
                   </a>
@@ -160,18 +245,18 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarFooter>
         {/* Brand/logo at the very bottom (per Figma) */}
         <SidebarMenu className="mb-2 mt-2">
-
           <TeamSwitcher
             enabled={false}
-            teams={[{
-              name: "Inbound",
-              logo: Envelope2,
-              plan: userData.plan,
-            }]}
+            teams={[
+              {
+                name: "Inbound",
+                logo: Envelope2,
+                plan: userData.plan,
+              },
+            ]}
           />
-
         </SidebarMenu>
       </SidebarFooter>
     </Sidebar>
-  )
+  );
 }

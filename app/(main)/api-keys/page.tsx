@@ -107,7 +107,12 @@ export default function ApiKeysPage() {
 
   const handleUpdateApiKey = async (keyId: string, updates: { name?: string; enabled?: boolean }) => {
     try {
-      await updateApiKeyMutation.mutateAsync({ keyId, ...updates })
+      // Ensure boolean values are properly handled
+      const cleanUpdates = {
+        ...updates,
+        enabled: updates.enabled !== undefined ? Boolean(updates.enabled) : undefined
+      }
+      await updateApiKeyMutation.mutateAsync({ keyId, ...cleanUpdates })
       toast.success('API key updated successfully')
     } catch (error) {
       console.error('Error updating API key:', error)
@@ -126,13 +131,13 @@ export default function ApiKeysPage() {
 
   // Filter API keys based on search query and status
   const q = debouncedSearch.trim().toLowerCase()
-  const statusMatch = (apiKey: ApiKey) =>
+  const statusMatch = (apiKey: any) =>
     debouncedStatus === 'all'
       ? true
       : debouncedStatus === 'active'
-        ? apiKey.enabled
+        ? Boolean(apiKey.enabled)
         : debouncedStatus === 'disabled'
-          ? !apiKey.enabled
+          ? !Boolean(apiKey.enabled)
           : true
 
   const filteredApiKeys = apiKeys.filter(apiKey => {
@@ -145,17 +150,17 @@ export default function ApiKeysPage() {
   })
 
   // Helper functions
-  const getApiKeyStatusDot = (apiKey: ApiKey) => {
+  const getApiKeyStatusDot = (apiKey: any) => {
     const isExpired = apiKey.expiresAt && new Date(apiKey.expiresAt) < new Date()
     return <div className={`w-2 h-2 rounded-full ${
-      isExpired ? 'bg-red-500' : apiKey.enabled ? 'bg-green-500' : 'bg-gray-500'
+      isExpired ? 'bg-red-500' : Boolean(apiKey.enabled) ? 'bg-green-500' : 'bg-gray-500'
     }`} />
   }
 
-  const getApiKeyStatusText = (apiKey: ApiKey) => {
+  const getApiKeyStatusText = (apiKey: any) => {
     const isExpired = apiKey.expiresAt && new Date(apiKey.expiresAt) < new Date()
     if (isExpired) return "Expired"
-    return apiKey.enabled ? "Active" : "Disabled"
+    return Boolean(apiKey.enabled) ? "Active" : "Disabled"
   }
 
   // Error state
@@ -180,7 +185,7 @@ export default function ApiKeysPage() {
   return (
     <>
       <div className="min-h-screen p-4">
-        <div className="max-w-6xl mx-auto">
+        <div className="max-w-5xl mx-auto px-2">
           {/* Header */}
           <div className="mb-6">
             <div className="flex items-center justify-between">
@@ -256,7 +261,7 @@ export default function ApiKeysPage() {
         </div>
 
         {/* API Keys List */}
-        <div className="max-w-6xl mx-auto p-4">
+        <div className="max-w-5xl mx-auto p-2">
           {isLoadingApiKeys ? (
             <div className="flex items-center justify-center py-20">
               <div className="text-muted-foreground">Loading API keys...</div>
@@ -282,7 +287,7 @@ export default function ApiKeysPage() {
           ) : (
             <div className="border border-border rounded-[13px] bg-card">
               {filteredApiKeys.map((apiKey) => {
-                const isExpired = apiKey.expiresAt && new Date(apiKey.expiresAt) < new Date()
+                const isExpired = Boolean(apiKey.expiresAt && new Date(apiKey.expiresAt) < new Date())
                 
                 return (
                   <div
@@ -298,11 +303,11 @@ export default function ApiKeysPage() {
                     </div>
 
                     {/* API Key Details */}
-                    <div className="flex-shrink-0 w-64 flex flex-col gap-[2px]">
+                    <div className="flex-shrink-0 w-100 flex flex-col gap-[2px]">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-medium">{apiKey.name || 'Unnamed API Key'}</span>
                         <Badge
-                          variant={isExpired ? 'destructive' : apiKey.enabled ? 'default' : 'secondary'}
+                          variant={isExpired ? 'destructive' : Boolean(apiKey.enabled) ? 'default' : 'secondary'}
                         >
                           {getApiKeyStatusText(apiKey)}
                         </Badge>
@@ -321,13 +326,16 @@ export default function ApiKeysPage() {
                           </>
                         )}
                       </div>
+                      
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs opacity-60">
+                          Created {format(new Date(apiKey.createdAt), 'MMM d, yyyy')}
+                        </span>
+                      </div>
                     </div>
 
                     {/* Usage Stats */}
                     <div className="flex-1 flex flex-col gap-1">
-                      <div className="text-xs text-muted-foreground">
-                        Created {formatDistanceToNow(new Date(apiKey.createdAt), { addSuffix: true })}
-                      </div>
                       {apiKey.expiresAt && (
                         <div className={`text-xs ${isExpired ? 'text-red-500' : 'text-muted-foreground'}`}>
                           {isExpired ? 'Expired' : 'Expires'} {formatDistanceToNow(new Date(apiKey.expiresAt), { addSuffix: true })}
@@ -340,21 +348,19 @@ export default function ApiKeysPage() {
                       )}
                     </div>
 
-                    {/* Created Date */}
-                    <div className="flex-shrink-0 text-xs text-muted-foreground w-20 text-right">
-                      {format(new Date(apiKey.createdAt), 'MMM d')}
-                    </div>
-
                     {/* Actions */}
                     <div className="flex items-center gap-2 ml-4">
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => handleUpdateApiKey(apiKey.id, { enabled: !apiKey.enabled })}
+                        onClick={() => {
+                          const currentEnabled = Boolean(apiKey.enabled)
+                          handleUpdateApiKey(apiKey.id, { enabled: !currentEnabled })
+                        }}
                         disabled={updateApiKeyMutation.isPending || isExpired}
                         className="text-xs"
                       >
-                        {updateApiKeyMutation.isPending ? 'Updating...' : (apiKey.enabled ? 'Disable' : 'Enable')}
+                        {updateApiKeyMutation.isPending ? 'Updating...' : (Boolean(apiKey.enabled) ? 'Disable' : 'Enable')}
                       </Button>
                       <Button 
                         variant="ghost" 

@@ -37,6 +37,47 @@ export async function generateAutumnBillingPortal() {
     return { url: billingPortal.url }
 }
 
+export async function updateUserProfile(formData: FormData) {
+    const session = await auth.api.getSession({
+        headers: await headers()
+    })
+
+    if (!session?.user?.id) {
+        return { error: "Unauthorized" }
+    }
+
+    const name = formData.get('name') as string
+
+    if (!name || name.trim().length === 0) {
+        return { error: "Name is required" }
+    }
+
+    if (name.trim().length > 255) {
+        return { error: "Name is too long (maximum 255 characters)" }
+    }
+
+    try {
+        // Update the user's name in the database using direct Drizzle update
+        const [updatedUser] = await db
+            .update(user)
+            .set({
+                name: name.trim(),
+                updatedAt: new Date()
+            })
+            .where(eq(user.id, session.user.id))
+            .returning()
+
+        if (!updatedUser) {
+            return { error: "User not found" }
+        }
+
+        return { success: true, message: "Name updated successfully" }
+    } catch (error) {
+        console.error('Error updating user name:', error)
+        return { error: "Failed to update name" }
+    }
+}
+
 export async function getAutumnCustomer() {
     const session = await auth.api.getSession({
         headers: await headers()

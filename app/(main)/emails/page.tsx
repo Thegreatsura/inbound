@@ -93,8 +93,8 @@ export default function EmailsPage() {
   }
 
   return (
-    <div className="min-h-screen  p-4">
-      <div className="max-w-6xl mx-auto">
+    <div className="min-h-screen p-4">
+      <div className="max-w-5xl mx-auto px-2">
         {/* Header */}
         <div className="mb-6">
           <div className="flex items-center justify-between">
@@ -172,13 +172,13 @@ export default function EmailsPage() {
       </div>
 
       {/* Domains List - styled container to match Figma */}
-      <div className="max-w-6xl mx-auto p-4">
+      <div className="max-w-5xl mx-auto p-2 py-4">
         {isLoading ? (
           <div className="flex items-center justify-center py-20">
             <div className="text-muted-foreground">Loading domains...</div>
           </div>
         ) : !filteredDomains.length ? (
-          <div className="max-w-6xl mx-auto p-4">
+          <div className="max-w-5xl mx-auto">
             <div className="bg-card border-border rounded-xl p-8">
               <div className="text-center">
                 <Globe2 width="48" height="48" className="text-muted-foreground mx-auto mb-4" />
@@ -214,7 +214,7 @@ export default function EmailsPage() {
                 </div>
 
                 {/* Domain Name */}
-                <div className="flex-shrink-0 w-64 flex flex-col gap-[2px]">
+                <div className="flex-shrink-0 w-100 flex flex-col gap-[2px]">
                   <div className="flex items-center gap-2">
 
                     <span className="text-sm font-medium">{domain.domain}</span>

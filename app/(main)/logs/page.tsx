@@ -710,8 +710,8 @@ export default function LogsPage() {
   }
 
   return (
-    <div className="min-h-screen">
-      <div className="max-w-6xl mx-auto p-4">
+    <div className="min-h-screen p-4">
+      <div className="max-w-5xl mx-auto px-2">
         {/* Header */}
         <div className="mb-6">
           <div className="flex items-center justify-between">
@@ -819,7 +819,7 @@ export default function LogsPage() {
 
         {/* Stats Bar */}
         {stats && (
-            <div className="mb-6 bg-muted/30 rounded-xl p-3">
+            <div className="mb-6 bg-muted/30 border border-border rounded-xl p-2">
             <div className="flex items-center gap-6 text-sm flex-wrap">
               <div className="flex items-center gap-2">
                 <ArchiveDownload width="14" height="14" className="text-purple-600" />
@@ -862,13 +862,13 @@ export default function LogsPage() {
       </div>
 
       {/* Logs List - Edge to Edge */}
-      <div className="w-full max-w-6xl mx-auto">
+      <div className="w-full max-w-5xl mx-auto px-2">
         {isLoading ? (
           <div className="flex items-center justify-center py-20">
             <div className="text-muted-foreground">Loading logs...</div>
           </div>
         ) : !((data?.pages?.flatMap(p => p.emails) || []).length) ? (
-          <div className="max-w-6xl mx-auto p-4">
+          <div className="max-w-5xl mx-auto">
             <div className="bg-card border-border rounded-xl p-8">
               <div className="text-center">
                 <Database2 width="48" height="48" className="text-muted-foreground mx-auto mb-4" />

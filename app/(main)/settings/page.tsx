@@ -26,6 +26,7 @@ import { formatDistanceToNow } from 'date-fns'
 import { PricingTable } from '@/components/autumn/pricing-table-format'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { trackPurchaseConversion } from '@/lib/utils/twitter-tracking'
+import { updateUserProfile } from '@/app/actions/primary'
 // removed unused feature icons after layout merge
 // Types are now imported from @/features/settings/types
 
@@ -58,8 +59,15 @@ export default function SettingsPage() {
   const handleUpdateProfile = async (formData: FormData) => {
     setIsLoading(true)
     try {
-      // Implementation would go here
-      toast.success('Profile updated successfully')
+      const result = await updateUserProfile(formData)
+      
+      if (result.error) {
+        toast.error(result.error)
+      } else if (result.success) {
+        toast.success(result.message || "Profile updated successfully!")
+        // Refresh the page to show updated data
+        window.location.reload()
+      }
     } catch (error) {
       toast.error('Failed to update profile')
     } finally {
@@ -136,8 +144,8 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="min-h-screen">
-      <div className="max-w-6xl mx-auto p-4">
+    <div className="min-h-screen p-4">
+      <div className="max-w-5xl mx-auto px-2">
         {/* Header */}
         <div className="mb-6">
           <div className="flex items-center justify-between">
@@ -148,26 +156,6 @@ export default function SettingsPage() {
               <p className="text-muted-foreground text-sm font-medium">
                 Manage your account, billing, API keys, and preferences
               </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button 
-                variant="outline" 
-                size="default" 
-                onClick={handleManageBilling}
-                disabled={!customerData || billingPortalMutation.isPending}
-              >
-                {billingPortalMutation.isPending ? 'Loading…' : 'Manage Billing'}
-              </Button>
-              {showUpgradeButton && (
-                <Button 
-                  size="default"
-                  onClick={handleOpenUpgrade}
-                  variant="primary"
-                >
-                  <ChartTrendUp width="16" height="16" className="mr-2" />
-                  Upgrade
-                </Button>
-              )}
             </div>
           </div>
         </div>
@@ -355,6 +343,10 @@ export default function SettingsPage() {
                     name="name" 
                     defaultValue={session.user.name || ''} 
                     placeholder="Enter your full name"
+                    required
+                    minLength={1}
+                    maxLength={255}
+                    disabled={isLoading}
                   />
                 </div>
                 <div className="space-y-2">

@@ -260,9 +260,9 @@ export default function EndpointsPage() {
   if (error) {
     return (
       <div className="min-h-screen p-4">
-        <div className="max-w-6xl mx-auto">
+        <div className="max-w-5xl mx-auto px-2">
           <Card className="border-destructive/50 bg-destructive/10">
-            <CardContent className="p-6">
+            <CardContent className="p-2">
               <div className="flex items-center gap-2 text-destructive">
                 <ObjRemove width="16" height="16" />
                 <span>{error.message}</span>
@@ -280,7 +280,7 @@ export default function EndpointsPage() {
   return (
     <>
       <div className="min-h-screen p-4">
-        <div className="max-w-6xl mx-auto">
+        <div className="max-w-5xl mx-auto px-2">
           <div className="mb-6">
             <div className="flex items-center justify-between">
               <div>
@@ -399,8 +399,8 @@ export default function EndpointsPage() {
             )}
 
             {filteredEndpoints.length === 0 ? (
-              <Card className="bg-card border-border rounded-xl">
-                <CardContent className="p-8">
+              <Card className="bg-card border-border rounded-xl p-2">
+                <CardContent className="p-2">
                   <div className="text-center">
                     <div className="mx-auto mb-4 flex items-center justify-center rounded-[12px]" style={{ width: 48, height: 48, background: 'rgba(120,120,120,0.13)' }}>
                       {(searchQuery || filterType !== 'all' || filterStatus !== 'all') ? (
@@ -434,38 +434,6 @@ export default function EndpointsPage() {
                             <CirclePlus width="16" height="16" className="mr-2" />
                             Add Your First Endpoint
                           </Button>
-                          {migrationChecked && !migrationInProgress && (
-                            <div className="text-xs text-muted-foreground">
-                              <p>Have existing webhooks?
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={async () => {
-                                    try {
-                                      const result = await migrationMutation.mutateAsync()
-                                      if (result.success) {
-                                        if ((result.migratedCount || 0) > 0) {
-                                          setShowMigrationSuccess(true)
-                                          toast.success(`Successfully imported ${result.migratedCount} webhooks!`)
-                                        } else {
-                                          toast.info('No webhooks found to import')
-                                        }
-                                      } else {
-                                        toast.error(result.error || 'Failed to import webhooks')
-                                      }
-                                    } catch (error) {
-                                      console.error('Migration failed:', error)
-                                      toast.error('Failed to import webhooks')
-                                    }
-                                  }}
-                                  disabled={migrationMutation.isPending}
-                                  className="p-0 h-auto ml-1 text-primary hover:text-primary/80"
-                                >
-                                  {migrationMutation.isPending ? 'Importing...' : 'Import them now'}
-                                </Button>
-                              </p>
-                            </div>
-                          )}
                         </>
                       )}
                     </div>
@@ -501,7 +469,7 @@ export default function EndpointsPage() {
                       </div>
 
                       {/* Endpoint Name and Details */}
-                      <div className="flex-shrink-0 w-64 flex flex-col gap-[2px]">
+                      <div className="flex-shrink-0 w-100 flex flex-col gap-[2px]">
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-medium">{endpoint.name}</span>
                           {getStatusBadge(endpoint)}
