@@ -149,105 +149,7 @@ export default function RootLayout({
     <html lang="en" className="dark">
       <head>
         {/* Structured Data for SEO */}
-        <Script
-          id="structured-data"
-          type="application/ld+json"
-          strategy="beforeInteractive"
-          dangerouslySetInnerHTML={{
-            __html: JSON.stringify({
-              "@context": "https://schema.org",
-              "@graph": [
-                {
-                  "@type": "SoftwareApplication",
-                  "name": "inbound",
-                  "description": "the modern email infrastructure platform for developers. receive, parse, and manage inbound emails with powerful apis, webhooks, and real-time processing. built for scale.",
-                  "url": process.env.BETTER_AUTH_URL || "https://inbound.new",
-                  "applicationCategory": "DeveloperApplication",
-                  "operatingSystem": "Web",
-                  "softwareVersion": "2.0",
-                  "programmingLanguage": ["TypeScript", "JavaScript", "Python", "PHP", "Ruby"],
-                  "offers": [
-                    {
-                      "@type": "Offer",
-                      "name": "Free Plan",
-                      "price": "0",
-                      "priceCurrency": "USD",
-                      "description": "1,000 emails/month free"
-                    },
-                    {
-                      "@type": "Offer", 
-                      "name": "Pro Plan",
-                      "price": "5",
-                      "priceCurrency": "USD",
-                      "description": "100,000 emails/month"
-                    }
-                  ],
-                  "author": {
-                    "@type": "Organization",
-                    "name": "inbound",
-                    "url": process.env.BETTER_AUTH_URL || "https://inbound.new",
-                    "logo": {
-                      "@type": "ImageObject",
-                      "url": (process.env.BETTER_AUTH_URL || "https://inbound.new") + "/images/icon-light.png"
-                    }
-                  },
-                  "publisher": {
-                    "@type": "Organization",
-                    "name": "inbound",
-                    "url": process.env.BETTER_AUTH_URL || "https://inbound.new"
-                  },
-                  "aggregateRating": {
-                    "@type": "AggregateRating",
-                    "ratingValue": "4.9",
-                    "reviewCount": "127",
-                    "bestRating": "5"
-                  },
-                  "featureList": [
-                    "inbound email processing",
-                    "webhook integration",
-                    "typescript SDK",
-                    "email parsing API",
-                    "real-time processing",
-                    "custom domain support",
-                    "email routing",
-                    "structured data parsing"
-                  ]
-                },
-                {
-                  "@type": "WebSite",
-                  "name": "inbound",
-                  "url": process.env.BETTER_AUTH_URL || "https://inbound.new",
-                  "potentialAction": {
-                    "@type": "SearchAction",
-                    "target": {
-                      "@type": "EntryPoint",
-                      "urlTemplate": (process.env.BETTER_AUTH_URL || "https://inbound.new") + "/search?q={search_term_string}"
-                    },
-                    "query-input": "required name=search_term_string"
-                  }
-                },
-                {
-                  "@type": "Organization",
-                  "name": "inbound",
-                  "url": process.env.BETTER_AUTH_URL || "https://inbound.new",
-                  "logo": {
-                    "@type": "ImageObject",
-                    "url": (process.env.BETTER_AUTH_URL || "https://inbound.new") + "/images/icon-light.png"
-                  },
-                  "sameAs": [
-                    "https://twitter.com/inbounddotnew",
-                    "https://discord.gg/JVdUrY9gJZ"
-                  ],
-                  "contactPoint": {
-                    "@type": "ContactPoint",
-                    "contactType": "Customer Service",
-                    "email": "support@inbound.new"
-                  }
-                }
-              ]
-            })
-          }}
-        />
+
 
         {/* Twitter Conversion Tracking */}
         <Script
@@ -266,6 +168,24 @@ export default function RootLayout({
         <Script
           src="https://static.ads-twitter.com/uwt.js"
           strategy="beforeInteractive"
+        />
+
+        {/* Google Analytics */}
+        <Script
+          src="https://www.googletagmanager.com/gtag/js?id=G-0H8QD9DFB4"
+          strategy="afterInteractive"
+        />
+        <Script
+          id="google-analytics"
+          strategy="afterInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `
+              window.dataLayer = window.dataLayer || [];
+              function gtag(){dataLayer.push(arguments);}
+              gtag('js', new Date());
+              gtag('config', 'G-0H8QD9DFB4');
+            `
+          }}
         />
 
         <script
