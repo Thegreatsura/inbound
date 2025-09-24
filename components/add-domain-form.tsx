@@ -6,7 +6,7 @@ import { toast } from "sonner"
 import { track } from '@vercel/analytics'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Checkbox } from "@/components/ui/checkbox"
+// import { Checkbox } from "@/components/ui/checkbox"
 import { cn } from "@/lib/utils"
 import ArrowBoldRight from "@/components/icons/arrow-bold-right"
 import Clock2 from "@/components/icons/clock-2"
@@ -19,10 +19,9 @@ import Refresh2 from "@/components/icons/refresh-2"
 import BadgeCheck2 from "@/components/icons/badge-check-2"
 import Globe2 from "@/components/icons/globe-2"
 import ExternalLink2 from "@/components/icons/external-link-2"
-import ResendIcon from "@/components/ResendIcon"
 import CheckList from "@/components/icons/check-list"
 import { useRouter } from "next/navigation"
-import Image from "next/image"
+// import Image from "next/image"
 import type { 
   PostDomainsResponse, 
   DomainWithStats
@@ -38,7 +37,7 @@ const stepsConfig: StepConfig[] = [
   {
     id: "add-domain",
     name: "Add Domain",
-    description: "Add a domain you own to send emails.",
+    description: "Let's get you sending and receiving emails with ease, (and your own domain).",
   },
   {
     id: "configure-dns",
@@ -160,20 +159,7 @@ export default function AddDomainForm({
   const [verificationStatus, setVerificationStatus] = useState<'pending' | 'verified' | 'failed' | null>(null)
   const [dnsRecords, setDnsRecords] = useState<DnsRecord[]>(preloadedDnsRecords)
   const [domainId, setDomainId] = useState(preloadedDomainId)
-  const [resendApiKey, setResendApiKey] = useState("")
-  const [isImporting, setIsImporting] = useState(false)
-  const [showDomainSelection, setShowDomainSelection] = useState(false)
-  const [showBulkImport, setShowBulkImport] = useState(false)
-  const [resendDomains, setResendDomains] = useState<any[]>([])
-  const [selectedDomains, setSelectedDomains] = useState<Set<string>>(new Set())
-  const [importProgress, setImportProgress] = useState<{
-    [key: string]: {
-      status: 'pending' | 'processing' | 'success' | 'failed' | 'exists'
-      message?: string
-      domainId?: string
-    }
-  }>({})
-  const [isProcessing, setIsProcessing] = useState(false)
+  // Resend import functionality removed
   const [periodicCheckEnabled, setPeriodicCheckEnabled] = useState(false)
   const router = useRouter()
   const [showDnsWarning, setShowDnsWarning] = useState(false)
@@ -511,34 +497,6 @@ export default function AddDomainForm({
     }
   }
 
-  const downloadZoneFile = (absolute: boolean = false) => {
-    if (!domainName || dnsRecords.length === 0) {
-      toast.error("No DNS records available to download")
-      return
-    }
-
-    try {
-      // Generate zone file content
-      const zoneFileContent = generateZoneFile(domainName, dnsRecords, absolute)
-      
-      // Create blob and download
-      const blob = new Blob([zoneFileContent], { type: 'text/plain' })
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = `${domainName}.txt`
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      URL.revokeObjectURL(url)
-      
-      toast.success("Zone file downloaded successfully")
-    } catch (err) {
-      console.error("Failed to generate zone file:", err)
-      toast.error("Failed to generate zone file")
-    }
-  }
-
   const generateZoneFile = (domain: string, records: DnsRecord[], absolute: boolean = false): string => {
     // Extract root domain (last two parts: domain.tld)
     const domainParts = domain.split('.')
@@ -613,209 +571,7 @@ export default function AddDomainForm({
     return zoneContent
   }
 
-  const handleResendImport = async () => {
-    if (!resendApiKey.trim()) {
-      toast.error("Please enter your Resend API key")
-      return
-    }
-
-    if (!resendApiKey.startsWith('re_')) {
-      toast.error("Invalid Resend API key format. It should start with 're_'")
-      return
-    }
-
-    setIsImporting(true)
-    setError("")
-
-    try {
-      // Fetch domains from Resend API via our server endpoint
-      const response = await fetch('/api/resend/domains', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          apiKey: resendApiKey
-        })
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to fetch domains from Resend')
-      }
-
-      if (!data.success) {
-        throw new Error(data.error || 'Failed to fetch domains from Resend')
-      }
-
-      if (data.domains && data.domains.length > 0) {
-        toast.success(`Found ${data.domains.length} domain(s) in your Resend account`)
-
-        // Set up domains for selection
-        setResendDomains(data.domains)
-        setSelectedDomains(new Set()) // Start with no domains selected
-
-        // Show domain selection screen
-        setShowDomainSelection(true)
-
-        console.log('Resend domains:', data.domains)
-      } else {
-        toast.info("No domains found in your Resend account")
-      }
-
-      // Clear the API key for security
-      setResendApiKey("")
-
-    } catch (err) {
-      console.error('Error importing from Resend:', err)
-      toast.error(err instanceof Error ? err.message : 'Failed to import domains from Resend. Please check your API key.')
-    } finally {
-      setIsImporting(false)
-    }
-  }
-
-  const handleSelectAll = () => {
-    const allDomainNames = new Set(resendDomains.map(domain => domain.name))
-    setSelectedDomains(allDomainNames)
-  }
-
-  const handleSelectNone = () => {
-    setSelectedDomains(new Set())
-  }
-
-  const handleDomainToggle = (domainName: string) => {
-    const newSelected = new Set(selectedDomains)
-    if (newSelected.has(domainName)) {
-      newSelected.delete(domainName)
-    } else {
-      newSelected.add(domainName)
-    }
-    setSelectedDomains(newSelected)
-  }
-
-  const startBulkImport = () => {
-    if (selectedDomains.size === 0) {
-      toast.error("Please select at least one domain to import")
-      return
-    }
-
-    // Initialize progress tracking for selected domains only
-    const initialProgress: { [key: string]: { status: 'pending', message?: string } } = {}
-    selectedDomains.forEach((domainName) => {
-      initialProgress[domainName] = { status: 'pending' }
-    })
-    setImportProgress(initialProgress)
-
-    // Show bulk import screen and start processing
-    setShowDomainSelection(false)
-    setShowBulkImport(true)
-    processBulkImport()
-  }
-
-  const processBulkImport = async () => {
-    setIsProcessing(true)
-
-    // Only process selected domains
-    const selectedDomainObjects = resendDomains.filter(domain => selectedDomains.has(domain.name))
-
-    for (const domain of selectedDomainObjects) {
-      const domainName = domain.name
-
-      // Update status to processing
-      setImportProgress(prev => ({
-        ...prev,
-        [domainName]: { status: 'processing', message: 'Adding domain...' }
-      }))
-
-      try {
-        // Use v2 API to add domain
-        const addResponse = await fetch('/api/v2/domains', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            domain: domainName
-          })
-        })
-
-        const addResult = await addResponse.json()
-
-        if (addResponse.ok) {
-          const successResult = addResult as PostDomainsResponse
-          setImportProgress(prev => ({
-            ...prev,
-            [domainName]: {
-              status: 'success',
-              message: `Successfully added. Status: ${successResult.status}`,
-              domainId: successResult.id
-            }
-          }))
-        } else {
-          // Handle specific error cases
-          let errorMessage = addResult.error || 'Failed to add domain'
-
-          if (addResponse.status === 409) {
-            setImportProgress(prev => ({
-              ...prev,
-              [domainName]: {
-                status: 'exists',
-                message: errorMessage // Use the specific error message from the API
-              }
-            }))
-          } else if (addResponse.status === 403) {
-            setImportProgress(prev => ({
-              ...prev,
-              [domainName]: {
-                status: 'failed',
-                message: 'Domain limit reached. Please upgrade your plan to add more domains.'
-              }
-            }))
-            // Stop processing if limit reached
-            break
-          } else if (addResponse.status === 400 && errorMessage.includes('conflicting DNS records')) {
-            setImportProgress(prev => ({
-              ...prev,
-              [domainName]: {
-                status: 'failed',
-                message: 'Domain cannot be used. May have conflicting DNS records or MX records already configured.'
-              }
-            }))
-          } else {
-            setImportProgress(prev => ({
-              ...prev,
-              [domainName]: {
-                status: 'failed',
-                message: errorMessage
-              }
-            }))
-          }
-        }
-
-      } catch (err) {
-        console.error(`Error processing domain ${domainName}:`, err)
-        setImportProgress(prev => ({
-          ...prev,
-          [domainName]: {
-            status: 'failed',
-            message: 'Network error occurred while adding domain'
-          }
-        }))
-      }
-
-      // Small delay between requests to avoid overwhelming the API
-      await new Promise(resolve => setTimeout(resolve, 500))
-    }
-
-    setIsProcessing(false)
-
-    // Show completion summary
-    const results = Object.values(importProgress)
-    const successful = results.filter(r => r.status === 'success').length
-    const existing = results.filter(r => r.status === 'exists').length
-    const failed = results.filter(r => r.status === 'failed').length
-
-    toast.success(`Import completed: ${successful} added, ${existing} already existed, ${failed} failed`)
-  }
+  // Resend import handlers removed
 
   const extractRecordName = (recordName: string, domainName: string) => {
     // Extract root domain from domainName (get last 2 parts: domain.tld)
@@ -841,71 +597,11 @@ export default function AddDomainForm({
   const isStepFuture = (index: number) => index > currentStepIdx
 
   return (
-    <div className="flex flex-col">
-      <div className="w-full px-10 mx-auto">
-        <header className="mb-8 flex items-center space-x-4">
-          {/* <div className="rounded-lg bg-iconBg">
-            <Image src="/domain-icon.png" alt="Logo" width={48} height={48} className="p-2" />
-          </div> */}
-          {/* <div>
-            <h1 className="text-3xl font-semibold text-darkText">Add Domain</h1>
-            <p className="text-base text-mediumText">Use a domain you own to send emails.</p>
-          </div> */}
-        </header>
-
-        {/* Top Horizontal Stepper */}
-        <div className="w-full mb-8">
-          <nav className="flex items-center justify-center">
-            {stepsConfig.map((step, index) => {
-              const completed = isStepCompleted(index)
-              const current = isStepCurrent(index)
-              const future = isStepFuture(index)
-
-              // Determine which icon to use based on step and state
-              let iconSrc = ""
-              if (index === 0) {
-                iconSrc = "/domain-icon.png"
-              } else if (index === 1) {
-                iconSrc = completed || current ? "/dns-icon.png" : "/dns-icon-greyed.png"
-              } else if (index === 2) {
-                iconSrc = completed || current ? "/verified-icon.png" : "/verified-icon-greyed.png"
-              }
-
-              return (
-                <div key={step.id} className="flex items-center">
-                  <motion.div
-                    className="flex h-10 w-10 items-center justify-center"
-                    initial={{ scale: current ? 1.1 : 1 }}
-                    animate={{ scale: current ? 1.1 : 1 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    <Image
-                      src={iconSrc}
-                      alt={step.name}
-                      width={40}
-                      height={40}
-                      className="object-contain"
-                    />
-                  </motion.div>
-                  {/* Arrow between steps */}
-                  {index < stepsConfig.length - 1 && (
-                    <div className="mx-8">
-                      <ArrowBoldRight
-                        className={cn("h-5 w-5 transition-colors duration-300", {
-                          "text-brandPurple": completed,
-                          "text-gray-400": !completed,
-                        })}
-                      />
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </nav>
-        </div>
+    <div className="w-full flex flex-col">
+      <div className="w-full px-2 mx-auto">
 
         {/* Main Content Area */}
-        <div className="w-full mx-auto">
+        <div className={`w-full mx-auto ${currentStepIdx < 1 ? "max-w-3xl" : ""}`}>
           <AnimatePresence mode="wait">
             <motion.div
               key={currentStepIdx}
@@ -916,315 +612,8 @@ export default function AddDomainForm({
               transition={{ duration: 0.3, type: "tween" }}
               className="pt-1"
             >
-              {currentStepIdx > 0 && (
-                <div className="mb-10 rounded-lg bg-accent/20 p-5 border border-accent">
-                  <div className="flex items-center mb-1">
-                    <h2 className="text-lg font-semibold text-foreground">{stepsConfig[0].name}</h2>
-                    <CircleCheck width="18" height="18" className="ml-2 text-green-600" />
-                  </div>
-                  <p className="text-sm text-muted-foreground mb-3">{stepsConfig[0].description}</p>
-                  <div className="flex items-center rounded-md border border-border bg-card px-3 py-2 shadow-sm">
-                    {/* <Image src="/domain-icon.png" alt="Logo" width={16} height={16} /> */}
-                    <span className="font-mono text-sm text-foreground">{domainName}</span>
-                  </div>
-                </div>
-              )}
 
-              {showDomainSelection && (
-                <div className="space-y-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h2 className="text-lg font-semibold text-foreground">Select Domains to Import</h2>
-                      <p className="text-sm text-muted-foreground">
-                        Choose which domains from your Resend account to import into Inbound
-                      </p>
-                    </div>
-                    <Button
-                      variant="secondary"
-                      onClick={() => {
-                        setShowDomainSelection(false)
-                        setResendDomains([])
-                        setSelectedDomains(new Set())
-                      }}
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-
-                  {/* Selection Controls */}
-                  <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-lg">
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={handleSelectAll}
-                      >
-                        Select All
-                      </Button>
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={handleSelectNone}
-                      >
-                        Select None
-                      </Button>
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      {selectedDomains.size} of {resendDomains.length} domains selected
-                    </div>
-                  </div>
-
-                  {/* Domains Table */}
-                  <div className="border border-border rounded-lg overflow-hidden">
-                    {/* Table Header */}
-                    <div className="bg-muted/30 border-b border-border">
-                      <div className="flex items-center text-sm font-medium text-muted-foreground px-4 py-3">
-                        <div className="w-12"></div>
-                        <div className="flex-1">Domain</div>
-                        <div className="w-24">Status</div>
-                        <div className="w-32">Created</div>
-                      </div>
-                    </div>
-
-                    {/* Table Body */}
-                    <div className="bg-card">
-                        {resendDomains.map((domain, index) => (
-                            <div
-                              key={domain.id}
-                              className={cn(
-                                "flex items-center px-4 py-3 hover:bg-muted/50 cursor-pointer",
-                                {
-                                  "border-b border-border/50": index < resendDomains.length - 1,
-                                  "bg-accent/20": selectedDomains.has(domain.name)
-                                }
-                              )}
-                              onClick={() => handleDomainToggle(domain.name)}
-                            >
-                              <div className="w-12">
-                                <Checkbox
-                                  checked={selectedDomains.has(domain.name)}
-                                  onCheckedChange={() => handleDomainToggle(domain.name)}
-                                />
-                              </div>
-                              <div className="flex-1">
-                                <div className="font-mono text-sm font-medium">{domain.name}</div>
-                                {domain.region && (
-                                  <div className="text-xs text-muted-foreground">Region: {domain.region}</div>
-                                )}
-                              </div>
-                              <div className="w-24">
-                                <span className={cn(
-                                  "inline-flex items-center px-2 py-1 rounded-full text-xs font-medium",
-                                  {
-                                    "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400": domain.status === 'verified',
-                                    "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400": domain.status === 'pending',
-                                    "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400": domain.status === 'failed',
-                                    "bg-muted text-muted-foreground": !domain.status
-                                  }
-                                )}>
-                                  {domain.status || 'unknown'}
-                                </span>
-                              </div>
-                              <div className="w-32 text-sm text-muted-foreground">
-                                {domain.created_at ? new Date(domain.created_at).toLocaleDateString() : 'N/A'}
-                              </div>
-                            </div>
-                        ))}
-                    </div>
-                  </div>
-
-                  {/* Import Button */}
-                  <div className="flex justify-end">
-                    <Button
-                      onClick={startBulkImport}
-                      variant="primary"
-                      disabled={selectedDomains.size === 0}
-                      className="min-w-32"
-                    >
-                      Import {selectedDomains.size} Domain{selectedDomains.size !== 1 ? 's' : ''}
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              {showBulkImport && (
-                                  <div className="space-y-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h2 className="text-lg font-semibold text-foreground">Import Domains from Resend</h2>
-                        <p className="text-sm text-muted-foreground">
-                          Processing {selectedDomains.size} selected domain(s) from your Resend account
-                        </p>
-                      </div>
-                    <Button
-                      variant="secondary"
-                      onClick={() => {
-                        setShowBulkImport(false)
-                        setShowDomainSelection(true)
-                      }}
-                      disabled={isProcessing}
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-
-                  {/* Domain Processing List */}
-                  <div className="space-y-3 max-h-96 overflow-y-auto">
-                    {resendDomains.filter(domain => selectedDomains.has(domain.name)).map((domain, index) => {
-                      const progress = importProgress[domain.name]
-                      const status = progress?.status || 'pending'
-
-                      return (
-                        <div
-                          key={domain.name}
-                          className={cn(
-                            "flex items-center justify-between p-4 rounded-lg border",
-                            {
-                              "bg-muted/50 border-border": status === 'pending',
-                              "bg-blue-500/10 border-blue-500/20 dark:bg-blue-500/5": status === 'processing',
-                              "bg-green-500/10 border-green-500/20 dark:bg-green-500/5": status === 'success',
-                              "bg-yellow-500/10 border-yellow-500/20 dark:bg-yellow-500/5": status === 'exists',
-                              "bg-destructive/10 border-destructive/20 dark:bg-destructive/5": status === 'failed',
-                            }
-                          )}
-                        >
-                                                      <div className="flex items-center gap-3">
-                              <div className="flex items-center justify-center w-8 h-8 rounded-full bg-background border">
-                                {status === 'pending' && (
-                                  <span className="text-sm font-medium text-muted-foreground">{index + 1}</span>
-                                )}
-                                {status === 'processing' && (
-                                  <Loader width="16" height="16" className="animate-spin text-blue-600" />
-                                )}
-                                {status === 'success' && (
-                                  <CircleCheck width="16" height="16" className="text-green-600" />
-                                )}
-                                {status === 'exists' && (
-                                  <CircleCheck width="16" height="16" className="text-yellow-600" />
-                                )}
-                                {status === 'failed' && (
-                                  <CircleWarning2 width="16" height="16" className="text-destructive" />
-                                )}
-                              </div>
-                              <div>
-                                <div className="font-mono text-sm font-medium">{domain.name}</div>
-                                {domain.status && (
-                                  <div className="text-xs text-muted-foreground">
-                                    Resend Status: {domain.status}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-
-                                                      <div className="text-right">
-                              <div className={cn(
-                                "text-sm font-medium",
-                                {
-                                  "text-muted-foreground": status === 'pending',
-                                  "text-blue-600": status === 'processing',
-                                  "text-green-600": status === 'success',
-                                  "text-yellow-600": status === 'exists',
-                                  "text-destructive": status === 'failed',
-                                }
-                              )}>
-                                {status === 'pending' && 'Waiting...'}
-                                {status === 'processing' && 'Processing...'}
-                                {status === 'success' && 'Added Successfully'}
-                                {status === 'exists' && 'Already Exists'}
-                                {status === 'failed' && 'Failed'}
-                              </div>
-                              {progress?.message && (
-                                <div className="text-xs text-muted-foreground mt-1 max-w-xs">
-                                  {progress.message}
-                                </div>
-                              )}
-                            </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-
-                  {/* Action Buttons */}
-                  <div className="flex gap-3">
-                    {!isProcessing && Object.keys(importProgress).length === 0 && (
-                      <Button
-                        onClick={processBulkImport}
-                        variant="primary"
-                        className="flex-1"
-                      >
-                        Start Import
-                      </Button>
-                    )}
-
-                    {isProcessing && (
-                      <Button
-                        variant="primary"
-                        className="flex-1"
-                        disabled
-                      >
-                        <Loader width="16" height="16" className="mr-2 animate-spin" />
-                        Processing Domains...
-                      </Button>
-                    )}
-
-                    {!isProcessing && Object.keys(importProgress).length > 0 && (
-                      <>
-                        <Button
-                          onClick={() => router.push('/emails')}
-                          variant="primary"
-                          className="flex-1"
-                        >
-                          View All Domains
-                        </Button>
-                        <Button
-                          onClick={() => {
-                            setShowBulkImport(false)
-                            setShowDomainSelection(false)
-                            setResendDomains([])
-                            setSelectedDomains(new Set())
-                            setImportProgress({})
-                          }}
-                          variant="secondary"
-                        >
-                          Import More
-                        </Button>
-                      </>
-                    )}
-                  </div>
-
-                                      {/* Summary Stats */}
-                    {Object.keys(importProgress).length > 0 && (
-                      <div className="grid grid-cols-4 gap-4 p-4 bg-muted/50 rounded-lg">
-                        <div className="text-center">
-                          <div className="text-lg font-semibold text-green-600">
-                            {Object.values(importProgress).filter(p => p.status === 'success').length}
-                          </div>
-                          <div className="text-xs text-muted-foreground">Added</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-lg font-semibold text-yellow-600">
-                            {Object.values(importProgress).filter(p => p.status === 'exists').length}
-                          </div>
-                          <div className="text-xs text-muted-foreground">Existing</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-lg font-semibold text-destructive">
-                            {Object.values(importProgress).filter(p => p.status === 'failed').length}
-                          </div>
-                          <div className="text-xs text-muted-foreground">Failed</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-lg font-semibold text-muted-foreground">
-                            {Object.values(importProgress).filter(p => p.status === 'pending').length}
-                          </div>
-                          <div className="text-xs text-muted-foreground">Pending</div>
-                        </div>
-                      </div>
-                    )}
-                </div>
-              )}
-
-              {!showDomainSelection && !showBulkImport && currentStepIdx === 0 && (
+              {currentStepIdx === 0 && (
                 <div className="">
                   <h2 className="mb-1 text-lg font-semibold text-foreground">{stepsConfig[0].name}</h2>
                   <p className="mb-5 text-sm text-muted-foreground">{stepsConfig[0].description}</p>
@@ -1261,49 +650,11 @@ export default function AddDomainForm({
                     </Button>
                   </form>
 
-                  {/* Import from Resend Section */}
-                  <div className="mt-8 rounded-lg border border-border bg-card p-6">
-                    <div className="flex items-center gap-3 mb-4">
-
-                      <h3 className="text-lg font-semibold text-foreground">Import from</h3>
-                      <ResendIcon variant="black" className="h-12 w-16 -ml-1 dark:invert" />
-                    </div>
-                    <p className="text-sm text-muted-foreground mb-4">
-                      Already have domains in Resend? Paste your API key to import them for bulk processing.
-                    </p>
-                    <div className="space-y-3">
-                      <Input
-                        type="password"
-                        value={resendApiKey}
-                        onChange={(e) => setResendApiKey(e.target.value)}
-                        placeholder="Paste your Resend API key (re_...)"
-                        className="bg-transparent border-input"
-                        disabled={isImporting}
-                      />
-                      <Button
-                        variant="secondary"
-                        className="w-full"
-                        onClick={handleResendImport}
-                        disabled={isImporting || !resendApiKey.trim()}
-                      >
-                        {isImporting ? (
-                          <>
-                            <Loader width="16" height="16" className="mr-2 animate-spin" />
-                            Importing...
-                          </>
-                        ) : (
-                          "Import Domains"
-                        )}
-                      </Button>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-3">
-                      Your API key is not stored and only used to fetch your domains.
-                    </p>
-                  </div>
+                  {/* Resend import section removed */}
                 </div>
               )}
 
-              {!showDomainSelection && !showBulkImport && currentStepIdx === 1 && (
+              {currentStepIdx === 1 && (
                 <div>
                     <div className="flex items-center justify-between mb-1">
                         <h2 className="text-lg font-semibold text-foreground">{stepsConfig[1].name}</h2>
@@ -1591,22 +942,10 @@ export default function AddDomainForm({
                     </div>
 
                     {error && <p className="mt-4 text-sm text-destructive">{error}</p>}
-
-                    <div className="flex gap-3 mt-10">
-                        <Button
-                            onClick={() => downloadZoneFile()}
-                            variant="secondary"
-                            className="w-full md:w-auto"
-                            disabled={!domainName || dnsRecords.length === 0}
-                        >
-                            <Download2 width="16" height="16" className="mr-2" />
-                            Download Zone File
-                        </Button>
-                    </div>
                 </div>
             )}
 
-              {!showDomainSelection && !showBulkImport && currentStepIdx === 2 && (
+              {currentStepIdx === 2 && (
                 <div className="text-center py-8">
                   <BadgeCheck2 width="80" height="80" className="mx-auto mb-5 text-green-600" />
                   <h2 className="mb-2 text-2xl font-semibold text-foreground">Domain Verified!</h2>

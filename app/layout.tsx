@@ -29,8 +29,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Email API for Developers - Send, Receive & Reply | inbound",
-    template: "%s | inbound"
+    default: "inbound | Email API for Developers - Send, Receive & Reply",
+    template: "inbound | %s "
   },
   description: "Complete email infrastructure for modern applications. Send transactional emails, receive inbound messages, and build AI email agents with our TypeScript SDK and webhook API.",
   keywords: [
