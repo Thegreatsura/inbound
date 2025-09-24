@@ -29,10 +29,10 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "inbound - email infrastructure, redefined",
+    default: "Email API for Developers - Send, Receive & Reply | inbound",
     template: "%s | inbound"
   },
-  description: "the modern email infrastructure platform for developers. receive, parse, and manage inbound emails with powerful apis, webhooks, and real-time processing. built for scale.",
+  description: "Complete email infrastructure for modern applications. Send transactional emails, receive inbound messages, and build AI email agents with our TypeScript SDK and webhook API.",
   keywords: [
     "email infrastructure",
     "inbound email",
@@ -294,6 +294,36 @@ export default function RootLayout({
           />
         )}
         <Databuddy clientId="jj0WXe_nNBuyT2e2YnLSY" trackErrors trackAttributes disabled={process.env.NODE_ENV === "development"} />
+        
+        {/* Schema.org structured data */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "Organization",
+              "name": "Inbound",
+              "url": "https://inbound.new",
+              "logo": "https://inbound.new/logo.png",
+              "description": "Complete email infrastructure for modern applications. Send transactional emails, receive inbound messages, and build AI email agents with our TypeScript SDK and webhook API.",
+              "sameAs": [
+                "https://twitter.com/inboundemail",
+                "https://github.com/inbound-org"
+              ],
+              "contactPoint": {
+                "@type": "ContactPoint",
+                "contactType": "customer service",
+                "email": "support@inbound.new"
+              },
+              "offers": {
+                "@type": "Offer",
+                "name": "Email API for Developers",
+                "description": "TypeScript SDK and webhook API for email automation",
+                "category": "Software Development Tools"
+              }
+            })
+          }}
+        />
 
         <QueryProvider>
           <AutumnProvider backendUrl={process.env.BETTER_AUTH_URL || ""}>
