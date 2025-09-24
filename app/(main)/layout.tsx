@@ -6,6 +6,7 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { Toaster } from "@/components/ui/sonner"
 import { NavigationProvider } from "@/contexts/navigation-context"
 import { LoadingSpinner } from "@/components/loading-spinner"
+import { CommandBar, useCommandBar } from "@/components/command-bar"
 
 import { EnhancedPageTransition } from "@/components/page-transition"
 import { useSession } from "@/lib/auth/auth-client"
@@ -15,6 +16,7 @@ import { useEffect } from "react"
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { data: session, isPending } = useSession()
   const router = useRouter()
+  const { open, setOpen } = useCommandBar()
   
   useEffect(() => {
     if (!isPending && !session) {
@@ -46,6 +48,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </EnhancedPageTransition>
         </SidebarInset>
       </SidebarProvider>
+      <CommandBar open={open} onOpenChange={setOpen} />
       <Toaster />
     </NavigationProvider>
   )
