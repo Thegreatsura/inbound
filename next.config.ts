@@ -71,6 +71,18 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  async rewrites() {
+    return [
+      {
+        source: '/js/script.js',
+        destination: 'https://datafa.st/js/script.js',
+      },
+      {
+        source: '/api/events',
+        destination: 'https://datafa.st/api/events',
+      },
+    ]
+  },
   // Ignore SDK directory during build
   webpack: (config, { buildId, dev, isServer, defaultLoaders, webpack }) => {
     // Ignore the SDK directory from webpack processing

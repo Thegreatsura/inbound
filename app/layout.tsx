@@ -268,6 +268,13 @@ export default function RootLayout({
           strategy="beforeInteractive"
         />
 
+        <script
+          defer
+          data-website-id="689ccf5191092e10bcf500a5"
+          data-domain="inbound.new"
+          src="/js/script.js">
+        </script>
+
       </head>
       <body
         className={`${outfit.variable} ${geist.variable} ${geistMono.variable} antialiased`}
