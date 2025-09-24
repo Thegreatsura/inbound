@@ -1,0 +1,151 @@
+import {
+	feature,
+	product,
+	featureItem,
+	pricedFeatureItem,
+	priceItem,
+} from "atmn";
+
+// Features
+export const ticketSupport = feature({
+	id: "ticket_support",
+	name: "Ticket Support",
+	type: "boolean",
+});
+
+export const slackSupport = feature({
+	id: "slack_support",
+	name: "Slack Support",
+	type: "boolean",
+});
+
+export const vipByok = feature({
+	id: "vip-byok",
+	name: "vip-byok",
+	type: "boolean",
+});
+
+export const emailsSent = feature({
+	id: "emails_sent",
+	name: "Emails Sent",
+	type: "single_use",
+});
+
+export const domains = feature({
+	id: "domains",
+	name: "Domains",
+	type: "continuous_use",
+});
+
+export const emailRetention = feature({
+	id: "email_retention",
+	name: "Email Retention",
+	type: "continuous_use",
+});
+
+export const inboundTriggers = feature({
+	id: "inbound_triggers",
+	name: "Inbound Triggers",
+	type: "single_use",
+});
+
+// Products
+export const freeTier = product({
+	id: "free_tier",
+	name: "Free",
+	items: [
+		featureItem({
+			feature_id: domains.id,
+			included_usage: 1,
+		}),
+
+		featureItem({
+			feature_id: emailRetention.id,
+			included_usage: 1,
+		}),
+
+		featureItem({
+			feature_id: inboundTriggers.id,
+			included_usage: 700,
+			interval: "month",
+			reset_usage_when_enabled: false,
+		}),
+	],
+});
+
+export const pro = product({
+	id: "pro",
+	name: "Pro",
+	items: [
+		priceItem({
+			price: 20,
+			interval: "month",
+		}),
+
+		featureItem({
+			feature_id: domains.id,
+			included_usage: 10,
+		}),
+
+		featureItem({
+			feature_id: emailRetention.id,
+			included_usage: 3,
+		}),
+
+		featureItem({
+			feature_id: inboundTriggers.id,
+			included_usage: "inf",
+			interval: "month",
+			reset_usage_when_enabled: false,
+		}),
+	],
+});
+
+export const scale = product({
+	id: "scale",
+	name: "Scale",
+	items: [
+		priceItem({
+			price: 70,
+			interval: "month",
+		}),
+
+		featureItem({
+			feature_id: domains.id,
+			included_usage: 100,
+		}),
+
+		featureItem({
+			feature_id: emailRetention.id,
+			included_usage: 7,
+		}),
+
+		featureItem({
+			feature_id: emailsSent.id,
+			included_usage: "inf",
+		}),
+
+		featureItem({
+			feature_id: inboundTriggers.id,
+			included_usage: "inf",
+			interval: "month",
+			reset_usage_when_enabled: false,
+		}),
+	],
+});
+
+export const inboundVip = product({
+	id: "inbound_vip",
+	name: "inbound vip",
+	items: [
+		priceItem({
+			price: 20,
+			interval: "month",
+		}),
+
+		featureItem({
+			feature_id: vipByok.id,
+			included_usage: undefined,
+		}),
+	],
+});

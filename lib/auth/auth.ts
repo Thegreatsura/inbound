@@ -265,8 +265,12 @@ export const auth = betterAuth({
                 
                 if (timeDiffSeconds < 10) {
                     console.log('New user signed up with email: ', user.email);
+                    // need to redirect to onboarding page
+                    throw ctx.redirect("/onboarding-demo");
                 } else {
                     console.log('Existing user logged in with email: ', user.email);
+                    // need to redirect to dashboard
+                    throw ctx.redirect("/logs");
                 }
             }
         })

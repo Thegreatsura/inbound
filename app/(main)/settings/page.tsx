@@ -124,7 +124,8 @@ export default function SettingsPage() {
     return null
   }
 
-  const activeProduct = customerData?.products?.find(p => p.status === 'active')
+  const activeProduct = customerData?.products?.find(p => p.status === 'active' || p.status === 'trialing')
+  console.log("Customer Data", customerData)
   const domainsFeature = customerData?.features?.['domains']
   const inboundTriggersFeature = customerData?.features?.['inbound_triggers']
   const emailRetentionFeature = customerData?.features?.['email_retention']

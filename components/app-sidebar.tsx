@@ -232,7 +232,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton tooltip="Show Onboarding" asChild>
-                  <Link href="/onboarding">
+                  <Link href="/onboarding-demo">
                     <Envelope2 className="h-4 w-4" />
                     <span>Show Onboarding</span>
                   </Link>
