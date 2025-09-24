@@ -29,6 +29,7 @@ import type { GetEmailByIdResponse } from '@/app/api/v2/emails/[id]/route'
 
 // Import the attachment list component
 import { AttachmentList } from '@/components/logs/attachment-list'
+import { ClickableId } from '@/components/logs/clickable-id'
 import { CodeBlock } from '@/components/ui/code-block'
 
 export default async function LogDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -445,47 +446,46 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
               <CardContent className="p-6">
                 <h3 className="text-sm font-semibold mb-3">Details</h3>
                 <div className="space-y-4 text-sm">
-                  {/* Email ID - prominently displayed at the top */}
-                  <div className="pb-2 border-b border-border space-y-3">
-                    <div>
-                      <span className="text-muted-foreground">{isInbound ? "Inbound Email ID" : "Outbound Email ID"}:</span>
-                      <div className="mt-1">
-                        <CodeBlock code={id} size="lg" />
-                      </div>
+                  <div>
+                    <span className="text-muted-foreground">{isInbound ? "Inbound Email ID" : "Outbound Email ID"}:</span>
+                    <div className="mt-1">
+                      <ClickableId id={id} />
                     </div>
-                    {((isInbound && inboundDetails?.messageId) || (outboundDetails && 'id' in outboundDetails)) && (
-                      <div>
-                        <span className="text-muted-foreground">Message ID:</span>
-                        <div className="mt-1">
-                          <CodeBlock code={isInbound ? inboundDetails?.messageId || '' : outboundDetails?.id || ''} size="lg" />
-                        </div>
-                      </div>
-                    )}
                   </div>
-                  
-                  <div className="grid grid-cols-2 gap-4">
+                  {((isInbound && inboundDetails?.messageId) || (outboundDetails && 'id' in outboundDetails)) && (
                     <div>
-                      <span className="text-muted-foreground">From:</span>
-                      <p className="font-medium">{isInbound ? inboundDetails?.from : outboundDetails?.from}</p>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">To:</span>
-                      <div className="font-medium">
-                        {isInbound ? (
-                          inboundDetails?.recipient
-                        ) : (
-                          outboundDetails?.to?.map((r, i) => <div key={i}>{r}</div>)
-                        )}
+                      <span className="text-muted-foreground">Message ID:</span>
+                      <div className="mt-1">
+                        <ClickableId id={isInbound ? inboundDetails?.messageId || '' : outboundDetails?.id || ''} preview={true} />
                       </div>
                     </div>
-                    <div>
-                      <span className="text-muted-foreground">Subject:</span>
-                      <p className="font-medium">{(isInbound ? inboundDetails?.subject : outboundDetails?.subject) || 'No Subject'}</p>
+                  )}
+                  <div>
+                    <span className="text-muted-foreground">From:</span>
+                    <p className="font-medium">{isInbound ? inboundDetails?.from : outboundDetails?.from}</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">To:</span>
+                    <div className="font-medium">
+                      {isInbound ? (
+                        inboundDetails?.recipient
+                      ) : (
+                        outboundDetails?.to?.map((r, i) => <div key={i}>{r}</div>)
+                      )}
                     </div>
-                    <div>
-                      <span className="text-muted-foreground">Date:</span>
-                      <p className="font-medium">{format(new Date(isInbound ? (inboundDetails?.receivedAt || inboundDetails?.createdAt || new Date()) : (outboundDetails?.created_at || new Date())), 'PPpp')}</p>
-                    </div>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Subject:</span>
+                    <p className="font-medium">
+                      {(() => {
+                        const subject = (isInbound ? inboundDetails?.subject : outboundDetails?.subject) || 'No Subject';
+                        return subject.length > 20 ? subject.substring(0, 20) + '...' : subject;
+                      })()}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Date:</span>
+                    <p className="font-medium">{format(new Date(isInbound ? (inboundDetails?.receivedAt || inboundDetails?.createdAt || new Date()) : (outboundDetails?.created_at || new Date())), 'PPpp')}</p>
                   </div>
                 </div>
               </CardContent>
