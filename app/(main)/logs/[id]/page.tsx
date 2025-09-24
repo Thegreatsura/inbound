@@ -30,6 +30,7 @@ import type { GetEmailByIdResponse } from '@/app/api/v2/emails/[id]/route'
 // Import the attachment list component
 import { AttachmentList } from '@/components/logs/attachment-list'
 import { ClickableId } from '@/components/logs/clickable-id'
+import { RetryDeliveryButton } from '@/components/logs/retry-delivery-button'
 import { CodeBlock } from '@/components/ui/code-block'
 
 export default async function LogDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -320,15 +321,12 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
               Back to Logs
             </Button>
           </Link>
-          <Badge variant={isInbound ? "secondary" : "default"} className="px-2.5 py-0.5">
-            {isInbound ? 'Inbound' : 'Outbound'}
-          </Badge>
         </div>
 
         <Card className="rounded-xl overflow-hidden mb-4">
           <CardContent className="p-6">
             <div className="flex items-start justify-between gap-4">
-              <div className="space-y-1">
+              <div className="space-y-4">
                 <div className="flex items-center gap-2">
                   {isInbound ? (
                     <ArchiveDownload width="16" height="16" className="text-purple-600" />
@@ -337,8 +335,78 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
                   )}
                   <h1 className="text-xl font-semibold tracking-tight">{(isInbound ? inboundDetails?.subject : outboundDetails?.subject) || 'No Subject'}</h1>
                 </div>
-                <div className="text-sm text-muted-foreground">
-                  {(isInbound ? inboundDetails?.from : outboundDetails?.from) || 'unknown'} → {isInbound ? inboundDetails?.recipient : outboundDetails?.to?.[0]}
+
+                {/* Email Flow Cards */}
+                <div className="flex items-center overflow-x-auto">
+                  {/* From Card */}
+                  <div className="flex-shrink-0 relative">
+                    <div className="bg-card border border-purple-200 rounded p-2 min-w-[100px]">
+                      <div className="text-xs text-purple-600 font-medium">From</div>
+                      <div className="text-sm font-medium text-foreground truncate">
+                        {(isInbound ? inboundDetails?.from : outboundDetails?.from) || 'unknown'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Connecting Line and Arrow */}
+                  <div className="flex-shrink-0 relative flex items-center">
+                    <div className="w-8 h-px bg-border"></div>
+                    <div className="text-muted-foreground -ml-1">
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M6 4l4 4-4 4V4z"/>
+                      </svg>
+                    </div>
+                    <div className="w-8 h-px bg-border -ml-1"></div>
+                  </div>
+
+                  {/* To Card */}
+                  <div className="flex-shrink-0 relative">
+                    <div className="bg-card border border-blue-200 rounded p-2 min-w-[100px]">
+                      <div className="text-xs text-blue-600 font-medium">To</div>
+                      <div className="text-sm font-medium text-foreground truncate">
+                        {isInbound ? inboundDetails?.recipient : outboundDetails?.to?.[0] || 'unknown'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Connecting Line, Arrow and Endpoint for inbound emails with deliveries */}
+                  {isInbound && inboundDetails?.deliveries && inboundDetails.deliveries.length > 0 && (
+                    <>
+                      <div className="flex-shrink-0 relative flex items-center">
+                        <div className="w-8 h-px bg-border"></div>
+                        <div className="text-muted-foreground -ml-1">
+                          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                            <path d="M6 4l4 4-4 4V4z"/>
+                          </svg>
+                        </div>
+                        <div className="w-8 h-px bg-border -ml-1"></div>
+                      </div>
+
+                      <div className="flex-shrink-0 relative">
+                        <div className={`bg-card border rounded p-2 min-w-[100px] ${
+                          inboundDetails.deliveries[0]?.status === 'success' 
+                            ? 'border-green-200' 
+                            : inboundDetails.deliveries[0]?.status === 'failed'
+                            ? 'border-red-200'
+                            : 'border-yellow-200'
+                        }`}>
+                          <div className={`text-xs font-medium ${
+                            inboundDetails.deliveries[0]?.status === 'success' 
+                              ? 'text-green-600' 
+                              : inboundDetails.deliveries[0]?.status === 'failed'
+                              ? 'text-red-600'
+                              : 'text-yellow-600'
+                          }`}>
+                            {inboundDetails.deliveries[0]?.config?.name || 'Webhook'}
+                          </div>
+                          <div className="text-sm font-medium text-foreground capitalize">
+                            {inboundDetails.deliveries[0]?.status || 'pending'}
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  )}
+
                 </div>
               </div>
             </div>
@@ -351,10 +419,12 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
               <CardContent className="p-6">
                 <h3 className="text-sm font-semibold mb-3">Email Content</h3>
                 <Tabs defaultValue="html" className="w-full">
-                  <TabsList className="grid w-full grid-cols-3">
+                  <TabsList className={`grid w-full ${isInbound ? 'grid-cols-3' : 'grid-cols-2'}`}>
                     <TabsTrigger value="html">HTML</TabsTrigger>
                     <TabsTrigger value="text">Text</TabsTrigger>
-                    <TabsTrigger value="raw">Raw</TabsTrigger>
+                    {isInbound && (
+                      <TabsTrigger value="raw">Raw</TabsTrigger>
+                    )}
                   </TabsList>
                   <TabsContent value="html" className="space-y-2">
                     {(isInbound ? inboundDetails?.content?.htmlBody : outboundDetails?.html) ? (
@@ -377,13 +447,15 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
                       <p className="text-sm text-muted-foreground">No text content available</p>
                     )}
                   </TabsContent>
-                  <TabsContent value="raw" className="space-y-2">
-                    {isInbound && inboundDetails?.content?.rawContent ? (
-                      <pre className="text-xs bg-muted p-4 rounded-lg overflow-x-auto font-mono max-h-[640px] overflow-y-auto">{inboundDetails?.content?.rawContent}</pre>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">{isInbound ? 'Raw content not available' : 'Raw content not available (outbound emails only store HTML/text)'}</p>
-                    )}
-                  </TabsContent>
+                  {isInbound && (
+                    <TabsContent value="raw" className="space-y-2">
+                      {inboundDetails?.content?.rawContent ? (
+                        <pre className="text-xs bg-muted p-4 rounded-lg overflow-x-auto font-mono max-h-[640px] overflow-y-auto">{inboundDetails?.content?.rawContent}</pre>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">Raw content not available</p>
+                      )}
+                    </TabsContent>
+                  )}
                 </Tabs>
               </CardContent>
             </Card>
@@ -403,12 +475,19 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
                               <h4 className="font-medium text-foreground">{delivery.config?.name || 'Unknown Endpoint'}</h4>
                               <p className="text-sm text-muted-foreground">{delivery.type === 'webhook' ? 'Webhook' : 'Email Forward'}</p>
                             </div>
-                            <Badge 
-                              variant={delivery.status === 'success' ? 'default' : delivery.status === 'failed' ? 'destructive' : 'secondary'}
-                              className={delivery.status === 'success' ? 'bg-green-500/10 text-green-600 border-green-500/20' : delivery.status === 'failed' ? '' : 'bg-yellow-500/10 text-yellow-600 border-yellow-500/20'}
-                            >
-                              {String(delivery.status).toUpperCase()}
-                            </Badge>
+                            <div className="flex items-center gap-2">
+                              <Badge 
+                                variant={delivery.status === 'success' ? 'default' : delivery.status === 'failed' ? 'destructive' : 'secondary'}
+                                className={delivery.status === 'success' ? 'bg-green-500/10 text-green-600 border-green-500/20' : delivery.status === 'failed' ? '' : 'bg-yellow-500/10 text-yellow-600 border-yellow-500/20'}
+                              >
+                                {String(delivery.status).toUpperCase()}
+                              </Badge>
+                              <RetryDeliveryButton
+                                emailId={id}
+                                deliveryId={delivery.id}
+                                status={delivery.status}
+                              />
+                            </div>
                           </div>
                           <div className="mt-3 grid grid-cols-2 gap-4 text-sm">
                             <div>
@@ -436,6 +515,37 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
                       ))}
                     </div>
                   )}
+                </CardContent>
+              </Card>
+            )}
+
+            {!isInbound && (
+              <Card className="rounded-xl overflow-hidden">
+                <CardContent className="p-6">
+                  <h3 className="text-sm font-semibold mb-3">Sending Details</h3>
+                  <div className="space-y-2 text-sm">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <span className="text-muted-foreground">Status:</span>
+                        <p className="font-medium capitalize">{outboundDetails?.status}</p>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Provider:</span>
+                        <p className="font-medium uppercase">{outboundDetails?.provider}</p>
+                      </div>
+                    </div>
+                    {outboundDetails?.failureReason && (
+                      <div className="p-3 bg-destructive/10 rounded-lg text-destructive">
+                        {outboundDetails.failureReason}
+                      </div>
+                    )}
+                    {outboundDetails?.providerResponse && (
+                      <div>
+                        <div className="text-muted-foreground text-xs mb-1">Provider Response:</div>
+                        <pre className="text-xs bg-muted p-2 rounded overflow-x-auto">{JSON.stringify(outboundDetails.providerResponse, null, 2)}</pre>
+                      </div>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             )}
@@ -491,7 +601,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
               </CardContent>
             </Card>
 
-            {isInbound ? (
+            {isInbound && (
               <Card className="rounded-xl overflow-hidden">
                 <CardContent className="p-6">
                   <h3 className="text-sm font-semibold mb-3">Authentication</h3>
@@ -511,35 +621,6 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
                     <Badge variant={inboundDetails?.security.virus === 'PASS' ? 'default' : 'destructive'} className={inboundDetails?.security.virus === 'PASS' ? 'bg-green-500/10 text-green-600 border-green-500/20' : ''}>
                       Virus: {inboundDetails?.security.virus}
                     </Badge>
-                  </div>
-                </CardContent>
-              </Card>
-            ) : (
-              <Card className="rounded-xl overflow-hidden">
-                <CardContent className="p-6">
-                  <h3 className="text-sm font-semibold mb-3">Sending Details</h3>
-                  <div className="space-y-2 text-sm">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <span className="text-muted-foreground">Status:</span>
-                        <p className="font-medium capitalize">{outboundDetails?.status}</p>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Provider:</span>
-                        <p className="font-medium uppercase">{outboundDetails?.provider}</p>
-                      </div>
-                    </div>
-                    {outboundDetails?.failureReason && (
-                      <div className="p-3 bg-destructive/10 rounded-lg text-destructive">
-                        {outboundDetails.failureReason}
-                      </div>
-                    )}
-                    {outboundDetails?.providerResponse && (
-                      <div>
-                        <div className="text-muted-foreground text-xs mb-1">Provider Response:</div>
-                        <pre className="text-xs bg-muted p-2 rounded overflow-x-auto">{JSON.stringify(outboundDetails.providerResponse, null, 2)}</pre>
-                      </div>
-                    )}
                   </div>
                 </CardContent>
               </Card>

@@ -5,6 +5,7 @@ import { SiteHeader } from "@/components/site-header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { Toaster } from "@/components/ui/sonner"
 import { NavigationProvider } from "@/contexts/navigation-context"
+import { LoadingSpinner } from "@/components/loading-spinner"
 
 import { EnhancedPageTransition } from "@/components/page-transition"
 import { useSession } from "@/lib/auth/auth-client"
@@ -25,7 +26,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   if (isPending) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+        <LoadingSpinner size="lg" text="Loading..." />
       </div>
     )
   }

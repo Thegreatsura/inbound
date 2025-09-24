@@ -12,6 +12,7 @@ export {
 
 export { useEmailQuery } from './useEmailQuery'
 export { useMarkEmailAsReadMutation } from './useMarkEmailAsReadMutation'
+export { useRetryDeliveryMutation } from './useRetryDeliveryMutation'
 
 // Export email address v2 hooks
 export { useEmailAddressesV2Query, useEmailAddressV2Query } from './useEmailAddressesV2Hooks'
