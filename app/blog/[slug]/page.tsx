@@ -27,7 +27,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
   return (
     <>
       <SiteHeader />
-      <div className="max-w-3xl mx-auto px-6 py-20">
+      <div className="max-w-3xl mx-auto px-6 py-10">
         <Pump
           queries={[
             {
@@ -48,7 +48,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
             const nextPost = getNextBlogPost(blogPosts, params.slug);
 
             return (
-              <article className="relative flex flex-col gap-12 max-w-none">
+              <article className="relative flex flex-col gap-3 max-w-none">
                 <Button variant="secondary" asChild className="w-fit">
                   <Link href="/blog">
                     <ArrowBoldLeft width="18" height="18" /> All blogs

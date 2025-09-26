@@ -38,7 +38,7 @@ export function BlogCard({ blog, className = "" }: BlogCardProps) {
           >
             {blog.title}
           </h2>
-          <p className="text-sm text-muted-foreground line-clamp-3">
+          <p className="text-sm text-muted-foreground line-clamp-3 whitespace-pre-wrap">
             {blog.description}
           </p>
         </div>
