@@ -100,15 +100,21 @@ export function RichTextRenderer({ content }: RichTextRendererProps) {
 
         // Enhanced list items
         ul: ({ children, ...props }) => (
-          <ul className="list-disc list-inside space-y-2 my-4" {...props}>
+          <ul className="list-disc list-outside space-y-2 my-4 ml-6 pl-0" {...props}>
             {children}
           </ul>
         ),
         
         ol: ({ children, ...props }) => (
-          <ol className="list-decimal list-inside space-y-2 my-4" {...props}>
+          <ol className="list-decimal list-outside space-y-2 my-4 ml-6 pl-0" {...props}>
             {children}
           </ol>
+        ),
+        
+        li: ({ children, ...props }) => (
+          <li className="leading-7" {...props}>
+            {children}
+          </li>
         ),
 
         // Enhanced headings with anchor links
