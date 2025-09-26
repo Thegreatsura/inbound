@@ -15,8 +15,16 @@ async function getChangelogEntries() {
 
 async function getBlogPosts() {
   try {
-    // Add blog post discovery if blog exists
-    return []
+    const { basehub } = await import('basehub')
+    const { generateBlogPostsQuery } = await import('@/features/blog/utils/blog-query')
+    const { mapBlogPosts } = await import('@/features/blog/utils/blog-mapper')
+    
+    const { blogPosts } = await basehub().query({
+      blogPosts: generateBlogPostsQuery(),
+    })
+    
+    const mappedBlogs = mapBlogPosts(blogPosts)
+    return mappedBlogs.map(blog => blog.slug)
   } catch (error) {
     console.warn('Could not read blog posts:', error)
     return []
