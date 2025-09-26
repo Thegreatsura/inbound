@@ -30,7 +30,7 @@ import type { GetEmailByIdResponse } from '@/app/api/v2/emails/[id]/route'
 // Import the attachment list component
 import { AttachmentList } from '@/components/logs/attachment-list'
 import { ClickableId } from '@/components/logs/clickable-id'
-import { RetryDeliveryButton } from '@/components/logs/retry-delivery-button'
+import { ResendEmailDialog } from '@/components/logs/resend-email-dialog'
 import { CodeBlock } from '@/components/ui/code-block'
 
 export default async function LogDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -158,6 +158,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
         attempts: endpointDeliveries.attempts,
         lastAttemptAt: endpointDeliveries.lastAttemptAt,
         responseData: endpointDeliveries.responseData,
+        endpointId: endpointDeliveries.endpointId,
         endpointName: endpoints.name,
         endpointType: endpoints.type,
         endpointConfig: endpoints.config,
@@ -183,6 +184,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
           name: d.endpointName || 'Unknown Endpoint',
           type: d.endpointType || 'unknown',
           config: parsedConfig,
+          endpointId: d.endpointId, // Add the endpointId for the resend dialog
         }
       }
     })
@@ -463,7 +465,16 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
             {isInbound && inboundDetails?.deliveries && (
               <Card className="rounded-xl overflow-hidden">
                 <CardContent className="p-6">
-                  <h3 className="text-sm font-semibold mb-3">Delivery Information</h3>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-semibold">Delivery Information</h3>
+                    {inboundDetails.deliveries.length > 0 && (
+                      <ResendEmailDialog 
+                        emailId={id}
+                        defaultEndpointId={inboundDetails.deliveries[0]?.config?.endpointId}
+                        deliveries={inboundDetails.deliveries}
+                      />
+                    )}
+                  </div>
                   {inboundDetails.deliveries.length === 0 ? (
                     <p className="text-sm text-muted-foreground">No delivery configured for this email</p>
                   ) : (
@@ -482,11 +493,6 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
                               >
                                 {String(delivery.status).toUpperCase()}
                               </Badge>
-                              <RetryDeliveryButton
-                                emailId={id}
-                                deliveryId={delivery.id}
-                                status={delivery.status}
-                              />
                             </div>
                           </div>
                           <div className="mt-3 grid grid-cols-2 gap-4 text-sm">
