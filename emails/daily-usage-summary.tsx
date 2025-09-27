@@ -2,9 +2,11 @@ import {
   Body,
   Button,
   Container,
+  Font,
   Head,
-  Heading,
+  Hr,
   Html,
+  Img,
   Link,
   Preview,
   Section,
@@ -32,47 +34,93 @@ export interface DailyUsageEmailProps {
   insights?: string[];
 }
 
-export const DailyUsageSummaryEmail = ({ dateLabel, totals, topUsers, insights = [] }: DailyUsageEmailProps) => (
+const baseUrl = process.env.VERCEL_URL
+  ? `https://${process.env.VERCEL_URL}`
+  : "https://inbound.new";
+
+export const DailyUsageSummaryEmail = ({ 
+  dateLabel = 'Today', 
+  totals = { sent: 0, received: 0, uniqueSenders: 0, uniqueRecipients: 0 }, 
+  topUsers = [], 
+  insights = [] 
+}: DailyUsageEmailProps) => (
   <Html>
-    <Head />
-    <Preview>Daily usage summary • {dateLabel}</Preview>
+    <Head>
+      <Font
+        fontFamily="Outfit"
+        fallbackFontFamily="Arial"
+        webFont={{
+          url: "https://fonts.gstatic.com/s/outfit/v15/QGYyz_MVcBeNP4NjuGObqx1XmO1I4e6yO4a0FQItq6fNIg.woff",
+          format: "woff",
+        }}
+        fontWeight={600}
+        fontStyle="normal"
+      />
+      <Font
+        fontFamily="Geist"
+        fallbackFontFamily="Arial"
+        webFont={{
+          url: "https://fonts.gstatic.com/s/geist/v4/gyBhhwUxId8gMGYQMKR3pzfaWI_RnOMImpnc6VEdtaiL.woff",
+          format: "woff",
+        }}
+        fontWeight={500}
+        fontStyle="normal"
+      />
+    </Head>
     <Body style={main}>
+      <Preview>Daily usage summary • {dateLabel}</Preview>
       <Container style={container}>
-        <Heading style={heading}>📊 Daily Usage Summary</Heading>
-        <Text style={subtle}>Report date: {dateLabel}</Text>
+        <Section style={box}>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <Img
+              src={`${baseUrl}/images/icon-light.png`}
+              width="40"
+              height="40"
+              alt="inbound"
+              style={{ borderRadius: "12px" }}
+            />
+            <p style={{ fontSize: "24px", fontFamily: "Outfit, Arial, sans-serif", fontWeight: "600", margin: 0 }}>inbound</p>
+          </div>
+          <Hr style={hr} />
+          <Text style={{...paragraph, fontSize: "20px", fontWeight: "600"}}>
+            📊 Daily Usage Summary
+          </Text>
+          <Text style={paragraph}>
+            Report date: {dateLabel}
+          </Text>
+          
+          <div style={statsGrid}>
+            <div style={statBox}>
+              <Text style={statLabel}>Total Sent</Text>
+              <Text style={statValue}>{(totals?.sent || 0).toLocaleString()}</Text>
+            </div>
+            <div style={statBox}>
+              <Text style={statLabel}>Total Received</Text>
+              <Text style={statValue}>{(totals?.received || 0).toLocaleString()}</Text>
+            </div>
+            <div style={statBox}>
+              <Text style={statLabel}>Unique Senders</Text>
+              <Text style={statValue}>{(totals?.uniqueSenders || 0).toLocaleString()}</Text>
+            </div>
+            <div style={statBox}>
+              <Text style={statLabel}>Unique Recipients</Text>
+              <Text style={statValue}>{(totals?.uniqueRecipients || 0).toLocaleString()}</Text>
+            </div>
+          </div>
 
-        <Section style={statsGrid}>
-          <div style={statBox}>
-            <Text style={statLabel}>Total Sent</Text>
-            <Text style={statValue}>{totals.sent.toLocaleString()}</Text>
-          </div>
-          <div style={statBox}>
-            <Text style={statLabel}>Total Received</Text>
-            <Text style={statValue}>{totals.received.toLocaleString()}</Text>
-          </div>
-          <div style={statBox}>
-            <Text style={statLabel}>Unique Senders</Text>
-            <Text style={statValue}>{totals.uniqueSenders.toLocaleString()}</Text>
-          </div>
-          <div style={statBox}>
-            <Text style={statLabel}>Unique Recipients</Text>
-            <Text style={statValue}>{totals.uniqueRecipients.toLocaleString()}</Text>
-          </div>
-        </Section>
+          {insights.length > 0 && (
+            <div style={insightsBlock}>
+              <Text style={{...paragraph, fontWeight: "600"}}>🤖 AI Insights</Text>
+              {insights.map((insight, idx) => (
+                <Text key={idx} style={paragraph}>• {insight}</Text>
+              ))}
+            </div>
+          )}
 
-        {insights.length > 0 && (
-          <Section style={insightsBox}>
-            <Heading as="h2" style={subheading}>AI Insights</Heading>
-            {insights.map((i, idx) => (
-              <Text key={idx} style={insightItem}>• {i}</Text>
-            ))}
-          </Section>
-        )}
-
-        <Section>
-          <Heading as="h2" style={subheading}>Top Users</Heading>
+          <Hr style={hr} />
+          <Text style={{...paragraph, fontWeight: "600"}}>Top Users</Text>
           {topUsers.length === 0 ? (
-            <Text>No user activity recorded for this period.</Text>
+            <Text style={paragraph}>No user activity recorded for this period.</Text>
           ) : (
             <table style={table}>
               <thead>
@@ -88,7 +136,7 @@ export const DailyUsageSummaryEmail = ({ dateLabel, totals, topUsers, insights =
                   <tr key={`${u.userEmail}-${i}`}>
                     <td style={td}>
                       <div style={{ fontWeight: 600 }}>{u.userName || 'No name'}</div>
-                      <div style={{ color: '#64748b' }}>{u.userEmail}</div>
+                      <div style={{ color: '#64748b', fontSize: '14px' }}>{u.userEmail}</div>
                     </td>
                     <td style={td}>{u.sent.toLocaleString()}</td>
                     <td style={td}>{u.received.toLocaleString()}</td>
@@ -98,15 +146,29 @@ export const DailyUsageSummaryEmail = ({ dateLabel, totals, topUsers, insights =
               </tbody>
             </table>
           )}
-        </Section>
 
-        <Section style={{ textAlign: 'center', marginTop: 24 }}>
-          <Button style={button} href="https://inbound.new/admin/user-information">Open Dashboard</Button>
-        </Section>
-
-        <Section style={{ textAlign: 'center', marginTop: 16 }}>
-          <Text style={{ color: '#94a3b8', fontSize: 12 }}>
-            © {new Date().getFullYear()} inbound • Daily usage email
+          <Button style={button} href="https://inbound.new/admin/user-information">
+            Open Dashboard
+          </Button>
+          
+          <Hr style={hr} />
+          <Text style={paragraph}>
+            Check out your{" "}
+            <Link
+              style={anchor}
+              href="https://inbound.new/admin/user-information"
+            >
+              admin dashboard
+            </Link>{" "}
+            for more detailed analytics.
+          </Text>
+          <Text style={paragraph}>— the inbound team</Text>
+          <Hr style={hr} />
+          <Text style={footer}>
+            inbound by exon
+            <br />
+            <br />
+            4674 Town Center Parkway, Jacksonville, FL 32246
           </Text>
         </Section>
       </Container>
@@ -116,20 +178,118 @@ export const DailyUsageSummaryEmail = ({ dateLabel, totals, topUsers, insights =
 
 export default DailyUsageSummaryEmail;
 
-const main = { backgroundColor: '#0b0b12', color: '#e5e7eb', padding: '20px' };
-const container = { backgroundColor: '#11121a', borderRadius: 16, padding: 24 } as const;
-const heading = { margin: 0, fontSize: 24, fontWeight: 700 };
-const subheading = { margin: '8px 0 12px 0', fontSize: 18, fontWeight: 600 };
-const subtle = { color: '#94a3b8', fontSize: 12 };
-const statsGrid = { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: 12 } as const;
-const statBox = { background: '#161825', border: '1px solid #1f2337', borderRadius: 12, padding: 12 } as const;
-const statLabel = { color: '#a1a1aa', fontSize: 12 };
-const statValue = { fontSize: 20, fontWeight: 700 };
-const insightsBox = { background: '#0f172a', border: '1px solid #1e293b', borderRadius: 12, padding: 16 } as const;
-const insightItem = { color: '#e5e7eb', fontSize: 14 };
-const table = { width: '100%', borderCollapse: 'collapse' } as const;
-const th = { textAlign: 'left' as const, fontSize: 12, color: '#94a3b8', borderBottom: '1px solid #1f2337', padding: '8px 6px' };
-const td = { fontSize: 14, borderBottom: '1px solid #1f2337', padding: '10px 6px' };
-const button = { background: '#8161FF', color: '#fff', padding: '12px 18px', borderRadius: 10, textDecoration: 'none' } as const;
+const main = {
+  backgroundColor: "#f6f9fc",
+  fontFamily:
+    'Geist, -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Ubuntu,sans-serif',
+    letterSpacing: "-0.04em",
+};
+
+const container = {
+  backgroundColor: "#ffffff",
+  margin: "0 auto",
+  padding: "20px 0 48px",
+  marginBottom: "64px",
+};
+
+const box = {
+  padding: "0 48px",
+};
+
+const hr = {
+  borderColor: "#e6ebf1",
+  margin: "20px 0",
+};
+
+const paragraph = {
+  color: "#525f7f",
+  fontSize: "16px",
+  lineHeight: "24px",
+  textAlign: "left" as const,
+};
+
+const anchor = {
+  color: "#556cd6",
+};
+
+const button = {
+  backgroundColor: "#4A0198",
+  borderRadius: "5px",
+  color: "#fff",
+  fontSize: "16px",
+  fontWeight: "bold",
+  textDecoration: "none",
+  textAlign: "center" as const,
+  display: "block",
+  padding: "10px",
+  margin: "20px 0",
+};
+
+const footer = {
+  color: "#8898aa",
+  fontSize: "12px",
+  lineHeight: "16px",
+};
+
+const statsGrid = {
+  display: "grid",
+  gridTemplateColumns: "repeat(2, minmax(0,1fr))",
+  gap: "12px",
+  margin: "16px 0",
+} as const;
+
+const statBox = {
+  background: "#f8fafc",
+  border: "1px solid #e6ebf1",
+  borderRadius: "8px",
+  padding: "16px",
+  textAlign: "center" as const,
+};
+
+const statLabel = {
+  color: "#8898aa",
+  fontSize: "12px",
+  margin: "0 0 8px 0",
+  textTransform: "uppercase" as const,
+  letterSpacing: "0.05em",
+};
+
+const statValue = {
+  color: "#525f7f",
+  fontSize: "24px",
+  fontWeight: "bold",
+  margin: "0",
+};
+
+const insightsBlock = {
+  background: "#f8fafc",
+  border: "1px solid #e6ebf1",
+  borderRadius: "8px",
+  padding: "16px",
+  margin: "16px 0",
+};
+
+const table = {
+  width: "100%",
+  borderCollapse: "collapse" as const,
+  margin: "16px 0",
+};
+
+const th = {
+  textAlign: "left" as const,
+  fontSize: "12px",
+  color: "#8898aa",
+  borderBottom: "1px solid #e6ebf1",
+  padding: "8px 6px",
+  textTransform: "uppercase" as const,
+  letterSpacing: "0.05em",
+};
+
+const td = {
+  fontSize: "14px",
+  color: "#525f7f",
+  borderBottom: "1px solid #e6ebf1",
+  padding: "10px 6px",
+};
 
 

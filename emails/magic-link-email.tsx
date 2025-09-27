@@ -1,5 +1,6 @@
 import {
   Body,
+  Button,
   Container,
   Font,
   Head,
@@ -11,25 +12,14 @@ import {
   Section,
   Text,
 } from "@react-email/components";
-import * as React from 'react'
-
-interface FeedbackEmailProps {
-  userFirstname?: string
-  userEmail: string
-  feedback: string
-  submittedAt?: string
-}
 
 const baseUrl = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`
   : "https://inbound.new";
 
-export const FeedbackEmail = ({
-  userFirstname = 'User',
-  userEmail,
-  feedback,
-  submittedAt = new Date().toLocaleDateString(),
-}: FeedbackEmailProps) => (
+export const MagicLinkEmail = (
+    magicLinkUrl: string
+) => (
   <Html>
     <Head>
       <Font
@@ -54,7 +44,7 @@ export const FeedbackEmail = ({
       />
     </Head>
     <Body style={main}>
-      <Preview>New feedback from {userFirstname} • inbound</Preview>
+      <Preview>Sign in to inbound</Preview>
       <Container style={container}>
         <Section style={box}>
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
@@ -65,38 +55,31 @@ export const FeedbackEmail = ({
               alt="inbound"
               style={{ borderRadius: "12px" }}
             />
-            <p style={{ fontSize: "24px", fontFamily: "Outfit, Arial, sans-serif", fontWeight: "600", margin: 0 }}>inbound</p>
+             <p style={{ fontSize: "24px", fontFamily: "Outfit, Arial, sans-serif", fontWeight: "600", margin: 0 }}>inbound</p>
           </div>
           <Hr style={hr} />
           <Text style={paragraph}>
-            New feedback received from <strong>{userFirstname}</strong> ({userEmail})
+            Click the button below to sign in to your account.
           </Text>
-          <Text style={paragraph}>
-            Submitted on {submittedAt}
-          </Text>
-          <Hr style={hr} />
-          <div style={feedbackBlock}>
-            <Text style={blockBody}>{feedback}</Text>
-          </div>
+          <Button style={button} href={magicLinkUrl}>
+            Sign in to inbound
+          </Button>
           <Hr style={hr} />
           <Text style={paragraph}>
-            You can reply directly to this email to respond to {userFirstname}.
+            This link will expire in 5 minutes for your security.
           </Text>
           <Text style={paragraph}>
-            Check out your{" "}
-            <Link
-              style={anchor}
-              href="https://inbound.new/logs"
-            >
-              dashboard
-            </Link>{" "}
-            or view our{" "}
+            If you didn't request this, you can safely ignore this email.
+          </Text>
+          <Text style={paragraph}>
+            If you haven't finished your integration, you might find our{" "}
             <Link
               style={anchor}
               href="https://docs.inbound.new"
             >
               docs
-            </Link>.
+            </Link>{" "}
+            handy.
           </Text>
           <Text style={paragraph}>— the inbound team</Text>
           <Hr style={hr} />
@@ -110,14 +93,14 @@ export const FeedbackEmail = ({
       </Container>
     </Body>
   </Html>
-)
+);
 
-export default FeedbackEmail
+export default MagicLinkEmail;
 
 const main = {
   backgroundColor: "#f6f9fc",
   fontFamily:
-    'Geist, -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Ubuntu,sans-serif',
+    'var(--font-geist), -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Ubuntu,sans-serif',
     letterSpacing: "-0.04em",
 };
 
@@ -139,6 +122,7 @@ const hr = {
 
 const paragraph = {
   color: "#525f7f",
+
   fontSize: "16px",
   lineHeight: "24px",
   textAlign: "left" as const,
@@ -148,31 +132,20 @@ const anchor = {
   color: "#556cd6",
 };
 
+const button = {
+  backgroundColor: "#4A0198",
+  borderRadius: "5px",
+  color: "#fff",
+  fontSize: "16px",
+  fontWeight: "bold",
+  textDecoration: "none",
+  textAlign: "center" as const,
+  display: "block",
+  padding: "10px",
+};
+
 const footer = {
   color: "#8898aa",
   fontSize: "12px",
   lineHeight: "16px",
-};
-
-const feedbackBlock = {
-  background: "#f8fafc",
-  border: "1px solid #e6ebf1",
-  borderRadius: "8px",
-  padding: "16px",
-  margin: "16px 0",
-};
-
-const blockHeader = {
-  color: "#334155",
-  fontWeight: "600",
-  fontSize: "14px",
-  marginBottom: "8px",
-};
-
-const blockBody = {
-  color: "#334155",
-  fontSize: "16px",
-  lineHeight: "24px",
-  margin: "0",
-  whiteSpace: "pre-wrap" as const,
 };

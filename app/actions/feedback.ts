@@ -123,6 +123,17 @@ export async function sendFeedbackAction(
       }
     }
 
+    // Add request to Linear
+    await linear.createIssue({
+      title: `New Feedback from ${session.user.name || session.user.email} - inbound`,
+      description: data.feedback.trim(),
+      teamId: '6d05d4a1-1428-4420-a57c-39693f9e065c',
+      priority: 3,
+      stateId: '5f05d4a1-1428-4420-a57c-39693f9e065c'
+
+
+    })
+
     console.log(`✅ sendFeedbackAction - Feedback email sent successfully from ${session.user.email}`)
     console.log(`   📧 Message ID: ${response.data?.id}`)
 
