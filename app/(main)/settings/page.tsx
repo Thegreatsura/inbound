@@ -129,7 +129,6 @@ export default function SettingsPage() {
   const domainsFeature = customerData?.features?.['domains']
   const inboundTriggersFeature = customerData?.features?.['inbound_triggers']
   const emailRetentionFeature = customerData?.features?.['email_retention']
-  const vipByokFeature = customerData?.features?.['vip_byok']
   const emailsSentFeature = customerData?.features?.['emails_sent']
 
   // For domains, use actual domain count from domain stats
@@ -291,14 +290,6 @@ export default function SettingsPage() {
                     </div>
                   )}
 
-                  {vipByokFeature && (
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="text-sm font-medium">VIP BYOK</div>
-                        <div className="text-xs text-muted-foreground">{(vipByokFeature.unlimited || vipByokFeature.balance) ? 'Enabled' : 'Disabled'}</div>
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
             ) : customerError ? (

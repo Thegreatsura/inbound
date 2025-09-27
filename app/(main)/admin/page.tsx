@@ -1071,7 +1071,7 @@ export default function AdminPage() {
                 {/* Add new feature flag */}
                 <div className="flex gap-2">
                   <Input
-                    placeholder="Enter feature flag name (e.g., vip, beta, advanced)"
+                    placeholder="Enter feature flag name (e.g., beta, advanced, premium)"
                     value={newFeatureFlag}
                     onChange={(e) => setNewFeatureFlag(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleAddFeatureFlag()}
@@ -1118,7 +1118,7 @@ export default function AdminPage() {
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">Quick Add Common Flags</Label>
                   <div className="flex flex-wrap gap-2">
-                    {['vip', 'beta', 'advanced', 'admin', 'premium'].map((commonFlag) => (
+                    {['beta', 'advanced', 'admin', 'premium'].map((commonFlag) => (
                       <Button
                         key={commonFlag}
                         size="sm"
@@ -1172,7 +1172,7 @@ export default function AdminPage() {
               {/* Add new feature flag for current user */}
               <div className="flex gap-2">
                 <Input
-                  placeholder="Enter feature flag name (e.g., vip, beta, advanced)"
+                  placeholder="Enter feature flag name (e.g., beta, advanced, premium)"
                   value={newCurrentUserFlag}
                   onChange={(e) => setNewCurrentUserFlag(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleAddCurrentUserFeatureFlag()}
@@ -1219,7 +1219,7 @@ export default function AdminPage() {
               <div className="space-y-2">
                 <Label className="text-sm font-medium">Quick Add Common Flags</Label>
                 <div className="flex flex-wrap gap-2">
-                  {['vip', 'beta', 'advanced', 'premium', 'debug'].map((commonFlag) => (
+                  {['beta', 'advanced', 'premium', 'debug'].map((commonFlag) => (
                     <Button
                       key={commonFlag}
                       size="sm"
@@ -1252,7 +1252,6 @@ export default function AdminPage() {
                     <p className="font-medium text-blue-900 dark:text-blue-100">About Feature Flags</p>
                     <p className="text-blue-700 dark:text-blue-300 mt-1">
                       Feature flags control access to experimental features and UI elements. 
-                      The <strong>vip</strong> flag enables the VIP tab in navigation. 
                       Changes take effect immediately without requiring a page refresh.
                     </p>
                     <p className="text-blue-700 dark:text-blue-300 mt-2 text-xs">

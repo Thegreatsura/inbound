@@ -37,7 +37,6 @@ export default function robots(): MetadataRoute.Robots {
           '/logs/',
           '/onboarding/',
           '/settings/',
-          '/vip/',
           '/webhooks/',
           '/add/',
           '/login',

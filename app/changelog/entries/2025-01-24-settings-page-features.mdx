@@ -14,7 +14,6 @@ We've enhanced the settings page with a new Features Overview section that provi
 ### 📊 Features Overview Section
 A new dedicated section that displays all your plan features in an easy-to-scan card layout:
 
-- **VIP BYOK** - Shows enabled/disabled status with visual indicator
 - **Domains** - Displays current usage vs. limit with progress bar
 - **Email Retention** - Shows retention period (days or unlimited)
 - **Emails Received** - Tracks inbound email usage with visual progress
@@ -38,7 +37,6 @@ A new dedicated section that displays all your plan features in an easy-to-scan 
 
 The features are pulled directly from your Autumn subscription data:
 ```typescript
-const vipByokFeature = customerData?.features?.['vip-byok']
 const domainsFeature = customerData?.features?.['domains']
 const emailRetentionFeature = customerData?.features?.['email_retention']
 const inboundTriggersFeature = customerData?.features?.['inbound_triggers']

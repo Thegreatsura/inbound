@@ -18,7 +18,6 @@ import Globe2 from "@/components/icons/globe-2"
 import Cloud2 from "@/components/icons/cloud-2"
 import Code2 from "@/components/icons/code-2"
 import StackPerspective2 from "@/components/icons/stack-perspective-2"
-import Crown from "@/components/icons/crown"
 import UserGroup from "@/components/icons/user-group"
 
 export interface NavigationItem {
@@ -71,16 +70,7 @@ export const navigationConfig: NavigationConfig = {
     },
   ],
   secondary: [],
-  features: [
-    {
-      title: "Inbound VIP",
-      url: "/vip",
-      icon: Crown,
-      description: "Manage your VIP email addresses",
-      customTailwind: "text-yellow-500",
-      requiresFeatureFlag: "vip"
-    }
-  ],
+  features: [],
   admin: [
     {
       title: "Admin Panel",
@@ -219,12 +209,6 @@ export function hasFeatureFlag(flagName: string, featureFlags?: string | null): 
   }
 }
 
-/**
- * Check if user has VIP access
- */
-export function hasUserVipAccess(featureFlags?: string | null): boolean {
-  return hasFeatureFlag('vip', featureFlags)
-}
 
 /**
  * Filter navigation items based on user's feature flags

@@ -46,10 +46,10 @@ export function NavSecondary({
                     <OptimizedLink href={item.url} className="flex items-center gap-2">
                       {item.icon && (
                         <item.icon
-                          className={`h-4 w-4 ${item.title === 'Inbound VIP' ? 'opacity-80' : 'opacity-50'} text-black dark:text-white`}
+                          className="h-4 w-4 opacity-50 text-black dark:text-white"
                         />
                       )}
-                      <span className={`${item.title === 'Inbound VIP' ? 'opacity-80' : 'opacity-50'} text-black dark:text-white`}>{item.title}</span>
+                      <span className="opacity-50 text-black dark:text-white">{item.title}</span>
                     </OptimizedLink>
                   </SidebarMenuButton>
                 )}

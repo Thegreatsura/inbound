@@ -73,17 +73,3 @@ export function trackPurchaseConversion(
   });
 }
 
-/**
- * Track VIP plan purchase conversion
- * @param email - User's email address
- * @param value - Purchase value in cents
- */
-export function trackVipPurchaseConversion(email: string, value?: number) {
-  trackTwitterConversion('tw-q190x-q192y', {
-    email_address: email,
-    value: value,
-    currency: 'USD',
-    contents: 'inbound_vip',
-    conversion_id: 'vip_purchase'
-  });
-}
