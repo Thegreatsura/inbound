@@ -18,7 +18,7 @@ export function RichTextRenderer({ content }: RichTextRendererProps) {
             return (
               <CodeBlock
                 theme="github-dark"
-                snippets={[{ code: codeContent, language: "plaintext" }]}
+                snippets={[{ code: codeContent, language: props.language || "plaintext" }]}
                 {...props}
               />
             );
