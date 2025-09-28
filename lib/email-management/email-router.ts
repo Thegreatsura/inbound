@@ -10,6 +10,7 @@ import { structuredEmails, emailAddresses, endpoints, endpointDeliveries, emailD
 import { eq, and } from 'drizzle-orm'
 import { triggerEmailAction } from '@/app/api/inbound/webhook/route'
 import { EmailForwarder } from './email-forwarder'
+import { EmailThreader } from './email-threader'
 import { nanoid } from 'nanoid'
 import type { ParsedEmailData } from './email-parser'
 import { sanitizeHtml } from './email-parser'
@@ -26,6 +27,15 @@ export async function routeEmail(emailId: string): Promise<void> {
     const emailData = await getEmailWithStructuredData(emailId)
     if (!emailData) {
       throw new Error('Email not found or missing structured data')
+    }
+
+    // 🧵 NEW: Process threading before routing
+    try {
+      const threadingResult = await EmailThreader.processEmailForThreading(emailId, emailData.userId)
+      console.log(`🧵 Email ${emailId} assigned to thread ${threadingResult.threadId} at position ${threadingResult.threadPosition}${threadingResult.isNewThread ? ' (new thread)' : ''}`)
+    } catch (threadingError) {
+      // Don't fail routing if threading fails - log error and continue
+      console.error(`⚠️ Threading failed for email ${emailId}:`, threadingError)
     }
 
     // Find associated endpoint for this email

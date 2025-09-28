@@ -22,6 +22,7 @@ import {
   extractDomain,
   extractEmailName,
 } from "@/lib/email-management/agent-email-helper";
+import { EmailThreader } from "@/lib/email-management/email-threader";
 
 /**
  * POST /api/v2/emails/[id]/reply-new
@@ -468,6 +469,15 @@ export async function POST(
         updatedAt: new Date(),
       })
       .returning();
+
+    // 🧵 NEW: Process threading for sent email
+    try {
+      const threadingResult = await EmailThreader.processSentEmailForThreading(replyEmailId, emailId, userId);
+      console.log(`🧵 Reply ${replyEmailId} added to thread ${threadingResult.threadId} at position ${threadingResult.threadPosition}`);
+    } catch (threadingError) {
+      // Don't fail the reply if threading fails - log error and continue
+      console.error(`⚠️ Threading failed for reply ${replyEmailId}:`, threadingError);
+    }
 
     // Check if SES is configured
     if (!sesClient) {

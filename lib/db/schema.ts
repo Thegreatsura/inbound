@@ -1,4 +1,4 @@
-import { pgTable, varchar, text, timestamp, boolean, integer } from 'drizzle-orm/pg-core';
+import { pgTable, varchar, text, timestamp, boolean, integer, index } from 'drizzle-orm/pg-core';
 import { user, session, account, verification, apikey } from './auth-schema';
 
 // Additional app-specific tables
@@ -319,7 +319,13 @@ export const structuredEmails = pgTable('structured_emails', {
   userId: varchar('user_id', { length: 255 }).notNull(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
-});
+  // Threading fields
+  threadId: varchar('thread_id', { length: 255 }), // Reference to emailThreads.id
+  threadPosition: integer('thread_position'), // Position in thread (1 = first, 2 = second, etc.)
+}, (table) => ({
+  messageIdIdx: index('structured_emails_message_id_idx').on(table.messageId),
+  threadIdIdx: index('structured_emails_thread_id_idx').on(table.threadId),
+}));
 
 export const webhookDeliveries = pgTable('webhook_deliveries', {
   id: varchar('id', { length: 255 }).primaryKey(),
@@ -433,11 +439,42 @@ export const sentEmails = pgTable('sent_emails', {
   // Idempotency
   idempotencyKey: varchar('idempotency_key', { length: 256 }), // For preventing duplicates
 
+  // Threading fields
+  threadId: varchar('thread_id', { length: 255 }), // Reference to emailThreads.id
+  threadPosition: integer('thread_position'), // Position in thread
+
   // User and timestamps
   userId: varchar('user_id', { length: 255 }).notNull(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
-});
+}, (table) => ({
+  threadIdIdx: index('sent_emails_thread_id_idx').on(table.threadId),
+}));
+
+// Email Threads table - stores conversation thread metadata
+export const emailThreads = pgTable('email_threads', {
+  id: varchar('id', { length: 255 }).primaryKey(), // Thread ID (nanoid)
+  
+  // Thread identification
+  rootMessageId: varchar('root_message_id', { length: 255 }).notNull(), // The first message in the thread
+  normalizedSubject: text('normalized_subject'), // Cleaned subject for fallback matching
+  
+  // Thread metadata
+  participantEmails: text('participant_emails'), // JSON array of all email addresses in thread
+  messageCount: integer('message_count').default(1), // Total messages in thread
+  lastMessageAt: timestamp('last_message_at').notNull(), // When thread was last active
+  
+  // User context
+  userId: varchar('user_id', { length: 255 }).notNull(),
+  
+  // Timestamps
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => ({
+  rootMessageIdIdx: index('email_threads_root_message_id_idx').on(table.rootMessageId),
+  userIdIdx: index('email_threads_user_id_idx').on(table.userId),
+  lastMessageAtIdx: index('email_threads_last_message_at_idx').on(table.lastMessageAt),
+}));
 
 // Scheduled Emails table - stores emails to be sent at a future time
 export const scheduledEmails = pgTable('scheduled_emails', {
