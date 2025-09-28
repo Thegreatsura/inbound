@@ -6,7 +6,7 @@
 
 import { db } from '@/lib/db'
 import { structuredEmails, sentEmails, emailThreads } from '@/lib/db/schema'
-import { eq, and, or, isNotNull, sql } from 'drizzle-orm'
+import { eq, and, or, isNotNull, sql, desc } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 
 export interface ThreadingResult {
@@ -447,5 +447,145 @@ export class EmailThreader {
       .limit(1)
     
     return (result[0]?.messageCount || 0) + 1
+  }
+  
+  /**
+   * Get the latest email in a thread (for replying to thread ID)
+   */
+  static async getLatestEmailInThread(threadId: string, userId: string): Promise<{
+    emailId: string
+    type: 'inbound' | 'outbound'
+    threadPosition: number
+  } | null> {
+    console.log(`🔍 Finding latest email in thread ${threadId}`)
+    
+    // Get latest inbound email
+    const latestInbound = await db
+      .select({
+        id: structuredEmails.id,
+        threadPosition: structuredEmails.threadPosition
+      })
+      .from(structuredEmails)
+      .where(
+        and(
+          eq(structuredEmails.threadId, threadId),
+          eq(structuredEmails.userId, userId)
+        )
+      )
+      .orderBy(desc(structuredEmails.threadPosition))
+      .limit(1)
+    
+    // Get latest outbound email
+    const latestOutbound = await db
+      .select({
+        id: sentEmails.id,
+        threadPosition: sentEmails.threadPosition
+      })
+      .from(sentEmails)
+      .where(
+        and(
+          eq(sentEmails.threadId, threadId),
+          eq(sentEmails.userId, userId)
+        )
+      )
+      .orderBy(desc(sentEmails.threadPosition))
+      .limit(1)
+    
+    // Determine which is the latest message
+    const inbound = latestInbound[0]
+    const outbound = latestOutbound[0]
+    
+    if (!inbound && !outbound) {
+      console.log(`❌ No emails found in thread ${threadId}`)
+      return null
+    }
+    
+    // Compare thread positions to find the latest
+    const inboundPosition = inbound?.threadPosition || 0
+    const outboundPosition = outbound?.threadPosition || 0
+    
+    if (outboundPosition > inboundPosition && outbound) {
+      console.log(`📤 Latest email in thread is outbound: ${outbound.id} at position ${outbound.threadPosition}`)
+      return {
+        emailId: outbound.id,
+        type: 'outbound',
+        threadPosition: outbound.threadPosition || 0
+      }
+    } else if (inbound) {
+      console.log(`📥 Latest email in thread is inbound: ${inbound.id} at position ${inbound.threadPosition}`)
+      return {
+        emailId: inbound.id,
+        type: 'inbound',
+        threadPosition: inbound.threadPosition || 0
+      }
+    }
+    
+    return null
+  }
+  
+  /**
+   * Check if an ID is a thread ID or email ID
+   */
+  static async resolveEmailId(id: string, userId: string): Promise<{
+    emailId: string
+    isThreadId: boolean
+    threadId?: string
+  } | null> {
+    console.log(`🔍 Resolving ID: ${id}`)
+    
+    // First, check if it's a thread ID
+    const thread = await db
+      .select({ id: emailThreads.id })
+      .from(emailThreads)
+      .where(
+        and(
+          eq(emailThreads.id, id),
+          eq(emailThreads.userId, userId)
+        )
+      )
+      .limit(1)
+    
+    if (thread[0]) {
+      console.log(`🧵 ID ${id} is a thread ID`)
+      // Get the latest email in this thread
+      const latestEmail = await this.getLatestEmailInThread(id, userId)
+      
+      if (!latestEmail) {
+        return null
+      }
+      
+      return {
+        emailId: latestEmail.emailId,
+        isThreadId: true,
+        threadId: id
+      }
+    }
+    
+    // Check if it's an email ID in structuredEmails
+    const structuredEmail = await db
+      .select({ 
+        id: structuredEmails.id,
+        threadId: structuredEmails.threadId 
+      })
+      .from(structuredEmails)
+      .where(
+        and(
+          eq(structuredEmails.id, id),
+          eq(structuredEmails.userId, userId)
+        )
+      )
+      .limit(1)
+    
+    if (structuredEmail[0]) {
+      console.log(`📧 ID ${id} is an email ID`)
+      return {
+        emailId: id,
+        isThreadId: false,
+        threadId: structuredEmail[0].threadId || undefined
+      }
+    }
+    
+    console.log(`❌ ID ${id} not found in threads or emails`)
+    return null
   }
 }

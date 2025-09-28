@@ -26,7 +26,8 @@ import { EmailThreader } from "@/lib/email-management/email-threader";
 
 /**
  * POST /api/v2/emails/[id]/reply-new
- * Simplified reply to an inbound email with proper threading
+ * Simplified reply to an inbound email or thread with proper threading
+ * Supports both email IDs and thread IDs - when given a thread ID, replies to the latest message
  * Supports both session-based auth and API key auth
  * Has tests? ❌
  * Has logging? ✅
@@ -54,6 +55,9 @@ export interface PostEmailReplyNewResponse {
   id: string;
   messageId: string; // Inbound message ID (used for threading)
   awsMessageId: string; // AWS SES Message ID
+  repliedToEmailId: string; // The actual email ID that was replied to
+  repliedToThreadId?: string; // The thread ID (if replying to a thread)
+  isThreadReply: boolean; // Whether this was a reply to a thread ID vs direct email ID
 }
 
 // Helper functions
@@ -160,17 +164,34 @@ export async function POST(
     }
     console.log("✅ Authentication successful for userId:", userId);
 
-    const { id: emailId } = await params;
-    console.log("📨 Replying to email ID:", emailId);
+    const { id } = await params;
+    console.log("📨 Replying to ID:", id);
 
-    // Validate email ID
-    if (!emailId || typeof emailId !== "string") {
-      console.log("⚠️ Invalid email ID provided:", emailId);
+    // Validate ID
+    if (!id || typeof id !== "string") {
+      console.log("⚠️ Invalid ID provided:", id);
       return NextResponse.json(
-        { error: "Valid email ID is required" },
+        { error: "Valid email ID or thread ID is required" },
         { status: 400 }
       );
     }
+
+    // Resolve whether this is an email ID or thread ID
+    console.log("🔍 Resolving ID type...");
+    const resolvedId = await EmailThreader.resolveEmailId(id, userId);
+    
+    if (!resolvedId) {
+      console.log("📭 ID not found in emails or threads");
+      return NextResponse.json(
+        { error: "Email or thread not found" }, 
+        { status: 404 }
+      );
+    }
+
+    const emailId = resolvedId.emailId;
+    const isThreadReply = resolvedId.isThreadId;
+    
+    console.log(`📧 Resolved to email ID: ${emailId} ${isThreadReply ? '(from thread ID)' : '(direct email ID)'}`);
 
     // Idempotency Key Check -> this is used so we don't send duplicate replies.
     const idempotencyKey = request.headers.get("Idempotency-Key");
@@ -307,6 +328,8 @@ export async function POST(
       subject,
       originalMessageId: original.messageId,
       replyAll: body.replyAll || false,
+      isThreadReply: isThreadReply,
+      resolvedEmailId: emailId,
     });
 
     // Check if this is the special agent@inbnd.dev email (not allowed for replies)
@@ -665,6 +688,9 @@ export async function POST(
         id: replyEmailId,
         messageId: messageId,
         awsMessageId: sesMessageId || "",
+        repliedToEmailId: emailId,
+        repliedToThreadId: resolvedId.threadId,
+        isThreadReply: isThreadReply
       };
       return NextResponse.json(response, { status: 200 });
     } catch (sesError) {
