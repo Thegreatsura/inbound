@@ -1,4 +1,4 @@
-import { pgTable, foreignKey, unique, text, timestamp, varchar, boolean, integer } from "drizzle-orm/pg-core"
+import { pgTable, foreignKey, unique, text, timestamp, varchar, boolean, integer, index } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 
 
@@ -434,20 +434,12 @@ export const structuredEmails = pgTable("structured_emails", {
 	readAt: timestamp("read_at", { mode: 'string' }),
 	isArchived: boolean("is_archived").default(false),
 	archivedAt: timestamp("archived_at", { mode: 'string' }),
-});
-
-export const endpoints = pgTable("endpoints", {
-	id: varchar({ length: 255 }).primaryKey().notNull(),
-	name: varchar({ length: 255 }).notNull(),
-	type: varchar({ length: 50 }).notNull(),
-	config: text().notNull(),
-	isActive: boolean("is_active").default(true),
-	description: text(),
-	userId: varchar("user_id", { length: 255 }).notNull(),
-	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
-	webhookFormat: varchar("webhook_format", { length: 50 }).default('inbound'),
-});
+	threadId: varchar("thread_id", { length: 255 }),
+	threadPosition: integer("thread_position"),
+}, (table) => [
+	index("structured_emails_message_id_idx").using("btree", table.messageId.asc().nullsLast().op("text_ops")),
+	index("structured_emails_thread_id_idx").using("btree", table.threadId.asc().nullsLast().op("text_ops")),
+]);
 
 export const sentEmails = pgTable("sent_emails", {
 	id: varchar({ length: 255 }).primaryKey().notNull(),
@@ -474,6 +466,23 @@ export const sentEmails = pgTable("sent_emails", {
 	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
 	tags: text(),
+	threadId: varchar("thread_id", { length: 255 }),
+	threadPosition: integer("thread_position"),
+}, (table) => [
+	index("sent_emails_thread_id_idx").using("btree", table.threadId.asc().nullsLast().op("text_ops")),
+]);
+
+export const endpoints = pgTable("endpoints", {
+	id: varchar({ length: 255 }).primaryKey().notNull(),
+	name: varchar({ length: 255 }).notNull(),
+	type: varchar({ length: 50 }).notNull(),
+	config: text().notNull(),
+	isActive: boolean("is_active").default(true),
+	description: text(),
+	userId: varchar("user_id", { length: 255 }).notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
+	webhookFormat: varchar("webhook_format", { length: 50 }).default('inbound'),
 });
 
 export const emailGroups = pgTable("email_groups", {
@@ -495,3 +504,19 @@ export const endpointDeliveries = pgTable("endpoint_deliveries", {
 	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
 });
+
+export const emailThreads = pgTable("email_threads", {
+	id: varchar({ length: 255 }).primaryKey().notNull(),
+	rootMessageId: varchar("root_message_id", { length: 255 }).notNull(),
+	normalizedSubject: text("normalized_subject"),
+	participantEmails: text("participant_emails"),
+	messageCount: integer("message_count").default(1),
+	lastMessageAt: timestamp("last_message_at", { mode: 'string' }).notNull(),
+	userId: varchar("user_id", { length: 255 }).notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
+}, (table) => [
+	index("email_threads_last_message_at_idx").using("btree", table.lastMessageAt.asc().nullsLast().op("timestamp_ops")),
+	index("email_threads_root_message_id_idx").using("btree", table.rootMessageId.asc().nullsLast().op("text_ops")),
+	index("email_threads_user_id_idx").using("btree", table.userId.asc().nullsLast().op("text_ops")),
+]);
