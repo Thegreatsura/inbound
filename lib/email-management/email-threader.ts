@@ -92,7 +92,7 @@ export class EmailThreader {
       .from(structuredEmails)
       .where(
         and(
-          eq(structuredEmails.id, emailId),
+          eq(structuredEmails.emailId, emailId), // ✅ Fixed: Use emailId (reference to receivedEmails.id)
           eq(structuredEmails.userId, userId)
         )
       )
@@ -270,7 +270,7 @@ export class EmailThreader {
         threadPosition,
         updatedAt: new Date()
       })
-      .where(eq(structuredEmails.id, emailId))
+      .where(eq(structuredEmails.emailId, emailId)) // ✅ Fixed: Use emailId (reference to receivedEmails.id)
     
     // Update thread metadata
     const currentParticipants = this.parseParticipants(threadResult[0].participantEmails)
@@ -463,6 +463,7 @@ export class EmailThreader {
     const latestInbound = await db
       .select({
         id: structuredEmails.id,
+        emailId: structuredEmails.emailId, // ✅ Added: Get the original email ID
         threadPosition: structuredEmails.threadPosition
       })
       .from(structuredEmails)
@@ -512,9 +513,9 @@ export class EmailThreader {
         threadPosition: outbound.threadPosition || 0
       }
     } else if (inbound) {
-      console.log(`📥 Latest email in thread is inbound: ${inbound.id} at position ${inbound.threadPosition}`)
+      console.log(`📥 Latest email in thread is inbound: ${inbound.emailId} at position ${inbound.threadPosition}`)
       return {
-        emailId: inbound.id,
+        emailId: inbound.emailId, // ✅ Fixed: Use original email ID, not structured ID
         type: 'inbound',
         threadPosition: inbound.threadPosition || 0
       }
@@ -561,16 +562,17 @@ export class EmailThreader {
       }
     }
     
-    // Check if it's an email ID in structuredEmails
+    // Check if it's an email ID in structuredEmails (using emailId field which references receivedEmails.id)
     const structuredEmail = await db
       .select({ 
         id: structuredEmails.id,
+        emailId: structuredEmails.emailId,
         threadId: structuredEmails.threadId 
       })
       .from(structuredEmails)
       .where(
         and(
-          eq(structuredEmails.id, id),
+          eq(structuredEmails.emailId, id), // ✅ Fixed: Use emailId field
           eq(structuredEmails.userId, userId)
         )
       )
