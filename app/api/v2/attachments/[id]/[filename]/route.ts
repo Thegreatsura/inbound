@@ -95,9 +95,36 @@ export async function GET(
     // Try S3 first, then fallback to direct email content
     if (s3BucketName && s3ObjectKey) {
       try {
-        const { getEmailFromS3 } = await import('@/lib/aws-ses/aws-ses')
-        const s3Email = await getEmailFromS3(s3BucketName, s3ObjectKey)
-        rawEmailContent = s3Email?.rawContent || null
+        // Import S3 client to fetch raw email content
+        const { S3Client, GetObjectCommand } = await import('@aws-sdk/client-s3')
+        
+        const s3Client = new S3Client({
+          region: process.env.AWS_REGION || 'us-east-1',
+        })
+        
+        const command = new GetObjectCommand({
+          Bucket: s3BucketName,
+          Key: s3ObjectKey,
+        })
+        
+        const response = await s3Client.send(command)
+        
+        if (response.Body) {
+          // Convert stream to string
+          const chunks: Uint8Array[] = []
+          const reader = response.Body.transformToWebStream().getReader()
+          
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
+            chunks.push(value)
+          }
+          
+          const buffer = Buffer.concat(chunks)
+          rawEmailContent = buffer.toString('utf-8')
+        } else {
+          throw new Error('No email content in S3')
+        }
       } catch (s3Error) {
         console.error(`Failed to fetch from S3:`, s3Error)
         // Fallback to direct content
@@ -140,7 +167,8 @@ export async function GET(
     console.log(`✅ Attachment found: ${attachment.filename} (${attachment.size} bytes)`)
 
     // Return the attachment with appropriate headers
-    return new NextResponse(attachment.content, {
+    // Convert Buffer to Uint8Array for NextResponse compatibility
+    return new NextResponse(new Uint8Array(attachment.content), {
       status: 200,
       headers: {
         'Content-Type': attachment.contentType || 'application/octet-stream',
