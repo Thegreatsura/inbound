@@ -10,6 +10,7 @@ import { structuredEmails, emailAddresses, endpoints, endpointDeliveries, emailD
 import { eq, and } from 'drizzle-orm'
 import { triggerEmailAction } from '@/app/api/inbound/webhook/route'
 import { EmailForwarder } from './email-forwarder'
+import { EmailThreader } from './email-threader'
 import { nanoid } from 'nanoid'
 import type { ParsedEmailData } from './email-parser'
 import { sanitizeHtml } from './email-parser'
@@ -26,6 +27,15 @@ export async function routeEmail(emailId: string): Promise<void> {
     const emailData = await getEmailWithStructuredData(emailId)
     if (!emailData) {
       throw new Error('Email not found or missing structured data')
+    }
+
+    // 🧵 NEW: Process threading before routing
+    try {
+      const threadingResult = await EmailThreader.processEmailForThreading(emailId, emailData.userId)
+      console.log(`🧵 Email ${emailId} assigned to thread ${threadingResult.threadId} at position ${threadingResult.threadPosition}${threadingResult.isNewThread ? ' (new thread)' : ''}`)
+    } catch (threadingError) {
+      // Don't fail routing if threading fails - log error and continue
+      console.error(`⚠️ Threading failed for email ${emailId}:`, threadingError)
     }
 
     // Find associated endpoint for this email
@@ -297,6 +307,21 @@ async function handleWebhookEndpoint(emailId: string, endpoint: Endpoint): Promi
     // Reconstruct ParsedEmailData from structured data
     const parsedEmailData = reconstructParsedEmailData(emailData)
 
+    // Get the base URL for attachment downloads (from environment or construct from request)
+    const baseUrl = process.env.NEXT_PUBLIC_BETTER_AUTH_URL || 'https://inbound.new'
+    
+    // Add download URLs to attachments in parsedData
+    const attachmentsWithUrls = parsedEmailData.attachments?.map(att => ({
+      ...att,
+      downloadUrl: `${baseUrl}/api/v2/attachments/${emailData.structuredId}/${encodeURIComponent(att.filename || 'attachment')}`
+    })) || []
+
+    // Create enhanced parsedData with download URLs
+    const enhancedParsedData = {
+      ...parsedEmailData,
+      attachments: attachmentsWithUrls
+    }
+
     // Create webhook payload with the exact structure expected
     const webhookPayload = {
       event: 'email.received',
@@ -310,8 +335,8 @@ async function handleWebhookEndpoint(emailId: string, endpoint: Endpoint): Promi
         subject: emailData.subject,
         receivedAt: emailData.date,
         
-        // Full ParsedEmailData structure
-        parsedData: parsedEmailData,
+        // Full ParsedEmailData structure with download URLs
+        parsedData: enhancedParsedData,
         
         // Cleaned content for backward compatibility
         cleanedContent: {
@@ -319,7 +344,7 @@ async function handleWebhookEndpoint(emailId: string, endpoint: Endpoint): Promi
           text: parsedEmailData.textBody || null,
           hasHtml: !!parsedEmailData.htmlBody,
           hasText: !!parsedEmailData.textBody,
-          attachments: parsedEmailData.attachments || [],
+          attachments: attachmentsWithUrls, // Include download URLs in cleaned content too
           headers: parsedEmailData.headers || {}
         }
       },

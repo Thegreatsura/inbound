@@ -119,7 +119,7 @@ export default function EmailsPage() {
                 onClick={() => refetchDomains()}
                 disabled={isLoading}
               >
-                <Refresh2 width="14" height="14" className="mr-2" />
+                <Refresh2 width="14" height="14" className={`mr-2 ${isLoading ? 'animate-spin' : ''}`} />
                 Refresh
               </Button>
             </div>
