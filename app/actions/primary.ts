@@ -3224,3 +3224,109 @@ export async function getUnifiedEmailLogs(options?: {
   }
 }
 
+// ============================================================================
+// THREADS WAITLIST
+// ============================================================================
+
+import { Inbound } from '@inboundemail/sdk'
+
+const inbound = new Inbound(process.env.INBOUND_API_KEY!)
+
+export interface ThreadsWaitlistData {
+  name: string
+  email: string
+}
+
+/**
+ * Server action to submit threads waitlist signup
+ */
+export async function submitThreadsWaitlist(
+  data: ThreadsWaitlistData
+): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  try {
+    // Validate required fields
+    if (!data.name?.trim()) {
+      return {
+        success: false,
+        error: 'name is required'
+      }
+    }
+
+    if (!data.email?.trim()) {
+      return {
+        success: false,
+        error: 'email is required'
+      }
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(data.email.trim())) {
+      return {
+        success: false,
+        error: 'please enter a valid email address'
+      }
+    }
+
+    console.log(`📧 submitThreadsWaitlist - new threads waitlist signup: ${data.email}`)
+
+    // Create plain text email content
+    const plainTextContent = `
+new threads waitlist signup
+
+name: ${data.name.trim()}
+email: ${data.email.trim()}
+
+submitted: ${new Date().toLocaleDateString('en-US', {
+  year: 'numeric',
+  month: 'long',
+  day: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  timeZoneName: 'short'
+})}
+    `.trim()
+
+    // Send the email using Inbound
+    const { data: response, error: errorResponse } = await inbound.emails.send({
+      from: 'threads waitlist <notifications@inbound.new>',
+      to: 'ryan@mandarin3d.com',
+      replyTo: data.email.trim(),
+      subject: `🧵 new threads waitlist signup - ${data.email.trim()}`,
+      text: plainTextContent,
+    })
+
+    if (errorResponse) {
+      console.error('❌ submitThreadsWaitlist - inbound api error:', errorResponse)
+      return {
+        success: false,
+        error: `email sending failed: ${errorResponse}`
+      }
+    }
+
+    // Check if the response indicates success
+    if (!response?.id) {
+      console.error('❌ submitThreadsWaitlist - inbound api error:', response)
+      return {
+        success: false,
+        error: `email sending failed: ${response?.id || 'unknown error'}`
+      }
+    }
+
+    console.log(`✅ submitThreadsWaitlist - threads waitlist email sent successfully from ${data.email}`)
+    console.log(`   📧 message id: ${response?.id}`)
+
+    return {
+      success: true,
+      messageId: response.id
+    }
+
+  } catch (error) {
+    console.error('❌ submitThreadsWaitlist - unexpected error:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'unknown error occurred'
+    }
+  }
+}
+
