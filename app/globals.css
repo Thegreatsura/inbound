@@ -216,7 +216,7 @@
   body {
     @apply bg-sidebar text-foreground font-sans;
     font-family: var(--font-geist), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-    letter-spacing: -0.04em; /* Geist -4% tracking for body */    
+    letter-spacing: -0.04em; /* Geist -4% tracking for body */
     overscroll-behavior-y: none;
   }
   html {
