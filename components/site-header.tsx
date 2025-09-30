@@ -131,7 +131,8 @@ export function SiteHeader() {
     // Handle anchor links (e.g., "/#features")
     if (normalizedHref.includes("#")) {
       const [path, hash] = normalizedHref.split("#");
-      return pathname === path && window.location.hash === `#${hash}`;
+      const currentHash = typeof window !== "undefined" ? window.location.hash : "";
+      return pathname === path && currentHash === `#${hash}`;
     }
     
     // Handle regular paths
