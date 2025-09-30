@@ -41,17 +41,7 @@ export async function POST(
     const userId = session.user.id
 
     // Parse request body
-    let requestData: PostRetryDeliveryRequest
-    try {
-      const body = await request.text()
-      requestData = JSON.parse(body)
-    } catch (error) {
-      console.error('❌ Retry delivery - Invalid request body:', error)
-      return NextResponse.json(
-        { success: false, error: 'Invalid request body' },
-        { status: 400 }
-      )
-    }
+    const requestData: PostRetryDeliveryRequest = await request.json()
 
     if (!requestData.deliveryId) {
       return NextResponse.json(

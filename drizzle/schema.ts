@@ -1,4 +1,4 @@
-import { pgTable, foreignKey, unique, text, timestamp, varchar, boolean, integer } from "drizzle-orm/pg-core"
+import { pgTable, foreignKey, unique, text, timestamp, varchar, boolean, integer, index } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 
 
@@ -15,32 +15,28 @@ export const session = pgTable("session", {
 	impersonatedBy: text("impersonated_by"),
 }, (table) => [
 	foreignKey({
-		columns: [table.userId],
-		foreignColumns: [user.id],
-		name: "session_user_id_user_id_fk"
-	}).onDelete("cascade"),
+			columns: [table.userId],
+			foreignColumns: [user.id],
+			name: "session_user_id_user_id_fk"
+		}).onDelete("cascade"),
 	unique("session_token_unique").on(table.token),
 ]);
 
-export const emailDomains = pgTable("email_domains", {
+export const emailAddresses = pgTable("email_addresses", {
 	id: varchar({ length: 255 }).primaryKey().notNull(),
-	domain: varchar({ length: 255 }).notNull(),
-	status: varchar({ length: 50 }).notNull(),
-	verificationToken: varchar("verification_token", { length: 255 }),
+	address: varchar({ length: 255 }).notNull(),
+	domainId: varchar("domain_id", { length: 255 }).notNull(),
+	isActive: boolean("is_active").default(true),
 	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
 	userId: varchar("user_id", { length: 255 }).notNull(),
-	canReceiveEmails: boolean("can_receive_emails").default(false),
-	hasMxRecords: boolean("has_mx_records").default(false),
-	domainProvider: varchar("domain_provider", { length: 100 }),
-	providerConfidence: varchar("provider_confidence", { length: 20 }),
-	lastDnsCheck: timestamp("last_dns_check", { mode: 'string' }),
-	lastSesCheck: timestamp("last_ses_check", { mode: 'string' }),
-	isCatchAllEnabled: boolean("is_catch_all_enabled").default(false),
-	catchAllWebhookId: varchar("catch_all_webhook_id", { length: 255 }),
-	catchAllReceiptRuleName: varchar("catch_all_receipt_rule_name", { length: 255 }),
+	isReceiptRuleConfigured: boolean("is_receipt_rule_configured").default(false),
+	receiptRuleName: varchar("receipt_rule_name", { length: 255 }),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
+	webhookId: varchar("webhook_id", { length: 255 }),
+	endpointId: varchar("endpoint_id", { length: 255 }),
+	tenantId: varchar("tenant_id", { length: 255 }),
 }, (table) => [
-	unique("email_domains_domain_unique").on(table.domain),
+	unique("email_addresses_address_unique").on(table.address),
 ]);
 
 export const subscriptions = pgTable("subscriptions", {
@@ -69,37 +65,31 @@ export const verification = pgTable("verification", {
 	updatedAt: timestamp("updated_at", { mode: 'string' }),
 });
 
-export const user = pgTable("user", {
-	id: text().primaryKey().notNull(),
-	name: text().notNull(),
-	email: text().notNull(),
-	emailVerified: boolean("email_verified").notNull(),
-	image: text(),
-	createdAt: timestamp("created_at", { mode: 'string' }).notNull(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).notNull(),
-	role: text(),
-	banned: boolean(),
-	banReason: text("ban_reason"),
-	banExpires: timestamp("ban_expires", { mode: 'string' }),
-	stripeCustomerId: text("stripe_customer_id"),
-}, (table) => [
-	unique("user_email_unique").on(table.email),
-]);
-
-export const emailAddresses = pgTable("email_addresses", {
+export const emailDomains = pgTable("email_domains", {
 	id: varchar({ length: 255 }).primaryKey().notNull(),
-	address: varchar({ length: 255 }).notNull(),
-	domainId: varchar("domain_id", { length: 255 }).notNull(),
-	isActive: boolean("is_active").default(true),
+	domain: varchar({ length: 255 }).notNull(),
+	status: varchar({ length: 50 }).notNull(),
+	verificationToken: varchar("verification_token", { length: 255 }),
 	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
-	userId: varchar("user_id", { length: 255 }).notNull(),
-	isReceiptRuleConfigured: boolean("is_receipt_rule_configured").default(false),
-	receiptRuleName: varchar("receipt_rule_name", { length: 255 }),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
-	webhookId: varchar("webhook_id", { length: 255 }),
-	endpointId: varchar("endpoint_id", { length: 255 }),
+	userId: varchar("user_id", { length: 255 }).notNull(),
+	canReceiveEmails: boolean("can_receive_emails").default(false),
+	hasMxRecords: boolean("has_mx_records").default(false),
+	domainProvider: varchar("domain_provider", { length: 100 }),
+	providerConfidence: varchar("provider_confidence", { length: 20 }),
+	lastDnsCheck: timestamp("last_dns_check", { mode: 'string' }),
+	lastSesCheck: timestamp("last_ses_check", { mode: 'string' }),
+	isCatchAllEnabled: boolean("is_catch_all_enabled").default(false),
+	catchAllWebhookId: varchar("catch_all_webhook_id", { length: 255 }),
+	catchAllReceiptRuleName: varchar("catch_all_receipt_rule_name", { length: 255 }),
+	catchAllEndpointId: varchar("catch_all_endpoint_id", { length: 255 }),
+	mailFromDomain: varchar("mail_from_domain", { length: 255 }),
+	mailFromDomainStatus: varchar("mail_from_domain_status", { length: 50 }),
+	mailFromDomainVerifiedAt: timestamp("mail_from_domain_verified_at", { mode: 'string' }),
+	receiveDmarcEmails: boolean("receive_dmarc_emails").default(false),
+	tenantId: varchar("tenant_id", { length: 255 }),
 }, (table) => [
-	unique("email_addresses_address_unique").on(table.address),
+	unique("email_domains_domain_unique").on(table.domain),
 ]);
 
 export const receivedEmails = pgTable("received_emails", {
@@ -152,6 +142,25 @@ export const webhookDeliveries = pgTable("webhook_deliveries", {
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
 });
 
+export const user = pgTable("user", {
+	id: text().primaryKey().notNull(),
+	name: text().notNull(),
+	email: text().notNull(),
+	emailVerified: boolean("email_verified").notNull(),
+	image: text(),
+	createdAt: timestamp("created_at", { mode: 'string' }).notNull(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).notNull(),
+	role: text(),
+	banned: boolean(),
+	banReason: text("ban_reason"),
+	banExpires: timestamp("ban_expires", { mode: 'string' }),
+	stripeCustomerId: text("stripe_customer_id"),
+	webhooksToEndpointsMigrated: boolean("webhooks_to_endpoints_migrated").default(false),
+	featureFlags: text("feature_flags"),
+}, (table) => [
+	unique("user_email_unique").on(table.email),
+]);
+
 export const account = pgTable("account", {
 	id: text().primaryKey().notNull(),
 	accountId: text("account_id").notNull(),
@@ -168,11 +177,74 @@ export const account = pgTable("account", {
 	updatedAt: timestamp("updated_at", { mode: 'string' }).notNull(),
 }, (table) => [
 	foreignKey({
-		columns: [table.userId],
-		foreignColumns: [user.id],
-		name: "account_user_id_user_id_fk"
-	}).onDelete("cascade"),
+			columns: [table.userId],
+			foreignColumns: [user.id],
+			name: "account_user_id_user_id_fk"
+		}).onDelete("cascade"),
 ]);
+
+export const blockedEmails = pgTable("blocked_emails", {
+	id: varchar({ length: 255 }).primaryKey().notNull(),
+	emailAddress: varchar("email_address", { length: 255 }).notNull(),
+	domainId: varchar("domain_id", { length: 255 }).notNull(),
+	reason: text(),
+	blockedBy: varchar("blocked_by", { length: 255 }).notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
+}, (table) => [
+	unique("blocked_emails_email_address_unique").on(table.emailAddress),
+]);
+
+export const userOnboarding = pgTable("user_onboarding", {
+	id: varchar({ length: 255 }).primaryKey().notNull(),
+	userId: varchar("user_id", { length: 255 }).notNull(),
+	isCompleted: boolean("is_completed").default(false).notNull(),
+	defaultEndpointCreated: boolean("default_endpoint_created").default(false).notNull(),
+	completedAt: timestamp("completed_at", { mode: 'string' }),
+	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
+}, (table) => [
+	unique("user_onboarding_user_id_unique").on(table.userId),
+]);
+
+export const userAccounts = pgTable("user_accounts", {
+	id: varchar({ length: 255 }).primaryKey().notNull(),
+	userId: varchar("user_id", { length: 255 }).notNull(),
+	stripeRestrictedKey: text("stripe_restricted_key"),
+	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
+});
+
+export const scheduledEmails = pgTable("scheduled_emails", {
+	id: varchar({ length: 255 }).primaryKey().notNull(),
+	userId: varchar("user_id", { length: 255 }).notNull(),
+	scheduledAt: timestamp("scheduled_at", { mode: 'string' }).notNull(),
+	timezone: varchar({ length: 50 }).default('UTC'),
+	status: varchar({ length: 50 }).default('scheduled').notNull(),
+	fromAddress: varchar("from_address", { length: 500 }).notNull(),
+	fromDomain: varchar("from_domain", { length: 255 }).notNull(),
+	toAddresses: text("to_addresses").notNull(),
+	ccAddresses: text("cc_addresses"),
+	bccAddresses: text("bcc_addresses"),
+	replyToAddresses: text("reply_to_addresses"),
+	subject: text().notNull(),
+	textBody: text("text_body"),
+	htmlBody: text("html_body"),
+	headers: text(),
+	attachments: text(),
+	tags: text(),
+	attempts: integer().default(0),
+	maxAttempts: integer("max_attempts").default(3),
+	nextRetryAt: timestamp("next_retry_at", { mode: 'string' }),
+	lastError: text("last_error"),
+	idempotencyKey: varchar("idempotency_key", { length: 256 }),
+	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
+	sentAt: timestamp("sent_at", { mode: 'string' }),
+	sentEmailId: varchar("sent_email_id", { length: 255 }),
+	qstashScheduleId: varchar("qstash_schedule_id", { length: 255 }),
+	qstashDlqId: varchar("qstash_dlq_id", { length: 255 }),
+});
 
 export const domainDnsRecords = pgTable("domain_dns_records", {
 	id: varchar({ length: 255 }).primaryKey().notNull(),
@@ -184,7 +256,39 @@ export const domainDnsRecords = pgTable("domain_dns_records", {
 	isVerified: boolean("is_verified").default(false),
 	lastChecked: timestamp("last_checked", { mode: 'string' }),
 	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	priority: integer(),
+	description: text(),
 });
+
+export const onboardingDemoEmails = pgTable("onboarding_demo_emails", {
+	id: varchar({ length: 255 }).primaryKey().notNull(),
+	userId: varchar("user_id", { length: 255 }).notNull(),
+	emailId: varchar("email_id", { length: 255 }).notNull(),
+	recipientEmail: varchar("recipient_email", { length: 255 }).notNull(),
+	sentAt: timestamp("sent_at", { mode: 'string' }).defaultNow(),
+	replyReceived: boolean("reply_received").default(false),
+	replyFrom: varchar("reply_from", { length: 255 }),
+	replySubject: varchar("reply_subject", { length: 500 }),
+	replyBody: text("reply_body"),
+	replyReceivedAt: timestamp("reply_received_at", { mode: 'string' }),
+	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
+	messageId: varchar("message_id", { length: 255 }),
+});
+
+export const sesTenants = pgTable("ses_tenants", {
+	id: varchar({ length: 255 }).primaryKey().notNull(),
+	userId: varchar("user_id", { length: 255 }).notNull(),
+	awsTenantId: varchar("aws_tenant_id", { length: 255 }).notNull(),
+	tenantName: varchar("tenant_name", { length: 255 }).notNull(),
+	status: varchar({ length: 50 }).default('active').notNull(),
+	reputationPolicy: varchar("reputation_policy", { length: 20 }).default('standard').notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
+}, (table) => [
+	unique("ses_tenants_user_id_unique").on(table.userId),
+	unique("ses_tenants_aws_tenant_id_unique").on(table.awsTenantId),
+]);
 
 export const sesEvents = pgTable("ses_events", {
 	id: varchar({ length: 255 }).primaryKey().notNull(),
@@ -261,10 +365,10 @@ export const apikey = pgTable("apikey", {
 	metadata: text(),
 }, (table) => [
 	foreignKey({
-		columns: [table.userId],
-		foreignColumns: [user.id],
-		name: "apikey_user_id_user_id_fk"
-	}).onDelete("cascade"),
+			columns: [table.userId],
+			foreignColumns: [user.id],
+			name: "apikey_user_id_user_id_fk"
+		}).onDelete("cascade"),
 ]);
 
 export const parsedEmails = pgTable("parsed_emails", {
@@ -328,7 +432,45 @@ export const structuredEmails = pgTable("structured_emails", {
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
 	isRead: boolean("is_read").default(false),
 	readAt: timestamp("read_at", { mode: 'string' }),
-});
+	isArchived: boolean("is_archived").default(false),
+	archivedAt: timestamp("archived_at", { mode: 'string' }),
+	threadId: varchar("thread_id", { length: 255 }),
+	threadPosition: integer("thread_position"),
+}, (table) => [
+	index("structured_emails_message_id_idx").using("btree", table.messageId.asc().nullsLast().op("text_ops")),
+	index("structured_emails_thread_id_idx").using("btree", table.threadId.asc().nullsLast().op("text_ops")),
+]);
+
+export const sentEmails = pgTable("sent_emails", {
+	id: varchar({ length: 255 }).primaryKey().notNull(),
+	from: varchar({ length: 500 }).notNull(),
+	fromAddress: varchar("from_address", { length: 255 }).notNull(),
+	fromDomain: varchar("from_domain", { length: 255 }).notNull(),
+	to: text().notNull(),
+	cc: text(),
+	bcc: text(),
+	replyTo: text("reply_to"),
+	subject: text().notNull(),
+	textBody: text("text_body"),
+	htmlBody: text("html_body"),
+	headers: text(),
+	attachments: text(),
+	status: varchar({ length: 50 }).default('pending').notNull(),
+	messageId: varchar("message_id", { length: 255 }),
+	provider: varchar({ length: 50 }).default('ses'),
+	providerResponse: text("provider_response"),
+	sentAt: timestamp("sent_at", { mode: 'string' }),
+	failureReason: text("failure_reason"),
+	idempotencyKey: varchar("idempotency_key", { length: 256 }),
+	userId: varchar("user_id", { length: 255 }).notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
+	tags: text(),
+	threadId: varchar("thread_id", { length: 255 }),
+	threadPosition: integer("thread_position"),
+}, (table) => [
+	index("sent_emails_thread_id_idx").using("btree", table.threadId.asc().nullsLast().op("text_ops")),
+]);
 
 export const endpoints = pgTable("endpoints", {
 	id: varchar({ length: 255 }).primaryKey().notNull(),
@@ -340,6 +482,7 @@ export const endpoints = pgTable("endpoints", {
 	userId: varchar("user_id", { length: 255 }).notNull(),
 	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
+	webhookFormat: varchar("webhook_format", { length: 50 }).default('inbound'),
 });
 
 export const emailGroups = pgTable("email_groups", {
@@ -361,3 +504,19 @@ export const endpointDeliveries = pgTable("endpoint_deliveries", {
 	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
 });
+
+export const emailThreads = pgTable("email_threads", {
+	id: varchar({ length: 255 }).primaryKey().notNull(),
+	rootMessageId: varchar("root_message_id", { length: 255 }).notNull(),
+	normalizedSubject: text("normalized_subject"),
+	participantEmails: text("participant_emails"),
+	messageCount: integer("message_count").default(1),
+	lastMessageAt: timestamp("last_message_at", { mode: 'string' }).notNull(),
+	userId: varchar("user_id", { length: 255 }).notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
+}, (table) => [
+	index("email_threads_last_message_at_idx").using("btree", table.lastMessageAt.asc().nullsLast().op("timestamp_ops")),
+	index("email_threads_root_message_id_idx").using("btree", table.rootMessageId.asc().nullsLast().op("text_ops")),
+	index("email_threads_user_id_idx").using("btree", table.userId.asc().nullsLast().op("text_ops")),
+]);

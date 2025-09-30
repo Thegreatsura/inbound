@@ -14,36 +14,34 @@ import {
 } from '@react-email/components';
 import * as React from 'react';
 
-interface TopUserRow {
-  userEmail: string;
-  userName: string | null;
-  sent: number;
-  received: number;
-  total: number;
+interface DnsRecord {
+  type: "TXT" | "MX" | string;
+  name: string;
+  value: string;
+  isVerified?: boolean;
 }
 
-export interface DailyUsageEmailProps {
-  dateLabel: string;
-  totals: {
-    sent: number;
-    received: number;
-    uniqueSenders: number;
-    uniqueRecipients: number;
-  };
-  topUsers: TopUserRow[];
-  insights?: string[];
+interface DnsSetupInstructionsEmailProps {
+  recipientName?: string;
+  recipientEmail: string;
+  domain: string;
+  dnsRecords: DnsRecord[];
+  provider?: string;
+  senderName?: string;
 }
 
 const baseUrl = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`
   : "https://inbound.new";
 
-export const DailyUsageSummaryEmail = ({ 
-  dateLabel = 'Today', 
-  totals = { sent: 0, received: 0, uniqueSenders: 0, uniqueRecipients: 0 }, 
-  topUsers = [], 
-  insights = [] 
-}: DailyUsageEmailProps) => (
+export const DnsSetupInstructionsEmail = ({
+  recipientName = 'IT Team',
+  recipientEmail,
+  domain,
+  dnsRecords,
+  provider = 'your DNS provider',
+  senderName = 'Team Member',
+}: DnsSetupInstructionsEmailProps) => (
   <Html>
     <Head>
       <Font
@@ -68,7 +66,7 @@ export const DailyUsageSummaryEmail = ({
       />
     </Head>
     <Body style={main}>
-      <Preview>Daily usage summary • {dateLabel}</Preview>
+      <Preview>DNS Setup Instructions for {domain} - inbound</Preview>
       <Container style={container}>
         <Section style={box}>
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
@@ -82,85 +80,89 @@ export const DailyUsageSummaryEmail = ({
             <p style={{ fontSize: "24px", fontFamily: "Outfit, Arial, sans-serif", fontWeight: "600", margin: 0 }}>inbound</p>
           </div>
           <Hr style={hr} />
-          <Text style={{...paragraph, fontSize: "20px", fontWeight: "600"}}>
-            📊 Daily Usage Summary
+          <Text style={paragraph}>
+            Hi {recipientName},
           </Text>
           <Text style={paragraph}>
-            Report date: {dateLabel}
+            {senderName} has requested DNS setup for <strong>{domain}</strong> to enable email services through inbound.
           </Text>
-          
-          <div style={statsGrid}>
-            <div style={statBox}>
-              <Text style={statLabel}>Total Sent</Text>
-              <Text style={statValue}>{(totals?.sent || 0).toLocaleString()}</Text>
-            </div>
-            <div style={statBox}>
-              <Text style={statLabel}>Total Received</Text>
-              <Text style={statValue}>{(totals?.received || 0).toLocaleString()}</Text>
-            </div>
-            <div style={statBox}>
-              <Text style={statLabel}>Unique Senders</Text>
-              <Text style={statValue}>{(totals?.uniqueSenders || 0).toLocaleString()}</Text>
-            </div>
-            <div style={statBox}>
-              <Text style={statLabel}>Unique Recipients</Text>
-              <Text style={statValue}>{(totals?.uniqueRecipients || 0).toLocaleString()}</Text>
-            </div>
-          </div>
+          <Text style={paragraph}>
+            Please add the following DNS records to <strong>{provider}</strong>:
+          </Text>
 
-          {insights.length > 0 && (
-            <div style={insightsBlock}>
-              <Text style={{...paragraph, fontWeight: "600"}}>🤖 AI Insights</Text>
-              {insights.map((insight, idx) => (
-                <Text key={idx} style={paragraph}>• {insight}</Text>
-              ))}
-            </div>
-          )}
-
-          <Hr style={hr} />
-          <Text style={{...paragraph, fontWeight: "600"}}>Top Users</Text>
-          {topUsers.length === 0 ? (
-            <Text style={paragraph}>No user activity recorded for this period.</Text>
-          ) : (
+          {/* DNS Records Table */}
+          <div style={dnsBlock}>
+            <Text style={{...paragraph, fontWeight: "600", marginBottom: "12px"}}>
+              📋 DNS Records to Add
+            </Text>
             <table style={table}>
               <thead>
                 <tr>
-                  <th style={th}>User</th>
-                  <th style={th}>Sent</th>
-                  <th style={th}>Received</th>
-                  <th style={th}>Total</th>
+                  <th style={th}>Type</th>
+                  <th style={th}>Name/Host</th>
+                  <th style={th}>Value</th>
                 </tr>
               </thead>
               <tbody>
-                {topUsers.map((u, i) => (
-                  <tr key={`${u.userEmail}-${i}`}>
+                {dnsRecords.map((record, index) => (
+                  <tr key={index}>
                     <td style={td}>
-                      <div style={{ fontWeight: 600 }}>{u.userName || 'No name'}</div>
-                      <div style={{ color: '#64748b', fontSize: '14px' }}>{u.userEmail}</div>
+                      <span style={recordType}>{record.type}</span>
                     </td>
-                    <td style={td}>{u.sent.toLocaleString()}</td>
-                    <td style={td}>{u.received.toLocaleString()}</td>
-                    <td style={td}>{u.total.toLocaleString()}</td>
+                    <td style={td}>
+                      <code style={recordValue}>{record.name}</code>
+                    </td>
+                    <td style={td}>
+                      <code style={recordValue}>{record.value}</code>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          )}
+          </div>
 
-          <Button style={button} href="https://inbound.new/admin/user-information">
-            Open Dashboard
+          {/* Important Notes */}
+          <div style={notesBlock}>
+            <Text style={{...paragraph, fontWeight: "600"}}>
+              ⚠️ Important Notes:
+            </Text>
+            <Text style={paragraph}>
+              • DNS changes can take up to 48 hours to propagate globally
+            </Text>
+            <Text style={paragraph}>
+              • Some DNS providers may require you to enter the full domain name (e.g., "_amazonses.{domain}" instead of just "_amazonses")
+            </Text>
+            <Text style={paragraph}>
+              • MX records should have a priority value (usually 10)
+            </Text>
+            <Text style={paragraph}>
+              • TXT records should include the quotes if your provider requires them
+            </Text>
+          </div>
+
+          <Button style={button} href={`https://inbound.new/emails`}>
+            View Setup Progress
           </Button>
           
           <Hr style={hr} />
           <Text style={paragraph}>
-            Check out your{" "}
+            Once you've added these DNS records, the verification will happen automatically. You can check the status in the{" "}
             <Link
               style={anchor}
-              href="https://inbound.new/admin/user-information"
+              href="https://inbound.new/emails"
             >
-              admin dashboard
+              inbound dashboard
+            </Link>.
+          </Text>
+          <Text style={paragraph}>
+            If you need help with DNS setup for {provider}, check out our{" "}
+            <Link
+              style={anchor}
+              href="https://docs.inbound.new/"
+            >
+              DNS setup guides
             </Link>{" "}
-            for more detailed analytics.
+            or reply to this email for assistance.
           </Text>
           <Text style={paragraph}>— the inbound team</Text>
           <Hr style={hr} />
@@ -176,7 +178,7 @@ export const DailyUsageSummaryEmail = ({
   </Html>
 );
 
-export default DailyUsageSummaryEmail;
+export default DnsSetupInstructionsEmail;
 
 const main = {
   backgroundColor: "#f6f9fc",
@@ -206,6 +208,7 @@ const paragraph = {
   fontSize: "16px",
   lineHeight: "24px",
   textAlign: "left" as const,
+  margin: "16px 0",
 };
 
 const anchor = {
@@ -231,39 +234,17 @@ const footer = {
   lineHeight: "16px",
 };
 
-const statsGrid = {
-  display: "grid",
-  gridTemplateColumns: "repeat(2, minmax(0,1fr))",
-  gap: "12px",
-  margin: "16px 0",
-} as const;
-
-const statBox = {
+const dnsBlock = {
   background: "#f8fafc",
   border: "1px solid #e6ebf1",
   borderRadius: "8px",
   padding: "16px",
-  textAlign: "center" as const,
+  margin: "16px 0",
 };
 
-const statLabel = {
-  color: "#8898aa",
-  fontSize: "12px",
-  margin: "0 0 8px 0",
-  textTransform: "uppercase" as const,
-  letterSpacing: "0.05em",
-};
-
-const statValue = {
-  color: "#525f7f",
-  fontSize: "24px",
-  fontWeight: "bold",
-  margin: "0",
-};
-
-const insightsBlock = {
-  background: "#f8fafc",
-  border: "1px solid #e6ebf1",
+const notesBlock = {
+  background: "#fef3cd",
+  border: "1px solid #fbbf24",
   borderRadius: "8px",
   padding: "16px",
   margin: "16px 0",
@@ -283,6 +264,7 @@ const th = {
   padding: "8px 6px",
   textTransform: "uppercase" as const,
   letterSpacing: "0.05em",
+  fontWeight: "600",
 };
 
 const td = {
@@ -290,6 +272,25 @@ const td = {
   color: "#525f7f",
   borderBottom: "1px solid #e6ebf1",
   padding: "10px 6px",
+  verticalAlign: "top" as const,
 };
 
+const recordType = {
+  backgroundColor: "#4A0198",
+  color: "#fff",
+  fontSize: "12px",
+  fontWeight: "600",
+  padding: "4px 8px",
+  borderRadius: "4px",
+  textTransform: "uppercase" as const,
+};
 
+const recordValue = {
+  backgroundColor: "#f1f5f9",
+  color: "#334155",
+  fontSize: "12px",
+  fontFamily: "Monaco, Consolas, 'Courier New', monospace",
+  padding: "2px 4px",
+  borderRadius: "3px",
+  wordBreak: "break-all" as const,
+};

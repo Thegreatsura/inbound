@@ -432,7 +432,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
                     {(isInbound ? inboundDetails?.content?.htmlBody : outboundDetails?.html) ? (
                       <div className="border rounded-lg p-4 bg-muted/20 max-h-[640px] overflow-auto">
                         <iframe
-                          srcDoc={`<html><head><link href=\"https://fonts.googleapis.com/css2?family=Outfit:wght@100;200;300;400;500;600;700;800;900&display=swap\" rel=\"stylesheet\"><style>body{font-family:'Outfit',Arial,Helvetica,sans-serif;color:white;background-color:transparent;margin:0;padding:16px;}*{font-family:'Outfit',Arial,Helvetica,sans-serif;font-weight:400;color:white;}a{color:#60a5fa !important;}</style></head><body>${isInbound ? inboundDetails?.content?.htmlBody || '' : outboundDetails?.html || ''}</body></html>`}
+                          srcDoc={`<html><head><link href=\"https://fonts.googleapis.com/css2?family=Outfit:wght@100;200;300;400;500;600;700;800;900&display=swap\" rel=\"stylesheet\"><style>body{font-family:'Outfit',Arial,Helvetica,sans-serif;color:hsl(var(--foreground));background-color:transparent;margin:0;padding:16px;}*{font-family:'Outfit',Arial,Helvetica,sans-serif;font-weight:400;color:hsl(var(--foreground));}a{color:#2563eb !important;}@media (prefers-color-scheme: dark) {body,*{color:#ffffff;}a{color:#60a5fa !important;}}</style></head><body>${isInbound ? inboundDetails?.content?.htmlBody || '' : outboundDetails?.html || ''}</body></html>`}
                           className="w-full min-h-[300px] border-0"
                           sandbox="allow-same-origin"
                           title="Email HTML Content"

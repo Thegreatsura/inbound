@@ -13,12 +13,12 @@ export function RichTextRenderer({ content }: RichTextRendererProps) {
         // Custom code block component with syntax highlighting
         pre: ({ children, ...props }) => {
           // Handle code blocks
-          const codeContent = typeof children === "string" ? children : "";
+          const codeContent = typeof children === "string" ? children : props?.code || "";
           if (codeContent) {
             return (
               <CodeBlock
                 theme="github-dark"
-                snippets={[{ code: codeContent, language: "plaintext" }]}
+                snippets={[{ code: codeContent, language: props?.language || "plaintext" }]}
                 {...props}
               />
             );
