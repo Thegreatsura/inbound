@@ -7,18 +7,28 @@ import { useSession } from "@/lib/auth/auth-client";
 import InboundIcon from "./icons/inbound";
 import Menu from "./icons/menu";
 import CircleXmark from "./icons/circle-xmark";
-import { useEffect, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useEffect, useState, useRef } from "react";
+import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 
 export function SiteHeader() {
   const pathname = usePathname();
   const { data: session } = useSession();
   const [theme, setTheme] = useState<"light" | "dark">("dark");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const mobileMenuToggleRef = useRef<HTMLButtonElement>(null);
+  const mobileMenuRef = useRef<HTMLDivElement>(null);
+  const previousActiveElementRef = useRef<HTMLElement | null>(null);
+  const shouldReduceMotion = useReducedMotion();
 
   useEffect(() => {
+    if (typeof window === "undefined" || typeof document === "undefined") return;
+    
     const saved = localStorage.getItem("theme");
-    setTheme(saved === "light" ? "light" : "dark");
+    const themeValue = saved === "light" ? "light" : "dark";
+    setTheme(themeValue);
+    
+    // Apply the theme to the DOM immediately
+    document.documentElement.classList.toggle("dark", themeValue === "dark");
   }, []);
 
   useEffect(() => {
@@ -37,6 +47,55 @@ export function SiteHeader() {
     };
   }, [isMobileMenuOpen]);
 
+  // Focus management for mobile menu
+  useEffect(() => {
+    if (!isMobileMenuOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        closeMobileMenu();
+        return;
+      }
+
+      if (event.key === "Tab") {
+        const focusableElements = mobileMenuRef.current?.querySelectorAll(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        ) as NodeListOf<HTMLElement>;
+
+        if (!focusableElements || focusableElements.length === 0) return;
+
+        const firstElement = focusableElements[0];
+        const lastElement = focusableElements[focusableElements.length - 1];
+
+        if (event.shiftKey) {
+          // Shift + Tab
+          if (document.activeElement === firstElement) {
+            event.preventDefault();
+            lastElement.focus();
+          }
+        } else {
+          // Tab
+          if (document.activeElement === lastElement) {
+            event.preventDefault();
+            firstElement.focus();
+          }
+        }
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    
+    // Focus the close button when menu opens
+    const closeButton = mobileMenuRef.current?.querySelector('[aria-label="Close menu"]') as HTMLElement;
+    if (closeButton) {
+      closeButton.focus();
+    }
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isMobileMenuOpen]);
+
   const toggleTheme = () => {
     const next = theme === "light" ? "dark" : "light";
     setTheme(next);
@@ -45,11 +104,39 @@ export function SiteHeader() {
   };
 
   const toggleMobileMenu = () => {
-    setIsMobileMenuOpen(!isMobileMenuOpen);
+    if (isMobileMenuOpen) {
+      // Close menu and restore focus
+      setIsMobileMenuOpen(false);
+      if (previousActiveElementRef.current) {
+        previousActiveElementRef.current.focus();
+      }
+    } else {
+      // Open menu and store current focus
+      previousActiveElementRef.current = document.activeElement as HTMLElement;
+      setIsMobileMenuOpen(true);
+    }
   };
 
-  const isActive = (href: string) =>
-    pathname === href || (href === "/blog" && pathname.startsWith("/blog"));
+  const closeMobileMenu = () => {
+    setIsMobileMenuOpen(false);
+    if (previousActiveElementRef.current) {
+      previousActiveElementRef.current.focus();
+    }
+  };
+
+  const isActive = (href: string) => {
+    // Normalize href to ensure it starts with "/"
+    const normalizedHref = href.startsWith("/") ? href : `/${href}`;
+    
+    // Handle anchor links (e.g., "/#features")
+    if (normalizedHref.includes("#")) {
+      const [path, hash] = normalizedHref.split("#");
+      return pathname === path && window.location.hash === `#${hash}`;
+    }
+    
+    // Handle regular paths
+    return pathname === normalizedHref || (normalizedHref === "/blog" && pathname.startsWith("/blog"));
+  };
 
   return (
     <>
@@ -64,7 +151,7 @@ export function SiteHeader() {
           
           <div className="flex items-center">
             <nav className="hidden md:flex items-center gap-6 text-sm">
-              {["features", "/examples", "/pricing", "/docs", "/blog"].map(
+              {["/features", "/examples", "/pricing", "/docs", "/blog"].map(
                 (href) => (
                   <Link
                     key={href}
@@ -122,6 +209,7 @@ export function SiteHeader() {
             </nav>
             
             <Button
+              ref={mobileMenuToggleRef}
               variant="secondary"
               size="icon"
               className="md:hidden"
@@ -144,18 +232,23 @@ export function SiteHeader() {
           <div className="fixed inset-0 z-[9999] md:hidden">
             <div 
               className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-              onClick={toggleMobileMenu}
+              onClick={closeMobileMenu}
               aria-hidden="true"
             />
             
             <motion.div 
+              ref={mobileMenuRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="mobile-menu-title"
               className="absolute right-0 top-0 h-full w-80 max-w-[85vw] bg-sidebar border-l border-border shadow-xl"
-              initial={{ x: "100%" }}
+              initial={shouldReduceMotion ? { x: 0 } : { x: "100%" }}
               animate={{ x: 0 }}
-              exit={{ x: "100%" }}
-              transition={{ ease: "easeOut", duration: 0.3 }}
+              exit={shouldReduceMotion ? { x: 0 } : { x: "100%" }}
+              transition={shouldReduceMotion ? { duration: 0 } : { ease: "easeOut", duration: 0.3 }}
             >
               <div className="flex flex-col h-full">
+                <h2 id="mobile-menu-title" className="sr-only">Navigation Menu</h2>
                 <div className="flex items-center justify-between p-6 border-b border-border">
                 <Link href="/" className="flex items-center gap-2">
             <InboundIcon width={32} height={32} />
@@ -166,7 +259,7 @@ export function SiteHeader() {
                   <Button
                     variant="secondary"
                     size="icon"
-                    onClick={toggleMobileMenu}
+                    onClick={closeMobileMenu}
                     aria-label="Close menu"
                   >
                     <CircleXmark width={18} height={18} />
@@ -175,7 +268,7 @@ export function SiteHeader() {
                 
                 <nav className="flex-1 p-6">
                   <div className="flex flex-col gap-6">
-                    {["features", "/examples", "/pricing", "/docs", "/blog"].map(
+                    {["/features", "/examples", "/pricing", "/docs", "/blog"].map(
                       (href) => (
                         <Link
                           key={href}
@@ -185,7 +278,7 @@ export function SiteHeader() {
                               ? "bg-primary/10 text-primary font-medium" 
                               : "hover:bg-muted/50"
                           }`}
-                          onClick={() => setIsMobileMenuOpen(false)}
+                          onClick={closeMobileMenu}
                         >
                           {href
                             .replace("/", "")
@@ -200,13 +293,13 @@ export function SiteHeader() {
                 <div className="p-6 border-t border-border space-y-4">
                   {session?.user ? (
                     <Button variant="primary" asChild className="w-full">
-                      <Link href="/logs" onClick={() => setIsMobileMenuOpen(false)}>
+                      <Link href="/logs" onClick={closeMobileMenu}>
                         hey {session.user.name.toLowerCase().split(" ")[0]} 👋
                       </Link>
                     </Button>
                   ) : (
                     <Button variant="primary" asChild className="w-full">
-                      <Link href="/login" onClick={() => setIsMobileMenuOpen(false)}>
+                      <Link href="/login" onClick={closeMobileMenu}>
                         Get Started
                       </Link>
                     </Button>
