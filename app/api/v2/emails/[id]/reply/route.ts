@@ -5,7 +5,6 @@ import {
   attachmentsToStorageFormat,
   type AttachmentInput,
 } from "../../../helper/attachment-processor";
-import { buildRawEmailMessage } from "../../../helper/email-builder";
 import { SESClient, SendRawEmailCommand } from "@aws-sdk/client-ses";
 import { db } from "@/lib/db";
 import {
@@ -23,33 +22,28 @@ import {
   extractDomain,
   extractEmailName,
 } from "@/lib/email-management/agent-email-helper";
+import { EmailThreader } from "@/lib/email-management/email-threader";
 
 /**
- * POST /api/v2/emails/[id]/reply
- * Reply to an inbound email
+ * POST /api/v2/emails/[id]/reply-new
+ * Simplified reply to an inbound email or thread with proper threading
+ * Supports both email IDs and thread IDs - when given a thread ID, replies to the latest message
  * Supports both session-based auth and API key auth
  * Has tests? ❌
  * Has logging? ✅
  * Has types? ✅
  */
 
-// POST /api/v2/emails/[id]/reply types
-export interface PostEmailReplyRequest {
-  from: string;
-  from_name?: string; // Optional sender name for display
+// POST /api/v2/emails/[id]/reply-new types
+export interface PostEmailReplyNewRequest {
+  from: string; // Can be "user@domain.com" or "User <user@domain.com>"
   to?: string | string[]; // Optional - will use original sender if not provided
   subject?: string; // Optional - will add "Re: " to original subject if not provided
-  cc?: string | string[];
-  bcc?: string | string[];
-  reply_to?: string | string[]; // snake_case (legacy)
-  replyTo?: string | string[]; // camelCase (Resend-compatible)
   html?: string;
   text?: string;
   headers?: Record<string, string>;
   attachments?: AttachmentInput[];
-  include_original?: boolean; // snake_case (legacy)
-  includeOriginal?: boolean; // camelCase (Resend-compatible)
-  simple?: boolean; // Use simplified reply mode (faster, lighter)
+  replyAll?: boolean; // Default false - if true, includes original CC recipients
   tags?: Array<{
     // Resend-compatible tags
     name: string;
@@ -57,14 +51,16 @@ export interface PostEmailReplyRequest {
   }>;
 }
 
-export interface PostEmailReplyResponse {
+export interface PostEmailReplyNewResponse {
   id: string;
   messageId: string; // Inbound message ID (used for threading)
   awsMessageId: string; // AWS SES Message ID
+  repliedToEmailId: string; // The actual email ID that was replied to
+  repliedToThreadId?: string; // The thread ID (if replying to a thread)
+  isThreadReply: boolean; // Whether this was a reply to a thread ID vs direct email ID
 }
 
 // Helper functions
-// Helper functions moved to @/lib/email-management/agent-email-helper
 function toArray(value: string | string[] | undefined): string[] {
   if (!value) return [];
   return Array.isArray(value) ? value : [value];
@@ -114,52 +110,22 @@ function formatEmailDate(date: Date): string {
   return `${day}, ${dayNum} ${month} ${year} ${hours}:${minutes}:${seconds} +0000`;
 }
 
-// Quote the original message for reply - might want to deprecate this
-function quoteMessage(
-  originalEmail: any,
-  includeOriginal: boolean = true
-): string {
-  if (!includeOriginal) return "";
+// Extract email addresses from parsed email data
+function extractEmailsFromParsedData(parsedData: string | null): string[] {
+  if (!parsedData) return [];
 
-  // Parse the from data
-  let fromData = null;
-  if (originalEmail.fromData) {
-    try {
-      fromData = JSON.parse(originalEmail.fromData);
-    } catch (e) {
-      console.error("Failed to parse fromData:", e);
+  try {
+    const parsed = JSON.parse(parsedData);
+    if (parsed?.addresses && Array.isArray(parsed.addresses)) {
+      return parsed.addresses
+        .map((addr: any) => addr.address)
+        .filter((email: string) => email && typeof email === "string");
     }
+  } catch (e) {
+    console.error("Failed to parse email data:", e);
   }
 
-  const fromText = fromData?.text || "Unknown Sender";
-  const dateStr = originalEmail.date
-    ? formatEmailDate(new Date(originalEmail.date))
-    : "Unknown Date";
-
-  // Create the quote header in standard email format
-  const quoteHeader = `\n\nOn ${dateStr}, ${fromText} wrote:\n`;
-
-  // Quote the original message with > prefix
-  const originalText = originalEmail.textBody || "";
-
-  // Split into lines and process each line properly
-  const lines = originalText.split("\n");
-  const quotedLines = lines.map((line: string) => {
-    // If line is empty or only whitespace, keep it empty with just >
-    if (line.trim() === "") {
-      return ">";
-    }
-
-    // If line already starts with '>', add another level of quoting
-    if (line.startsWith(">")) {
-      return `>${line}`;
-    }
-
-    // Otherwise, add single level quote
-    return `> ${line}`;
-  });
-
-  return quoteHeader + quotedLines.join("\n");
+  return [];
 }
 
 // Initialize SES client
@@ -183,351 +149,46 @@ if (awsAccessKeyId && awsSecretAccessKey) {
   );
 }
 
-/**
- * Simplified reply handler for basic use cases
- * Uses SES SendEmailCommand (simpler API) with minimal overhead
- */
-async function handleSimpleReply(
-  userId: string,
-  emailId: string,
-  originalEmail: any,
-  body: PostEmailReplyRequest,
-  idempotencyKey?: string
-): Promise<NextResponse> {
-  console.log("🚀 Using simplified reply mode");
-
-  // Parse original email data
-  let originalFromData = null;
-  if (originalEmail.fromData) {
-    try {
-      originalFromData = JSON.parse(originalEmail.fromData);
-    } catch (e) {
-      console.error("Failed to parse original fromData:", e);
-    }
-  }
-
-  // Determine reply recipients
-  const originalSenderAddress = originalFromData?.addresses?.[0]?.address;
-  if (!originalSenderAddress && !body.to) {
-    console.log("⚠️ Cannot determine recipient for reply");
-    return NextResponse.json(
-      { error: "Cannot determine recipient email address" },
-      { status: 400 }
-    );
-  }
-
-  // Set default values (simplified)
-  const toAddresses = body.to
-    ? toArray(body.to)
-    : [originalFromData?.text || originalSenderAddress];
-  const subject =
-    body.subject || `Re: ${originalEmail.subject || "No Subject"}`;
-
-  // Extract sender information
-  const fromAddress = extractEmailAddress(body.from);
-  const fromDomain = extractDomain(body.from);
-  // Use provided from_name, or extract name from combined format, or no name
-  const senderName = body.from_name || extractEmailName(body.from) || undefined;
-  const formattedFromAddress = formatSenderAddress(fromAddress, senderName);
-
-  console.log("📧 Simple reply details:", {
-    from: body.from,
-    to: toAddresses,
-    subject,
-    originalMessageId: originalEmail.messageId,
-  });
-
-  // Domain verification (keep security checks)
-  const { isAgentEmail } = canUserSendFromEmail(body.from);
-
-  if (!isAgentEmail) {
-    console.log("🔍 Verifying domain ownership for:", fromDomain);
-    const userDomain = await db
-      .select()
-      .from(emailDomains)
-      .where(
-        and(
-          eq(emailDomains.userId, userId),
-          eq(emailDomains.domain, fromDomain),
-          eq(emailDomains.status, "verified")
-        )
-      )
-      .limit(1);
-
-    if (userDomain.length === 0) {
-      console.log("❌ User does not own the sender domain:", fromDomain);
-      return NextResponse.json(
-        {
-          error: `You don't have permission to send from domain: ${fromDomain}`,
-        },
-        { status: 403 }
-      );
-    }
-  }
-
-  // Check Autumn for email sending limits (keep existing logic)
-  console.log("🔍 Checking email sending limits with Autumn");
-  const { data: emailCheck, error: emailCheckError } = await autumn.check({
-    customer_id: userId,
-    feature_id: "emails_sent",
-  });
-
-  if (emailCheckError) {
-    console.error("❌ Autumn email check error:", emailCheckError);
-    return NextResponse.json(
-      { error: "Failed to check email sending limits" },
-      { status: 500 }
-    );
-  }
-
-  if (!emailCheck.allowed) {
-    console.log("❌ Email sending limit reached for user:", userId);
-    return NextResponse.json(
-      {
-        error:
-          "Email sending limit reached. Please upgrade your plan to send more emails.",
-      },
-      { status: 429 }
-    );
-  }
-
-  // Create basic email record
-  const replyEmailId = nanoid();
-  const messageId = `${replyEmailId}@${fromDomain}`;
-
-  console.log("💾 Creating simple email record:", replyEmailId);
-
-  const sentEmailRecord = await db
-    .insert(sentEmails)
-    .values({
-      id: replyEmailId,
-      from: formattedFromAddress,
-      fromAddress,
-      fromDomain,
-      to: JSON.stringify(toAddresses),
-      cc: null, // Simplified - no CC/BCC support in simple mode
-      bcc: null,
-      replyTo: null,
-      subject,
-      textBody: body.text || "",
-      htmlBody: body.html || null,
-      headers: JSON.stringify({
-        "In-Reply-To": originalEmail.messageId
-          ? `<${originalEmail.messageId}>`
-          : null,
-        References: originalEmail.messageId
-          ? `<${originalEmail.messageId}>`
-          : null,
-        ...(body.headers || {}),
-      }),
-      attachments: null, // Simplified - no attachments in simple mode
-      tags: body.tags ? JSON.stringify(body.tags) : null,
-      status: SENT_EMAIL_STATUS.PENDING,
-      messageId,
-      userId,
-      idempotencyKey,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    })
-    .returning();
-
-  // Check if SES is configured
-  if (!sesClient) {
-    console.log("❌ AWS SES not configured");
-
-    await db
-      .update(sentEmails)
-      .set({
-        status: SENT_EMAIL_STATUS.FAILED,
-        failureReason: "AWS SES not configured",
-        updatedAt: new Date(),
-      })
-      .where(eq(sentEmails.id, replyEmailId));
-
-    return NextResponse.json(
-      { error: "Email service not configured. Please contact support." },
-      { status: 500 }
-    );
-  }
-
-  try {
-    console.log("📤 Sending simple reply email via AWS SES");
-
-    // Build threading headers for RFC 5322 compliance
-    // Ensure proper angle bracket formatting
-    const formatMessageId = (id: string) => {
-      if (!id) return "";
-      id = id.trim();
-      if (!id.startsWith("<")) id = `<${id}`;
-      if (!id.endsWith(">")) id = `${id}>`;
-      return id;
-    };
-
-    const inReplyTo = originalEmail.messageId
-      ? formatMessageId(originalEmail.messageId)
-      : undefined;
-    let references: string[] = [];
-
-    // Parse existing references if available
-    if (originalEmail.references) {
-      try {
-        const parsedRefs = JSON.parse(originalEmail.references);
-        if (Array.isArray(parsedRefs)) {
-          // Ensure each reference has angle brackets
-          references = parsedRefs.map((ref) => formatMessageId(ref));
-        }
-      } catch (e) {
-        console.error("Failed to parse references:", e);
-      }
-    }
-
-    // Add the original message ID to references chain
-    if (originalEmail.messageId) {
-      const formattedId = formatMessageId(originalEmail.messageId);
-      // Only add if not already in references (avoid duplicates)
-      if (!references.includes(formattedId)) {
-        references.push(formattedId);
-      }
-    }
-
-    // Build a simplified raw email message for threading support
-    const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).substring(2)}`;
-    let rawMessage = "";
-
-    // Ensure Message-ID has proper format
-    const formattedMessageId = formatMessageId(messageId);
-
-    // Log threading information for debugging
-    console.log("📧 Threading headers:", {
-      messageId: formattedMessageId,
-      inReplyTo: inReplyTo,
-      references: references,
-      originalMessageId: originalEmail.messageId,
-    });
-
-    // Add headers
-    rawMessage += `From: ${formattedFromAddress}\r\n`;
-    rawMessage += `To: ${toAddresses.join(", ")}\r\n`;
-    rawMessage += `Subject: ${subject}\r\n`;
-    rawMessage += `Message-ID: ${formattedMessageId}\r\n`;
-
-    // Add threading headers if we have them
-    if (inReplyTo) {
-      rawMessage += `In-Reply-To: ${inReplyTo}\r\n`;
-    }
-    if (references.length > 0) {
-      rawMessage += `References: ${references.join(" ")}\r\n`;
-    }
-
-    rawMessage += `Date: ${formatEmailDate(new Date())}\r\n`;
-    rawMessage += `MIME-Version: 1.0\r\n`;
-
-    // Handle content based on what's provided
-    if (body.html && body.text) {
-      // Multipart alternative
-      rawMessage += `Content-Type: multipart/alternative; boundary="${boundary}"\r\n\r\n`;
-
-      // Text part
-      rawMessage += `--${boundary}\r\n`;
-      rawMessage += `Content-Type: text/plain; charset=UTF-8\r\n`;
-      rawMessage += `Content-Transfer-Encoding: quoted-printable\r\n\r\n`;
-      rawMessage += `${body.text}\r\n`;
-
-      // HTML part
-      rawMessage += `--${boundary}\r\n`;
-      rawMessage += `Content-Type: text/html; charset=UTF-8\r\n`;
-      rawMessage += `Content-Transfer-Encoding: quoted-printable\r\n\r\n`;
-      rawMessage += `${body.html}\r\n`;
-
-      rawMessage += `--${boundary}--\r\n`;
-    } else if (body.html) {
-      // HTML only
-      rawMessage += `Content-Type: text/html; charset=UTF-8\r\n`;
-      rawMessage += `Content-Transfer-Encoding: quoted-printable\r\n\r\n`;
-      rawMessage += `${body.html}\r\n`;
-    } else {
-      // Text only
-      rawMessage += `Content-Type: text/plain; charset=UTF-8\r\n`;
-      rawMessage += `Content-Transfer-Encoding: quoted-printable\r\n\r\n`;
-      rawMessage += `${body.text}\r\n`;
-    }
-
-    // Use SendRawEmailCommand for proper header support
-    const sesCommand = new SendRawEmailCommand({
-      RawMessage: {
-        Data: Buffer.from(rawMessage),
-      },
-      Source: fromAddress,
-      Destinations: toAddresses.map(extractEmailAddress),
-    });
-
-    const sesResponse = await sesClient.send(sesCommand);
-    const sesMessageId = sesResponse.MessageId;
-
-    console.log("✅ Simple reply sent successfully via SES:", sesMessageId);
-
-    // Update email record with success
-    await db
-      .update(sentEmails)
-      .set({
-        status: SENT_EMAIL_STATUS.SENT,
-        providerResponse: JSON.stringify(sesResponse),
-        sentAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(eq(sentEmails.id, replyEmailId));
-
-    // Track email usage with Autumn (keep existing logic)
-    if (!emailCheck.unlimited) {
-      console.log("📊 Tracking email usage with Autumn");
-      const { error: trackError } = await autumn.track({
-        customer_id: userId,
-        feature_id: "emails_sent",
-        value: 1,
-      });
-
-      if (trackError) {
-        console.error("❌ Failed to track email usage:", trackError);
-        // Don't fail the request if tracking fails
-      }
-    }
-
-    console.log("✅ Simple reply processing complete");
-    const response: PostEmailReplyResponse = {
-      id: replyEmailId,
-      messageId: messageId,
-      awsMessageId: sesMessageId || "",
-    };
-    return NextResponse.json(response, { status: 200 });
-  } catch (sesError) {
-    console.error("❌ SES send error in simple mode:", sesError);
-
-    // Update email status to failed
-    await db
-      .update(sentEmails)
-      .set({
-        status: SENT_EMAIL_STATUS.FAILED,
-        failureReason:
-          sesError instanceof Error ? sesError.message : "Unknown SES error",
-        providerResponse: JSON.stringify(sesError),
-        updatedAt: new Date(),
-      })
-      .where(eq(sentEmails.id, replyEmailId));
-
-    return NextResponse.json(
-      { error: "Failed to send reply. Please try again later." },
-      { status: 500 }
-    );
-  }
-}
-
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  console.log("📧 POST /api/v2/emails/[id]/reply - Starting request");
+  console.log("📧 POST /api/v2/emails/[id]/reply-new - Starting request");
 
   try {
+    // Check for API version header for routing to historical versions
+    const apiVersion = request.headers.get("API-Version") || request.headers.get("X-API-Version");
+    
+    if (apiVersion) {
+      console.log(`🔀 API version header detected: ${apiVersion}`);
+      
+      // Route to specific historical version
+      if (apiVersion === "reply-10-01-25") {
+        console.log("🔀 Routing to historical version: reply-10-01-25");
+        try {
+          // Dynamically import the historical version handler
+          const historicalHandler = await import("../reply-10-01-25/route");
+          return await historicalHandler.POST(request, { params });
+        } catch (importError) {
+          console.error(`❌ Failed to load historical version ${apiVersion}:`, importError);
+          return NextResponse.json(
+            { error: `API version '${apiVersion}' not found or unavailable` },
+            { status: 404 }
+          );
+        }
+      } else {
+        // Unknown version
+        console.warn(`⚠️ Unknown API version requested: ${apiVersion}`);
+        return NextResponse.json(
+          { 
+            error: `Unknown API version: ${apiVersion}`,
+            availableVersions: ["reply-10-01-25"]
+          },
+          { status: 400 }
+        );
+      }
+    }
+
     console.log("🔐 Validating request authentication");
     const { userId, error } = await validateRequest(request);
     if (!userId) {
@@ -536,17 +197,34 @@ export async function POST(
     }
     console.log("✅ Authentication successful for userId:", userId);
 
-    const { id: emailId } = await params;
-    console.log("📨 Replying to email ID:", emailId);
+    const { id } = await params;
+    console.log("📨 Replying to ID:", id);
 
-    // Validate email ID
-    if (!emailId || typeof emailId !== "string") {
-      console.log("⚠️ Invalid email ID provided:", emailId);
+    // Validate ID
+    if (!id || typeof id !== "string") {
+      console.log("⚠️ Invalid ID provided:", id);
       return NextResponse.json(
-        { error: "Valid email ID is required" },
+        { error: "Valid email ID or thread ID is required" },
         { status: 400 }
       );
     }
+
+    // Resolve whether this is an email ID or thread ID
+    console.log("🔍 Resolving ID type...");
+    const resolvedId = await EmailThreader.resolveEmailId(id, userId);
+    
+    if (!resolvedId) {
+      console.log("📭 ID not found in emails or threads");
+      return NextResponse.json(
+        { error: "Email or thread not found" }, 
+        { status: 404 }
+      );
+    }
+
+    const emailId = resolvedId.emailId;
+    const isThreadReply = resolvedId.isThreadId;
+    
+    console.log(`📧 Resolved to email ID: ${emailId} ${isThreadReply ? '(from thread ID)' : '(direct email ID)'}`);
 
     // Idempotency Key Check -> this is used so we don't send duplicate replies.
     const idempotencyKey = request.headers.get("Idempotency-Key");
@@ -574,7 +252,7 @@ export async function POST(
       }
     }
 
-    // Retrieve the original email from the database where inbounds are stored
+    // Retrieve the original email from the database
     console.log("🔍 Fetching original email");
     const originalEmail = await db
       .select()
@@ -593,8 +271,7 @@ export async function POST(
     }
 
     const original = originalEmail[0];
-
-    const body: PostEmailReplyRequest = await request.json();
+    const body: PostEmailReplyNewRequest = await request.json();
 
     // Parse original email data
     let originalFromData = null;
@@ -616,13 +293,43 @@ export async function POST(
       );
     }
 
-    // Set default values
-    const toAddresses = body.to
-      ? toArray(body.to)
-      : [originalFromData?.text || originalSenderAddress];
+    // Build recipient list based on replyAll flag
+    let toAddresses: string[] = [];
+
+    if (body.to) {
+      // User explicitly specified recipients
+      toAddresses = toArray(body.to);
+    } else if (body.replyAll) {
+      // Reply All: Include original sender + original CC recipients (but not BCC)
+      console.log("📧 Reply All requested - including original CC recipients");
+
+      // Start with original sender
+      const originalSender = originalFromData?.text || originalSenderAddress;
+      if (originalSender) {
+        toAddresses.push(originalSender);
+      }
+
+      // Add original CC recipients (but not the current user)
+      const originalCcEmails = extractEmailsFromParsedData(original.ccData);
+      const fromAddress = extractEmailAddress(body.from);
+
+      for (const ccEmail of originalCcEmails) {
+        // Don't include the current sender in the recipient list
+        if (ccEmail.toLowerCase() !== fromAddress.toLowerCase()) {
+          toAddresses.push(ccEmail);
+        }
+      }
+
+      // Remove duplicates
+      toAddresses = [...new Set(toAddresses)];
+
+      console.log("📧 Reply All recipients:", toAddresses);
+    } else {
+      // Simple reply: Only to original sender
+      toAddresses = [originalFromData?.text || originalSenderAddress];
+    }
+
     const subject = body.subject || `Re: ${original.subject || "No Subject"}`;
-    const includeOriginal =
-      (body.includeOriginal ?? body.include_original) !== false; // Default to true, support both formats
 
     // Validate required fields
     if (!body.from) {
@@ -645,9 +352,7 @@ export async function POST(
     // Extract sender information and format with name if provided
     const fromAddress = extractEmailAddress(body.from);
     const fromDomain = extractDomain(body.from);
-    // Use provided from_name, or extract name from combined format, or no name
-    const senderName =
-      body.from_name || extractEmailName(body.from) || undefined;
+    const senderName = extractEmailName(body.from) || undefined;
     const formattedFromAddress = formatSenderAddress(fromAddress, senderName);
 
     console.log("📧 Reply details:", {
@@ -655,9 +360,12 @@ export async function POST(
       to: toAddresses,
       subject,
       originalMessageId: original.messageId,
+      replyAll: body.replyAll || false,
+      isThreadReply: isThreadReply,
+      resolvedEmailId: emailId,
     });
 
-    // Check if this is the special agent@inbnd.dev email (allowed for all users)
+    // Check if this is the special agent@inbnd.dev email (not allowed for replies)
     const { isAgentEmail } = canUserSendFromEmail(body.from);
 
     if (isAgentEmail) {
@@ -697,16 +405,9 @@ export async function POST(
       console.log("✅ Domain ownership verified");
     }
 
-    // Convert recipients to arrays
-    const ccAddresses = toArray(body.cc);
-    const bccAddresses = toArray(body.bcc);
-    const replyToAddresses = toArray(body.replyTo || body.reply_to); // Support both formats
-
     // Validate email addresses
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    const allRecipients = [...toAddresses, ...ccAddresses, ...bccAddresses];
-
-    for (const email of allRecipients) {
+    for (const email of toAddresses) {
       const address = extractEmailAddress(email);
       if (!emailRegex.test(address)) {
         console.log("⚠️ Invalid email format:", email);
@@ -741,6 +442,7 @@ export async function POST(
       }
     }
 
+    // Check Autumn for email sending limits
     const { data: emailCheck, error: emailCheckError } = await autumn.check({
       customer_id: userId,
       feature_id: "emails_sent",
@@ -765,20 +467,12 @@ export async function POST(
       );
     }
 
-    // Check if simple mode is requested
-    if (body.simple) {
-      console.log("🚀 Simple mode requested, delegating to handleSimpleReply");
-      return await handleSimpleReply(
-        userId,
-        emailId,
-        original,
-        body,
-        idempotencyKey || undefined
-      );
-    }
+    // Create email record
+    const replyEmailId = nanoid();
+    const messageId = `${replyEmailId}@${fromDomain}`;
 
-    // Helper to ensure proper Message-ID format with angle brackets
-    const formatMessageIdForThreading = (id: string) => {
+    // Build threading headers using exact original Message-ID
+    const formatMessageId = (id: string) => {
       if (!id) return "";
       id = id.trim();
       if (!id.startsWith("<")) id = `<${id}`;
@@ -786,91 +480,18 @@ export async function POST(
       return id;
     };
 
-    // Build threading headers
-    const inReplyTo = original.messageId
-      ? formatMessageIdForThreading(original.messageId)
-      : undefined;
-    let references: string[] = [];
+    const threadingId = original.messageId
+      ? formatMessageId(original.messageId)
+      : null;
 
-    // Parse existing references
-    if (original.references) {
-      try {
-        const parsedRefs = JSON.parse(original.references);
-        if (Array.isArray(parsedRefs)) {
-          // Ensure each reference has angle brackets
-          references = parsedRefs.map((ref) =>
-            formatMessageIdForThreading(ref)
-          );
-        }
-      } catch (e) {
-        console.error("Failed to parse references:", e);
-      }
-    }
-
-    // Add the original message ID to references
-    if (original.messageId) {
-      const formattedId = formatMessageIdForThreading(original.messageId);
-      // Only add if not already in references (avoid duplicates)
-      if (!references.includes(formattedId)) {
-        references.push(formattedId);
-      }
-    }
-
-    // Add quoted original message to text body
-    let finalTextBody = body.text || "";
-    if (includeOriginal && body.text) {
-      finalTextBody += quoteMessage(original, true);
-    }
-
-    // Add quoted original message to HTML body
-    let finalHtmlBody = body.html || "";
-    if (includeOriginal && body.html && original.htmlBody) {
-      // HTML quoting with Gmail-style formatting
-      const fromText = originalFromData?.text || "Unknown Sender";
-      const dateStr = original.date
-        ? formatEmailDate(new Date(original.date))
-        : "Unknown Date";
-
-      finalHtmlBody += `
-                <div dir="ltr">
-                    <br><br>
-                    <div class="gmail_quote">
-                        <div dir="ltr" class="gmail_attr">
-                            On ${dateStr}, ${fromText} wrote:<br>
-                        </div>
-                        <blockquote class="gmail_quote" style="margin:0px 0px 0px 0.8ex;border-left:1px solid rgb(204,204,204);padding-left:1ex">
-                            ${original.htmlBody}
-                        </blockquote>
-                    </div>
-                </div>
-            `;
-    }
-
-    // Create sent email record
-    const replyEmailId = nanoid();
-
-    // Check if a custom Message-ID is provided (case-insensitive)
-    let messageId = `${replyEmailId}@${fromDomain}`;
-    if (body.headers) {
-      // Find Message-ID header case-insensitively
-      const messageIdKey = Object.keys(body.headers).find(
-        (key) => key.toLowerCase() === "message-id"
-      );
-      if (messageIdKey && body.headers[messageIdKey]) {
-        // Extract the Message-ID value (remove angle brackets if present)
-        messageId = body.headers[messageIdKey].replace(/^<|>$/g, "");
-      }
-    }
-
-    // Log threading info for debugging
-    console.log("📧 Full mode threading headers:", {
+    console.log("📧 Threading headers:", {
       messageId: messageId,
-      inReplyTo: inReplyTo,
-      references: references,
+      inReplyTo: threadingId,
+      references: threadingId,
       originalMessageId: original.messageId,
     });
 
-    console.log("💾 Creating sent email record:", replyEmailId);
+    console.log("💾 Creating email record:", replyEmailId);
 
     const sentEmailRecord = await db
       .insert(sentEmails)
@@ -880,23 +501,22 @@ export async function POST(
         fromAddress,
         fromDomain,
         to: JSON.stringify(toAddresses),
-        cc: ccAddresses.length > 0 ? JSON.stringify(ccAddresses) : null,
-        bcc: bccAddresses.length > 0 ? JSON.stringify(bccAddresses) : null,
-        replyTo:
-          replyToAddresses.length > 0 ? JSON.stringify(replyToAddresses) : null,
+        cc: null, // Simplified - no separate CC in new endpoint
+        bcc: null, // Simplified - no separate BCC in new endpoint
+        replyTo: null, // Simplified - no separate Reply-To in new endpoint
         subject,
-        textBody: finalTextBody,
-        htmlBody: finalHtmlBody,
+        textBody: body.text || "",
+        htmlBody: body.html || null,
         headers: JSON.stringify({
+          "In-Reply-To": threadingId,
+          References: threadingId,
           ...(body.headers || {}),
-          "In-Reply-To": inReplyTo,
-          References: references.join(" "),
         }),
         attachments:
           processedAttachments.length > 0
             ? JSON.stringify(attachmentsToStorageFormat(processedAttachments))
             : null,
-        tags: body.tags ? JSON.stringify(body.tags) : null, // Store tags
+        tags: body.tags ? JSON.stringify(body.tags) : null,
         status: SENT_EMAIL_STATUS.PENDING,
         messageId,
         userId,
@@ -906,11 +526,19 @@ export async function POST(
       })
       .returning();
 
+    // 🧵 NEW: Process threading for sent email
+    try {
+      const threadingResult = await EmailThreader.processSentEmailForThreading(replyEmailId, emailId, userId);
+      console.log(`🧵 Reply ${replyEmailId} added to thread ${threadingResult.threadId} at position ${threadingResult.threadPosition}`);
+    } catch (threadingError) {
+      // Don't fail the reply if threading fails - log error and continue
+      console.error(`⚠️ Threading failed for reply ${replyEmailId}:`, threadingError);
+    }
+
     // Check if SES is configured
     if (!sesClient) {
       console.log("❌ AWS SES not configured");
 
-      // Update email status to failed
       await db
         .update(sentEmails)
         .set({
@@ -929,33 +557,132 @@ export async function POST(
     try {
       console.log("📤 Sending reply email via AWS SES");
 
-      // Build raw email message with proper headers and attachments
-      const rawMessage = buildRawEmailMessage({
-        from: formattedFromAddress,
-        to: toAddresses,
-        cc: ccAddresses,
-        bcc: bccAddresses,
-        replyTo: replyToAddresses,
-        subject,
-        textBody: finalTextBody,
-        htmlBody: finalHtmlBody,
-        messageId,
-        inReplyTo,
-        references,
-        date: new Date(),
-        customHeaders: body.headers,
-        attachments: processedAttachments,
-      });
+      // Build raw email message
+      const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).substring(2)}`;
+      let rawMessage = "";
 
-      // Send raw email to preserve headers
+      // Ensure Message-ID has proper format
+      const formattedMessageId = formatMessageId(messageId);
+
+      // Add headers
+      rawMessage += `From: ${formattedFromAddress}\r\n`;
+      rawMessage += `To: ${toAddresses.join(", ")}\r\n`;
+      rawMessage += `Subject: ${subject}\r\n`;
+      rawMessage += `Message-ID: ${formattedMessageId}\r\n`;
+
+      // Add threading headers if we have them
+      if (threadingId) {
+        rawMessage += `In-Reply-To: ${threadingId}\r\n`;
+        rawMessage += `References: ${threadingId}\r\n`;
+      }
+
+      // Add custom headers
+      if (body.headers) {
+        for (const [key, value] of Object.entries(body.headers)) {
+          // Skip headers we already added
+          if (
+            ![
+              "from",
+              "to",
+              "subject",
+              "message-id",
+              "in-reply-to",
+              "references",
+            ].includes(key.toLowerCase())
+          ) {
+            rawMessage += `${key}: ${value}\r\n`;
+          }
+        }
+      }
+
+      rawMessage += `Date: ${formatEmailDate(new Date())}\r\n`;
+      rawMessage += `MIME-Version: 1.0\r\n`;
+
+      // Handle content and attachments
+      if (processedAttachments.length > 0) {
+        // Mixed content with attachments
+        rawMessage += `Content-Type: multipart/mixed; boundary="${boundary}"\r\n\r\n`;
+
+        // Content part
+        rawMessage += `--${boundary}\r\n`;
+
+        if (body.html && body.text) {
+          // Nested multipart/alternative for text and HTML
+          const altBoundary = `----=_Alt_${Date.now()}_${Math.random().toString(36).substring(2)}`;
+          rawMessage += `Content-Type: multipart/alternative; boundary="${altBoundary}"\r\n\r\n`;
+
+          // Text part
+          rawMessage += `--${altBoundary}\r\n`;
+          rawMessage += `Content-Type: text/plain; charset=UTF-8\r\n`;
+          rawMessage += `Content-Transfer-Encoding: quoted-printable\r\n\r\n`;
+          rawMessage += `${body.text}\r\n`;
+
+          // HTML part
+          rawMessage += `--${altBoundary}\r\n`;
+          rawMessage += `Content-Type: text/html; charset=UTF-8\r\n`;
+          rawMessage += `Content-Transfer-Encoding: quoted-printable\r\n\r\n`;
+          rawMessage += `${body.html}\r\n`;
+
+          rawMessage += `--${altBoundary}--\r\n`;
+        } else if (body.html) {
+          rawMessage += `Content-Type: text/html; charset=UTF-8\r\n`;
+          rawMessage += `Content-Transfer-Encoding: quoted-printable\r\n\r\n`;
+          rawMessage += `${body.html}\r\n`;
+        } else {
+          rawMessage += `Content-Type: text/plain; charset=UTF-8\r\n`;
+          rawMessage += `Content-Transfer-Encoding: quoted-printable\r\n\r\n`;
+          rawMessage += `${body.text}\r\n`;
+        }
+
+        // Add attachments
+        for (const attachment of processedAttachments) {
+          rawMessage += `--${boundary}\r\n`;
+          rawMessage += `Content-Type: ${attachment.contentType}\r\n`;
+          rawMessage += `Content-Transfer-Encoding: base64\r\n`;
+          rawMessage += `Content-Disposition: attachment; filename="${attachment.filename}"\r\n\r\n`;
+          rawMessage += `${attachment.content}\r\n`;
+        }
+
+        rawMessage += `--${boundary}--\r\n`;
+      } else {
+        // No attachments - simple content
+        if (body.html && body.text) {
+          // Multipart alternative
+          rawMessage += `Content-Type: multipart/alternative; boundary="${boundary}"\r\n\r\n`;
+
+          // Text part
+          rawMessage += `--${boundary}\r\n`;
+          rawMessage += `Content-Type: text/plain; charset=UTF-8\r\n`;
+          rawMessage += `Content-Transfer-Encoding: quoted-printable\r\n\r\n`;
+          rawMessage += `${body.text}\r\n`;
+
+          // HTML part
+          rawMessage += `--${boundary}\r\n`;
+          rawMessage += `Content-Type: text/html; charset=UTF-8\r\n`;
+          rawMessage += `Content-Transfer-Encoding: quoted-printable\r\n\r\n`;
+          rawMessage += `${body.html}\r\n`;
+
+          rawMessage += `--${boundary}--\r\n`;
+        } else if (body.html) {
+          // HTML only
+          rawMessage += `Content-Type: text/html; charset=UTF-8\r\n`;
+          rawMessage += `Content-Transfer-Encoding: quoted-printable\r\n\r\n`;
+          rawMessage += `${body.html}\r\n`;
+        } else {
+          // Text only
+          rawMessage += `Content-Type: text/plain; charset=UTF-8\r\n`;
+          rawMessage += `Content-Transfer-Encoding: quoted-printable\r\n\r\n`;
+          rawMessage += `${body.text}\r\n`;
+        }
+      }
+
+      // Send via SES
       const sesCommand = new SendRawEmailCommand({
         RawMessage: {
           Data: Buffer.from(rawMessage),
         },
         Source: fromAddress,
-        Destinations: [...toAddresses, ...ccAddresses, ...bccAddresses].map(
-          extractEmailAddress
-        ),
+        Destinations: toAddresses.map(extractEmailAddress),
       });
 
       const sesResponse = await sesClient.send(sesCommand);
@@ -990,10 +717,13 @@ export async function POST(
       }
 
       console.log("✅ Reply processing complete");
-      const response: PostEmailReplyResponse = {
+      const response: PostEmailReplyNewResponse = {
         id: replyEmailId,
-        messageId: messageId, // The Inbound message ID used for threading
-        awsMessageId: sesMessageId || "", // The AWS SES Message ID
+        messageId: messageId,
+        awsMessageId: sesMessageId || "",
+        repliedToEmailId: emailId,
+        repliedToThreadId: resolvedId.threadId,
+        isThreadReply: isThreadReply
       };
       return NextResponse.json(response, { status: 200 });
     } catch (sesError) {
@@ -1018,7 +748,7 @@ export async function POST(
     }
   } catch (error) {
     console.error(
-      "💥 Unexpected error in POST /api/v2/emails/[id]/reply:",
+      "💥 Unexpected error in POST /api/v2/emails/[id]/reply-new:",
       error
     );
     return NextResponse.json(
