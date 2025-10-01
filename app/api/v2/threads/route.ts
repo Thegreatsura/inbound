@@ -51,6 +51,8 @@ export interface ThreadsListResponse {
     search?: string
     unreadOnly?: boolean
     archivedOnly?: boolean
+    domain?: string
+    address?: string
   }
 }
 
@@ -187,18 +189,35 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search')?.trim()
     const unreadOnly = searchParams.get('unread') === 'true'
     const archivedOnly = searchParams.get('archived') === 'true'
+    const domain = searchParams.get('domain')?.trim()
+    const address = searchParams.get('address')?.trim()?.toLowerCase()
     const offset = (page - 1) * limit
 
-    console.log(`📋 Query params: page=${page}, limit=${limit}, search="${search}", unreadOnly=${unreadOnly}, archivedOnly=${archivedOnly}`)
+    console.log(`📋 Query params: page=${page}, limit=${limit}, search="${search}", unreadOnly=${unreadOnly}, archivedOnly=${archivedOnly}, domain="${domain}", address="${address}"`)
 
     // Build the base query conditions
     const baseCondition = eq(emailThreads.userId, userId)
-    const searchCondition = search ? or(
-      like(emailThreads.normalizedSubject, `%${search.toLowerCase()}%`),
-      like(emailThreads.participantEmails, `%${search.toLowerCase()}%`)
-    ) : undefined
+    const conditions: any[] = [baseCondition]
 
-    const whereCondition = searchCondition ? and(baseCondition, searchCondition) : baseCondition
+    // Add search condition
+    if (search) {
+      conditions.push(or(
+        like(emailThreads.normalizedSubject, `%${search.toLowerCase()}%`),
+        like(emailThreads.participantEmails, `%${search.toLowerCase()}%`)
+      ))
+    }
+
+    // Add domain filter - check if any participant email contains @domain
+    if (domain) {
+      conditions.push(like(emailThreads.participantEmails, `%@${domain}%`))
+    }
+
+    // Add address filter - check if specific address is in participants
+    if (address) {
+      conditions.push(like(emailThreads.participantEmails, `%${address}%`))
+    }
+
+    const whereCondition = conditions.length > 1 ? and(...conditions) : baseCondition
 
     const [{ count: totalCount }] = await db
       .select({ count: sql<number>`count(*)` })
@@ -269,7 +288,9 @@ export async function GET(request: NextRequest) {
       filters: {
         search: search || undefined,
         unreadOnly: unreadOnly || undefined,
-        archivedOnly: archivedOnly || undefined
+        archivedOnly: archivedOnly || undefined,
+        domain: domain || undefined,
+        address: address || undefined
       }
     }
 
