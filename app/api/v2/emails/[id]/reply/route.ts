@@ -493,7 +493,7 @@ export async function POST(
         const parsedRefs = JSON.parse(original.references);
         if (Array.isArray(parsedRefs)) {
           // Ensure each reference has angle brackets
-          references = parsedRefs.map((ref) => formatMessageId(ref));
+          references = parsedRefs.map((ref) => formatMessageId(ref)).filter(ref => ref.length > 0);
         }
       } catch (e) {
         console.error("Failed to parse references:", e);
