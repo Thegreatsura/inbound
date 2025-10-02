@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { CodeBlock } from '@/components/ui/code-block'
 import { SiteHeader } from "@/components/site-header";
 import InboundIcon from '@/components/icons/inbound';
+import Hero from '@/components/landing/hero'
 
 // Monaspace font-face for inline code in examples
 
@@ -184,10 +185,10 @@ export async function POST(request: NextRequest) {
       </style>
 
       <SiteHeader />
-
       {/* Hero Section (redesigned) */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 py-14 sm:py-24">
-        <div className="grid lg:grid-cols-2 gap-8 lg:gap-10 items-center">
+      <section className="max-w-7xl mx-auto">
+        <Hero/>
+        {/* <div className="grid lg:grid-cols-2 gap-8 lg:gap-10 items-center">
           <div>
             <h1 className="text-5xl sm:text-6xl font-semibold tracking-tight text-foreground leading-[1.05]">
               Email API for Developers
@@ -274,8 +275,8 @@ await inbound.emails.send({
               </div>
             </div>
           </div>
-        </div>
-      </section>
+        </div>*/}
+      </section> 
 
       {/* Pain Points & Solutions */}
       {/* <section id="features" className="max-w-6xl mx-auto px-6 py-20 relative z-10">
@@ -302,7 +303,7 @@ await inbound.emails.send({
             </section> */}
 
       {/* Email API Features Section */}
-      <section className="bg-muted/30 py-16">
+      {/* <section className="bg-muted/30 py-16">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-semibold text-foreground mb-4">Complete Email API Solution</h2>
@@ -349,10 +350,10 @@ await inbound.emails.send({
             </div>
           </div>
         </div>
-      </section>
+      </section> */}
 
       {/* Developer Experience Section */}
-      <section className="py-16">
+      {/* <section className="py-16">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-semibold text-foreground mb-4">Built for Developers</h2>
@@ -427,10 +428,10 @@ export async function handleWebhook(
             </div>
           </div>
         </div>
-      </section>
+      </section> */}
 
       {/* Use Cases Section */}
-      <section className="bg-muted/30 py-16">
+      {/* <section className="bg-muted/30 py-16">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-semibold text-foreground mb-4">Email API Use Cases</h2>
@@ -465,7 +466,7 @@ export async function handleWebhook(
             </div>
           </div>
         </div>
-      </section>
+      </section> */}
 
       {/* Testimonials */}
       {/* <section id="testimonials" className="max-w-6xl mx-auto px-6 py-20 relative z-10">
@@ -500,7 +501,7 @@ export async function handleWebhook(
             </section> */}
 
       {/* Enterprise & Custom Solutions */}
-      <section className="py-16">
+      {/* <section className="py-16">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center">
           <div className="bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20 rounded-lg p-8 sm:p-12">
             <h2 className="text-2xl sm:text-3xl font-semibold text-foreground mb-4">
@@ -522,10 +523,10 @@ export async function handleWebhook(
             </div>
           </div>
         </div>
-      </section>
+      </section> */}
 
       {/* Getting Started Section */}
-      <section className="py-16">
+      {/* <section className="py-16">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-semibold text-foreground mb-4">Get Started with Inbound</h2>
@@ -584,11 +585,11 @@ export async function handleWebhook(
             </div>
           </div>
         </div>
-      </section>
+      </section> */}
 
       {/* CTA Section */}
-      <section className="bg-muted/30 py-16">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center">
+      {/* <section className="bg-muted/30 py-16">
+       <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center">
           <h2 className="text-3xl font-semibold mb-4 text-foreground">Ready to Build with Email?</h2>
           <p className="text-lg text-muted-foreground mb-8">
             Join developers who've simplified their email infrastructure with Inbound.
@@ -605,10 +606,10 @@ export async function handleWebhook(
             Free tier • 1,000 emails/month • No credit card required
           </p>
         </div>
-      </section>
+      </section> */}
 
       {/* Footer */}
-      <footer className="border-t border-border bg-sidebar py-12 relative z-10">
+      {/* <footer className="border-t border-border bg-sidebar py-12 relative z-10">
         <div className="max-w-6xl mx-auto px-6">
           <div className="flex flex-col md:flex-row justify-between items-center">
             <div className="flex items-center gap-3 mb-4 md:mb-0">
@@ -626,7 +627,7 @@ export async function handleWebhook(
             © {new Date().getFullYear()} inbound (by exon). The all-in-one email toolkit for developers.
           </div>
         </div>
-      </footer>
+      </footer> */}
     </div>
   )
 }
