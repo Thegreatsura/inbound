@@ -259,7 +259,7 @@ export async function POST(
       .from(structuredEmails)
       .where(
         and(
-          eq(structuredEmails.id, emailId),
+          eq(structuredEmails.emailId, emailId),
           eq(structuredEmails.userId, userId)
         )
       )
