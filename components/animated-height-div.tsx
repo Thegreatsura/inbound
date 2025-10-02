@@ -1,3 +1,5 @@
+'use client';
+
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import React, { useEffect, useRef, useState } from "react";
@@ -11,6 +13,7 @@ export const AnimatedHeightDiv: React.FC<AnimatedHeightDiv> = ({
   children,
   className,
 }) => {
+  // …
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [height, setHeight] = useState<number | "auto">("auto");
 
