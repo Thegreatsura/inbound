@@ -1,7 +1,7 @@
 'use client';
 
 import { cn } from "@/lib/utils";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import React, { useEffect, useRef, useState } from "react";
 
 interface AnimatedHeightDiv {
