@@ -240,7 +240,7 @@ export default function Hero() {
 
       setLogs((prev) => {
         const updated = [...prev, newLog];
-        return updated.slice(-4); // Keep only last 3 logs
+        return updated.slice(-4); // Keep only last 4 logs
       });
 
       setScrollKey((prev) => prev + 1);
