@@ -296,28 +296,31 @@ export default function Hero({ content }: HeroProps) {
   };
 
   return (
-    <div className="h-[calc(100dvh-89px)] max-h-[1000px] overflow-hidden py-24 items-center justify-center px-4 flex gap-24 relative">
+    <div className="md:h-[calc(100dvh-89px)] min-h-[calc(100dvh-89px)] overflow-hidden py-16 max-md:py-12 items-center justify-center px-4 flex gap-24 relative max-[1074px]:flex-col max-[1074px]:items-start max-[1074px]:gap-12">
       {/* left side */}
       <div className="flex flex-col gap-6 justify-between flex-1 h-full">
         {/* heading */}
         <div className="flex flex-col gap-8">
-          <h1 className="text-[4.5rem] font-semibold max-w-lg leading-[4.9rem] tracking-tight">
+          <h1 className="text-[4.5rem] max-sm:text-[3.6rem] max-xs:text-[3.2rem] font-semibold max-w-lg leading-[4.9rem] max-sm:leading-[3.8rem] max-xs:leading-[3.5rem] tracking-tight">
             {content.heroPrimaryText}
           </h1>
           <p className="text-lg tracking-normal opacity-80">
             {content.heroSublineText}
           </p>
           <div className="flex items-center gap-2">
-            <Button className="tracking-normal h-10">
+            <Button className="tracking-normal h-10 max-xs:grow">
               {content.ctaButtonPrimaryText}
             </Button>
-            <Button variant={"secondary"} className="tracking-normal h-10">
+            <Button
+              variant={"secondary"}
+              className="tracking-normal h-10 max-xs:grow"
+            >
               View Documentation
             </Button>
           </div>
         </div>
         {/* trusted by */}
-        <div className="flex flex-col gap-4 border w-full p-6 rounded-2xl ">
+        <div className="flex flex-col gap-4 border w-full p-6 rounded-2xl max-[1074px]:hidden">
           <p className="tracking-normal opacity-80">Trusted by builders at</p>
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-3 opacity-60">
@@ -366,14 +369,14 @@ export default function Hero({ content }: HeroProps) {
       </div>
 
       {/* right side */}
-      <div className="relative flex flex-col gap-3 justify-between h-full flex-1 z-20 bg-card">
+      <div className="relative flex flex-col gap-3 justify-between h-full flex-1 z-20 bg-card max-[1074px]:w-full">
         {/* Email Cards - Animated */}
-        <div className="flex flex-col gap-3 border rounded-2xl p-4 tracking-normal overflow-hidden h-[380px] relative ">
+        <div className="flex flex-col gap-3 border rounded-2xl p-4 tracking-normal overflow-hidden h-[380px] relative">
           {/* Top fade overlay */}
-          <div className="absolute top-0 left-0 right-0 h-28 bg-gradient-to-b from-card to-transparent z-10 pointer-events-none" />
+          <div className="absolute top-0 left-0 right-0 max-sm:h-1 h-28 bg-gradient-to-b from-card to-transparent z-10 pointer-events-none" />
 
           {/* Bottom fade overlay */}
-          <div className="absolute bottom-0 left-0 right-0 h-28 bg-gradient-to-t from-card to-transparent z-10 pointer-events-none" />
+          <div className="absolute bottom-0 left-0 right-0 max-sm:h-1 h-28 bg-gradient-to-t from-card to-transparent z-10 pointer-events-none" />
 
           <motion.div
             key={scrollKey}
