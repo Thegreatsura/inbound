@@ -296,12 +296,12 @@ export default function Hero({ content }: HeroProps) {
   };
 
   return (
-    <div className="h-[calc(100dvh-89px)] max-h-[1000px] overflow-hidden py-24 items-center justify-center px-4 flex gap-24 relative">
+    <div className="h-[calc(100dvh-89px)] max-h-[1000px] overflow-hidden py-24 items-center justify-center px-4 flex flex-col lg:flex-row gap-6 lg:gap-24 relative">
       {/* left side */}
       <div className="flex flex-col gap-6 justify-between flex-1 h-full">
         {/* heading */}
         <div className="flex flex-col gap-8">
-          <h1 className="text-[4.5rem] font-semibold max-w-lg leading-[4.9rem] tracking-tight">
+          <h1 className="text-4xl lg:text-[4.5rem] font-semibold max-w-lg leading-tight lg:leading-[4.9rem] tracking-tight">
             {content.heroPrimaryText}
           </h1>
           <p className="text-lg tracking-normal opacity-80">
