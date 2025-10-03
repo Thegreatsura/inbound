@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { AnimatedHeightDiv } from "../animated-height-div";
+import { HomepageContent } from "@/app/actions/homepage";
 
 interface EmailLog {
   id: string;
@@ -101,27 +102,6 @@ const codeSnippets = [
     title: "[SEND EMAILS]",
     code: (
       <>
-        <span className="text-purple-600 dark:text-purple-400">import</span>{" "}
-        <span className="text-foreground">{"{ Inbound }"}</span>{" "}
-        <span className="text-purple-600 dark:text-purple-400">from</span>{" "}
-        <span className="text-green-600 dark:text-green-400">
-          '@inboundemail/sdk'
-        </span>
-        {"\n"}
-        {"\n"}
-        <span className="text-purple-600 dark:text-purple-400">const</span>{" "}
-        <span className="text-foreground">inbound</span>{" "}
-        <span className="text-purple-600 dark:text-purple-400">=</span>{" "}
-        <span className="text-purple-600 dark:text-purple-400">new</span>{" "}
-        <span className="text-blue-600 dark:text-blue-400">Inbound</span>
-        <span className="text-foreground">(</span>
-        process.env.
-        <span className="text-blue-600 dark:text-blue-400">
-          INBOUND_API_KEY
-        </span>
-        !<span className="text-foreground">)</span>
-        {"\n"}
-        {"\n"}
         <span className="text-purple-600 dark:text-purple-400">await</span>{" "}
         inbound.emails.
         <span className="text-blue-600 dark:text-blue-400">send</span>
@@ -159,27 +139,6 @@ const codeSnippets = [
     title: "[REPLY TO EMAILS]",
     code: (
       <>
-        <span className="text-purple-600 dark:text-purple-400">import</span>{" "}
-        <span className="text-foreground">{"{ Inbound }"}</span>{" "}
-        <span className="text-purple-600 dark:text-purple-400">from</span>{" "}
-        <span className="text-green-600 dark:text-green-400">
-          '@inboundemail/sdk'
-        </span>
-        {"\n"}
-        {"\n"}
-        <span className="text-purple-600 dark:text-purple-400">const</span>{" "}
-        <span className="text-foreground">inbound</span>{" "}
-        <span className="text-purple-600 dark:text-purple-400">=</span>{" "}
-        <span className="text-purple-600 dark:text-purple-400">new</span>{" "}
-        <span className="text-blue-600 dark:text-blue-400">Inbound</span>
-        <span className="text-foreground">(</span>
-        process.env.
-        <span className="text-blue-600 dark:text-blue-400">
-          INBOUND_API_KEY
-        </span>
-        !<span className="text-foreground">)</span>
-        {"\n"}
-        {"\n"}
         <span className="text-purple-600 dark:text-purple-400">await</span>{" "}
         inbound.emails.
         <span className="text-blue-600 dark:text-blue-400">send</span>
@@ -212,7 +171,11 @@ const codeSnippets = [
   },
 ];
 
-export default function Hero() {
+interface HeroProps {
+  content: HomepageContent;
+}
+
+export default function Hero({ content }: HeroProps) {
   const [logs, setLogs] = useState<EmailLog[]>([]);
   const [currentCodeIndex, setCurrentCodeIndex] = useState(0);
   const [scrollKey, setScrollKey] = useState(0);
@@ -339,27 +302,18 @@ export default function Hero() {
         {/* heading */}
         <div className="flex flex-col gap-8">
           <h1 className="text-[4.5rem] font-semibold max-w-lg leading-[4.9rem] tracking-tight">
-            Email platform for builders
+            {content.heroPrimaryText}
           </h1>
           <p className="text-lg tracking-normal opacity-80">
-            Simple Email API for Developers Send, Receive & Reply.
+            {content.heroSublineText}
           </p>
-          <div className="p-1 border w-fit rounded-2xl relative">
-            <div className="flex items-center gap-8">
-              <div className="flex items-center gap-2 text-lg">
-                <Input
-                  placeholder="example"
-                  className="max-w-[9.7rem] tracking-normal text-center h-10 placeholder:opacity-70 font-normal"
-                />
-                <span className="font-medium">@</span>
-                <Input
-                  placeholder="ryan.com"
-                  className="max-w-[9.7rem] tracking-normal text-center h-10 placeholder:opacity-70 font-normal"
-                />
-              </div>
-              <Button className="tracking-normal h-10">Connect</Button>
-            </div>
-            <div className=" absolute top-1/2 -translate-y-1/2 left-full opacity-70 w-full bg-transparent border transition-all duration-700"></div>
+          <div className="flex items-center gap-2">
+            <Button className="tracking-normal h-10">
+              {content.ctaButtonPrimaryText}
+            </Button>
+            <Button variant={"secondary"} className="tracking-normal h-10">
+              View Documentation
+            </Button>
           </div>
         </div>
         {/* trusted by */}
@@ -536,24 +490,76 @@ export default function Hero() {
                 transition={{ duration: 0.5, ease: "linear" }}
                 className="h-full flex flex-col justify-center"
               >
-                <pre className="text-sm">
+                <pre className="text-[13px]">
                   <code className="text-foreground tracking-tight">
                     {codeSnippets[currentCodeIndex].code}
                   </code>
                 </pre>
               </motion.div>
             </AnimatePresence>
-
             <AnimatePresence mode="wait">
               <motion.div
-                key={`title-${currentCodeIndex}`}
+                key={`interactive-${currentCodeIndex}`}
                 initial={{ opacity: 0, filter: "blur(4px)" }}
                 animate={{ opacity: 1, filter: "blur(0px)" }}
                 exit={{ opacity: 0, filter: "blur(4px)" }}
                 transition={{ duration: 0.5, ease: "linear" }}
-                className="text-center font-mono opacity-80"
+                className="text-center opacity-80"
               >
-                {codeSnippets[currentCodeIndex].title}
+                {currentCodeIndex === 0 && (
+                  <div className="p-1 border w-full rounded-2xl relative">
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-2 text-lg flex-1">
+                        <Input
+                          placeholder="your-webhook-url"
+                          className="w-full tracking-normal text-left h-10 placeholder:opacity-70 font-normal"
+                        />
+                      </div>
+                      <Button
+                        variant={"secondary"}
+                        className="tracking-normal h-10"
+                      >
+                        Test Webhook
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                {currentCodeIndex === 1 && (
+                  <div className="p-1 border w-full rounded-2xl relative">
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-2 text-lg flex-1">
+                        <Input
+                          placeholder="recipient@example.com"
+                          className="w-full tracking-normal text-left h-10 placeholder:opacity-70 font-normal"
+                        />
+                      </div>
+                      <Button
+                        variant={"primary"}
+                        className="tracking-normal h-10"
+                      >
+                        Send Email
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                {currentCodeIndex === 2 && (
+                  <div className="p-1 border w-full rounded-2xl relative">
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-2 text-lg flex-1">
+                        <Input
+                          placeholder="Your reply message..."
+                          className="w-full tracking-normal text-left h-10 placeholder:opacity-70 font-normal"
+                        />
+                      </div>
+                      <Button
+                        variant={"outline"}
+                        className="tracking-normal h-10"
+                      >
+                        Reply
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </motion.div>
             </AnimatePresence>
           </div>
