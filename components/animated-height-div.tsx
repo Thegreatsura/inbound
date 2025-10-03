@@ -18,7 +18,7 @@ export const AnimatedHeightDiv: React.FC<AnimatedHeightDiv> = ({
   const [height, setHeight] = useState<number | "auto">("auto");
 
   useEffect(() => {
-    if (containerRef.current) {
+    if (containerRef.current && typeof window !== 'undefined' && window.ResizeObserver) {
       const resizeObserver = new ResizeObserver((entries) => {
         const observedHeight = entries[0].contentRect.height;
         setHeight(observedHeight);
