@@ -20,8 +20,10 @@ export const AnimatedHeightDiv: React.FC<AnimatedHeightDiv> = ({
   useEffect(() => {
     if (containerRef.current && typeof window !== 'undefined' && window.ResizeObserver) {
       const resizeObserver = new ResizeObserver((entries) => {
-        const observedHeight = entries[0].contentRect.height;
-        setHeight(observedHeight);
+        if (entries.length > 0) {
+          const observedHeight = entries[0].contentRect.height;
+          setHeight(observedHeight);
+        }
       });
 
       resizeObserver.observe(containerRef.current);
