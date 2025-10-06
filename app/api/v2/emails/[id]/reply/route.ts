@@ -480,14 +480,42 @@ export async function POST(
       return id;
     };
 
-    const threadingId = original.messageId
+    const inReplyTo = original.messageId
       ? formatMessageId(original.messageId)
       : null;
+    
+    // Build proper References chain (RFC 5322 compliant)
+    let references: string[] = [];
+    
+    // Parse existing references if available
+    if (original.references) {
+      try {
+        const parsedRefs = JSON.parse(original.references);
+        if (Array.isArray(parsedRefs)) {
+          // Ensure each reference has angle brackets
+          references = parsedRefs.map((ref) => formatMessageId(ref)).filter(ref => ref.length > 0);
+        }
+      } catch (e) {
+        console.error("Failed to parse references:", e);
+      }
+    }
+    
+    // Add the original message ID to references chain
+    if (original.messageId) {
+      const formattedId = formatMessageId(original.messageId);
+      // Only add if not already in references (avoid duplicates)
+      if (!references.includes(formattedId)) {
+        references.push(formattedId);
+      }
+    }
+    
+    const referencesString = references.join(' ');
 
     console.log("📧 Threading headers:", {
       messageId: messageId,
-      inReplyTo: threadingId,
-      references: threadingId,
+      inReplyTo: inReplyTo,
+      references: references,
+      referencesString: referencesString,
       originalMessageId: original.messageId,
     });
 
@@ -508,8 +536,8 @@ export async function POST(
         textBody: body.text || "",
         htmlBody: body.html || null,
         headers: JSON.stringify({
-          "In-Reply-To": threadingId,
-          References: threadingId,
+          "In-Reply-To": inReplyTo,
+          References: referencesString,
           ...(body.headers || {}),
         }),
         attachments:
@@ -571,9 +599,11 @@ export async function POST(
       rawMessage += `Message-ID: ${formattedMessageId}\r\n`;
 
       // Add threading headers if we have them
-      if (threadingId) {
-        rawMessage += `In-Reply-To: ${threadingId}\r\n`;
-        rawMessage += `References: ${threadingId}\r\n`;
+      if (inReplyTo) {
+        rawMessage += `In-Reply-To: ${inReplyTo}\r\n`;
+      }
+      if (referencesString) {
+        rawMessage += `References: ${referencesString}\r\n`;
       }
 
       // Add custom headers

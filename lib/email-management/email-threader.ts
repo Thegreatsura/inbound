@@ -296,13 +296,13 @@ export class EmailThreader {
   static async processSentEmailForThreading(sentEmailId: string, originalEmailId: string, userId: string): Promise<ThreadingResult> {
     console.log(`📤 Processing sent email ${sentEmailId} for threading (reply to ${originalEmailId})`)
     
-    // Get the original email's thread
+    // Get the original email's thread - use emailId field since resolveEmailId returns receivedEmails.id
     const originalEmail = await db
       .select({ threadId: structuredEmails.threadId })
       .from(structuredEmails)
       .where(
         and(
-          eq(structuredEmails.id, originalEmailId),
+          eq(structuredEmails.emailId, originalEmailId), // Fixed: Use emailId field
           eq(structuredEmails.userId, userId)
         )
       )
