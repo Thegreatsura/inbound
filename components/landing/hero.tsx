@@ -203,7 +203,7 @@ export default function Hero({ content }: HeroProps) {
 
       setLogs((prev) => {
         const updated = [...prev, newLog];
-        return updated.slice(-4); // Keep only last 4 logs
+        return updated.slice(-4);
       });
 
       setScrollKey((prev) => prev + 1);
@@ -296,7 +296,7 @@ export default function Hero({ content }: HeroProps) {
   };
 
   return (
-    <div className="md:h-[calc(100dvh-89px)] min-h-[calc(100dvh-89px)] overflow-hidden py-16 max-md:py-12 items-center justify-center px-4 flex gap-24 relative max-[1074px]:flex-col max-[1074px]:items-start max-[1074px]:gap-12">
+    <div className="xl:h-[calc(100dvh-89px)] min-h-[calc(100dvh-89px)] overflow-hidden py-16 max-md:py-12 items-center justify-center px-4 flex gap-24 relative max-[1074px]:flex-col max-[1074px]:items-start max-[1074px]:gap-12">
       {/* left side */}
       <div className="flex flex-col gap-6 justify-between flex-1 h-full">
         {/* heading */}
@@ -369,7 +369,7 @@ export default function Hero({ content }: HeroProps) {
       </div>
 
       {/* right side */}
-      <div className="relative flex flex-col gap-3 justify-between h-full flex-1 z-20 bg-card max-[1074px]:w-full">
+      <div className="relative flex flex-col gap-3 justify-between h-full flex-1 z-20 bg-transparent max-[1074px]:w-full">
         {/* Email Cards - Animated */}
         <div className="flex flex-col gap-3 border rounded-2xl p-4 tracking-normal overflow-hidden h-[380px] relative">
           {/* Top fade overlay */}
@@ -480,9 +480,8 @@ export default function Hero({ content }: HeroProps) {
             </AnimatePresence>
           </motion.div>
         </div>
-
         {/* Code Snippet Card - Animated */}
-        <AnimatedHeightDiv className="bg-card border rounded-2xl overflow-hidden relative tracking-normal">
+        <AnimatedHeightDiv className="bg-transparent border rounded-2xl overflow-hidden relative tracking-normal">
           <div className="p-4 flex flex-col gap-4 justify-center">
             <AnimatePresence mode="wait">
               <motion.div
