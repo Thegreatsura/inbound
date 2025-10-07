@@ -414,10 +414,10 @@ export default function Hero({ content }: HeroProps) {
                       isNewLog
                         ? { opacity: 0, filter: "blur(4px)", y: 20, scale: 0.9 }
                         : {
-                            opacity: targetOpacity,
-                            filter: `blur(${targetBlur}px)`,
-                            scale: targetScale,
-                          }
+                          opacity: targetOpacity,
+                          filter: `blur(${targetBlur}px)`,
+                          scale: targetScale,
+                        }
                     }
                     animate={{
                       opacity: targetOpacity,

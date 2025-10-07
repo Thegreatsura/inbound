@@ -1,2 +1,7 @@
 export { HeroSection } from "./HeroSection"
 export { MobileMenu } from "./MobileMenu" 
+export { Solution } from "./solution"
+export { UseCases } from "./use-cases"
+export { Footer } from "./footer"
+export { DeveloperExperience } from "./developer-experience"
+export { CTA } from "./cta"
