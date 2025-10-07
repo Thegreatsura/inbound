@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 export function CTA() {
     return (
         <section className="w-full px-4 py-16 max-md:py-12">
-            <div className=" mx-auto">
+            <div className="mx-auto">
                 <div className="text-center flex flex-col items-center gap-4 border border-border bg-card rounded-2xl px-6 sm:px-8 h-[330px] justify-center shadow-sm">
                     <h2 className="text-3xl md:text-4xl lg:text-5xl font-semibold leading-tight tracking-tight">
                         Ready to Build with Email?
