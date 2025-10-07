@@ -308,3 +308,9 @@ pre, code {
 .animated{
   transition: all 0.8s ease-out !important;
 }
+
+.main-content{
+  p,li, ul, ol, a{
+    letter-spacing: normal;
+  }
+}

@@ -21,12 +21,12 @@ export default async function HomePage() {
   return (
     <div className="min-h-screen relative">
       <SiteHeader />
-      <section className="max-w-7xl mx-auto gap-12 flex flex-col">
+      <section className="max-w-7xl mx-auto gap-12 flex flex-col main-content">
         <Hero content={content} />
         <Solution />
-        <DeveloperExperience/>
+        <DeveloperExperience />
         <UseCases />
-        <CTA/>
+        <CTA />
         <Separator />
         <Footer />
       </section>

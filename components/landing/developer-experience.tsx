@@ -73,7 +73,8 @@ export function DeveloperExperience() {
                                 </div>
                                 <span>email-handler.ts</span>
                             </div>
-                            <div className="overflow-x-auto">
+                            <div className="overflow-x-auto w-full">
+                                <div className="">
                                 <CodeBlock
                                     code={`import { Inbound } from '@inboundemail/sdk'
 import type { InboundWebhookPayload } from '@inboundemail/sdk'
@@ -95,12 +96,12 @@ export async function handleWebhook(
     tags: [{ name: 'source', value: 'webhook' }]
   })
 }`}
-                                    language="typescript"
+                                    language="javascript"
                                     copy={false}
-                                    variant="ghost"
-                                    size="sm"
-                                    className="rounded-none border-0 m-0 text-xs"
+                                    wrap={true}
+                                    className="rounded-none border-0 m-0 text-xs tracking-normal"
                                 />
+                                </div>
                             </div>
                         </div>
                     </div>
