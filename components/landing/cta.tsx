@@ -7,7 +7,7 @@ export function CTA() {
         <section className="w-full px-4 py-16 max-md:py-12">
             <div className=" mx-auto">
                 <div className="text-center flex flex-col items-center gap-4 border border-border bg-card rounded-2xl px-6 sm:px-8 h-[330px] justify-center shadow-sm">
-                    <h2 className="text-2xl md:text-3xl lg:text-4xl font-semibold tracking-tight text-foreground">
+                    <h2 className="text-3xl md:text-4xl lg:text-5xl font-semibold leading-tight tracking-tight">
                         Ready to Build with Email?
                     </h2>
                     <p className="text-sm sm:text-base text-muted-foreground tracking-normal">

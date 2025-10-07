@@ -2,14 +2,16 @@ import { basehub } from "basehub";
 
 export async function getHomepageContent() {
   try {
-    const data = await basehub().query({
+    const selection = {
       homepage: {
         _title: true,
         heroPrimaryText: true,
         heroSublineText: true,
         ctaButtonPrimaryText: true,
       },
-    });
+    } as any;
+
+    const data = (await basehub().query(selection)) as any;
 
     return {
       success: true,
