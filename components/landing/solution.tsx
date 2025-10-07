@@ -9,12 +9,12 @@ export function Solution() {
             <div className="w-full flex justify-start items-center">
                 <div className="rounded-lg flex flex-col items-start gap-3 sm:gap-4">
                     <Badge className="gap-2" >
-                        <span className="inline-flex items-center justify-center">
-                            <svg width="12" height="10" viewBox="0 0 12 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+						<span className="inline-flex items-center justify-center">
+							<svg width="12" height="10" viewBox="0 0 12 10" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
                                 <path d="M1 2L6 6L11 2" stroke="currentColor" strokeWidth="1" fill="none" strokeLinecap="round" strokeLinejoin="round" />
                                 <rect x="1" y="2" width="10" height="6" stroke="currentColor" strokeWidth="1" fill="none" rx="1" />
                             </svg>
-                        </span>
+						</span>
                         <span className="text-sm">Email API</span>
                     </Badge>
                     <h2 className="text-left text-foreground text-2xl md:text-3xl lg:text-5xl font-semibold leading-tight tracking-tight">

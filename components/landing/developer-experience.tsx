@@ -11,7 +11,7 @@ export function DeveloperExperience() {
                 <div className="flex flex-col items-start gap-3 sm:gap-4">
                     <Badge className="gap-2">
                         <span className="inline-flex items-center justify-center">
-                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+							<svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
                                 <rect x="1" y="2" width="10" height="8" rx="1" stroke="currentColor" strokeWidth="1" fill="none" />
                                 <path d="M3 4h6M3 6h4M3 8h5" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
                                 <circle cx="9" cy="6" r="1" fill="currentColor" />
@@ -67,7 +67,7 @@ export function DeveloperExperience() {
                         <div className="bg-background border border-border rounded-lg overflow-hidden">
                             <div className="py-1.5 px-4 bg-muted/50 border-b border-border font-mono text-xs flex items-center gap-2 text-muted-foreground">
                                 <div className="w-4 h-4 rounded bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
-                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+									<svg width="10" height="10" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
                                         <path d="M12 2L2 7v10c0 5.55 3.84 9.74 9 11 5.16-1.26 9-5.45 9-11V7l-10-5z" fill="white" />
                                     </svg>
                                 </div>
