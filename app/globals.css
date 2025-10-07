@@ -15,6 +15,8 @@
     --copy-icon-bar: #212121;
     /* Light mode app content background (#FBFBFB) */
     --background: 0 0% 98.4%;
+    /* App surface shadow from Figma selection */
+    --app-surface-shadow: 5px 0px 4px 0px rgba(0, 0, 0, 0.25);
     --foreground: 0 0% 25.5%; /* #414141 */
     /* Light mode card surface & text */
     --card: 0 0% 100%; /* #FFFFFF */
@@ -37,20 +39,20 @@
     --input: 92% 0.02 240;
     --primary: 25% 0.08 264;
     --radius: 0.5rem;
-    /* Light mode sidebar background (#FFFFFF) */
-    --sidebar-background: 0 0% 100%;
-    /* Light mode selected item */
-    --sidebar-accent: 0 0% 95%; /* #F2F2F2 */
-    --sidebar-accent-foreground: 0 0% 25.5%;
-    --sidebar-accent-border: 0 0% 0% / 0.08;
-    /* Light mode hover item */
-    --sidebar-hover: 0 0% 98%; /* #FBFBFB */
-    --sidebar-hover-foreground: 0 0% 25.5%;
-    --sidebar-foreground: 0 0% 25.5%; /* #414141 */
+    /* Light mode sidebar background (#181818) */
+    --sidebar-background: 0 0% 9.4%;
+    /* Light mode selected item (Figma: #1f1f1f) */
+    --sidebar-accent: 0 0% 12.2%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-accent-border: 0 0% 100% / 0.08; /* rgba(255,255,255,0.08) */
+    /* Light mode hover item (slightly lighter than bg) */
+    --sidebar-hover: 0 0% 10%;
+    --sidebar-hover-foreground: 0 0% 100%;
+    --sidebar-foreground: 0 0% 100%; /* #FFFFFF for dark sidebar */
     --sidebar-primary: 18% 0.01 240;
-    --sidebar-primary-foreground: 0 0% 25.5%;
-    /* Light mode sidebar border (rgba(0,0,0,0.10)) */
-    --sidebar-border: 0 0% 0% / 0.10;
+    --sidebar-primary-foreground: 0 0% 100%;
+    /* Light mode sidebar border (Figma white/0.08) */
+    --sidebar-border: 0 0% 100% / 0.08;
     /* Brand radii */
     --app-content-radius: 25px;
     --sidebar-radius: 30px;
@@ -103,7 +105,9 @@
     --button-primary-bg: #8161FF;
     --button-primary-shadow-top: rgba(0, 0, 0, 0.25);
     --button-primary-shadow-bottom: rgba(255, 255, 255, 0.26);
+    --button-primary-border: #735ACF; /* Figma border for primary button */
     --button-secondary-bg: #FFFFFF;
+    --button-secondary-border: rgba(0, 0, 0, 0.2);
     --button-destructive-bg: #FFEDED;
   }
 
@@ -212,16 +216,18 @@
 @layer base {
   * {
     @apply border-border;
+    
   }
   body {
-    @apply bg-sidebar text-foreground font-sans;
+    @apply bg-background text-foreground font-sans;
     font-family: var(--font-geist), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
     letter-spacing: -0.04em; /* Geist -4% tracking for body */
     overscroll-behavior-y: none;
   }
   html {
     scroll-behavior: smooth;
-    background-color: hsl(var(--sidebar-background));
+    background-color: hsl(var(--background));
+    overscroll-behavior-y: none;
   }
   
   /* Text selection styling */

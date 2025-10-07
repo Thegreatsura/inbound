@@ -30,6 +30,7 @@ import Ban2 from '@/components/icons/ban-2'
 import { toast } from 'sonner'
 import { EndpointWithStats } from '@/features/endpoints/types'
 import { ApiIdLabel } from '@/components/api-id-label'
+import SidebarToggleButton from '@/components/sidebar-toggle-button'
 
 type FilterType = 'all' | 'webhook' | 'email' | 'email_group'
 type FilterStatus = 'all' | 'active' | 'disabled'
@@ -283,11 +284,14 @@ export default function EndpointsPage() {
         <div className="max-w-5xl mx-auto px-2">
           <div className="mb-6">
             <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-semibold text-foreground mb-1 tracking-tight">Endpoints</h2>
-                <p className="text-muted-foreground text-sm font-medium">
-                  {totalEndpoints} endpoints
-                </p>
+              <div className="flex items-center gap-2">
+                <SidebarToggleButton />
+                <div>
+                  <h2 className="text-2xl font-semibold text-foreground mb-1 tracking-tight">Endpoints</h2>
+                  <p className="text-muted-foreground text-sm font-medium">
+                    {totalEndpoints} endpoints
+                  </p>
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 <Button size="default" onClick={() => setCreateDialogOpen(true)}>

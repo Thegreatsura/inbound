@@ -31,6 +31,7 @@ import Filter2 from "@/components/icons/filter-2"
 import ObjRemove from "@/components/icons/obj-remove"
 import { ApiIdLabel } from '@/components/api-id-label'
 import { useDebouncedValue } from '@/hooks/useDebouncedValue'
+import SidebarToggleButton from '@/components/sidebar-toggle-button'
 
 export default function ApiKeysPage() {
   const [searchQuery, setSearchQuery] = useState('')
@@ -189,13 +190,16 @@ export default function ApiKeysPage() {
           {/* Header */}
           <div className="mb-6">
             <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-semibold text-foreground mb-1 tracking-tight">
-                  API Keys
-                </h2>
-                <p className="text-muted-foreground text-sm font-medium">
-                  {apiKeys.length} API keys
-                </p>
+              <div className="flex items-center gap-2">
+                <SidebarToggleButton />
+                <div>
+                  <h2 className="text-2xl font-semibold text-foreground mb-1 tracking-tight">
+                    API Keys
+                  </h2>
+                  <p className="text-muted-foreground text-sm font-medium">
+                    {apiKeys.length} API keys
+                  </p>
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 <Button size="default" onClick={() => setIsCreateDialogOpen(true)}>

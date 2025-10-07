@@ -45,11 +45,9 @@ export function NavMain({
                   >
                     <OptimizedLink href={item.url}>
                       {item.icon && (
-                        <item.icon
-                          className="h-4 w-4 opacity-50 text-black dark:text-white"
-                        />
+                        <item.icon className="h-4 w-4 opacity-60" />
                       )}
-                      <span className="opacity-50 text-black dark:text-white">{item.title}</span>
+                      <span className="opacity-60">{item.title}</span>
                     </OptimizedLink>
                   </SidebarMenuButton>
                 )}

@@ -22,6 +22,7 @@ import Filter2 from '@/components/icons/filter-2'
 
 import type { DomainWithStats } from '@/app/api/v2/domains/route'
 import { ApiIdLabel } from '@/components/api-id-label'
+import SidebarToggleButton from '@/components/sidebar-toggle-button'
 
 export default function EmailsPage() {
   const [searchQuery, setSearchQuery] = useState('')
@@ -98,13 +99,16 @@ export default function EmailsPage() {
         {/* Header */}
         <div className="mb-6">
           <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-semibold text-foreground mb-1 tracking-tight">
-                Domains
-              </h2>
-              <p className="text-muted-foreground text-sm font-medium">
-                {domainsResponse?.pagination.total || 0} domains
-              </p>
+            <div className="flex items-center gap-2">
+              <SidebarToggleButton />
+              <div>
+                <h2 className="text-2xl font-semibold text-foreground mb-1 tracking-tight">
+                  Domains
+                </h2>
+                <p className="text-muted-foreground text-sm font-medium">
+                  {domainsResponse?.pagination.total || 0} domains
+                </p>
+              </div>
             </div>
             <div className="flex items-center gap-2">
               <Button size="default" asChild>

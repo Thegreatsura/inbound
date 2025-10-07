@@ -63,7 +63,7 @@ export function TeamSwitcher({
                 if (!p) return
                 try { p.seek?.(0) } catch {}
                 p.play?.()
-                toggleTheme()
+                // toggleTheme()
               }}
             >
               <DotLottiePlayer

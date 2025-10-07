@@ -149,13 +149,21 @@ export default function SettingsPage() {
         {/* Header */}
         <div className="mb-6">
           <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-semibold text-foreground mb-1 tracking-tight">
-                Settings
-              </h2>
-              <p className="text-muted-foreground text-sm font-medium">
-                Manage your account, billing, API keys, and preferences
-              </p>
+            <div className="flex items-center gap-2">
+              {/* Sidebar toggle */}
+              {/** import inline to avoid circular at top-level **/}
+              {(() => {
+                const SidebarToggle = require("@/components/sidebar-toggle-button").default
+                return <SidebarToggle />
+              })()}
+              <div>
+                <h2 className="text-2xl font-semibold text-foreground mb-1 tracking-tight">
+                  Settings
+                </h2>
+                <p className="text-muted-foreground text-sm font-medium">
+                  Manage your account, billing, API keys, and preferences
+                </p>
+              </div>
             </div>
           </div>
         </div>

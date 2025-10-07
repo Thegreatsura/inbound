@@ -35,6 +35,7 @@ import { useInfiniteUnifiedEmailLogsQuery } from '@/features/emails/hooks'
 import { useIntersectionObserver } from '@/hooks/useIntersectionObserver'
 import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 import type { EmailLogsOptions, EmailLogEntry, InboundEmailLogEntry, OutboundEmailLogEntry } from '@/features/emails/types'
+import SidebarToggleButton from '@/components/sidebar-toggle-button'
 
 function getTypeIcon(email: EmailLogEntry) {
   if (email.type === 'inbound') {
@@ -715,13 +716,16 @@ export default function LogsPage() {
         {/* Header */}
         <div className="mb-6">
           <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-semibold text-foreground mb-1 tracking-tight">
-                Logs
-              </h2>
-              <p className="text-muted-foreground text-sm font-medium">
-                {stats?.totalEmails || 0} logs
-              </p>
+            <div className="flex items-center gap-2">
+              <SidebarToggleButton />
+              <div>
+                <h2 className="text-2xl font-semibold text-foreground mb-1 tracking-tight">
+                  Logs
+                </h2>
+                <p className="text-muted-foreground text-sm font-medium">
+                  {stats?.totalEmails || 0} logs
+                </p>
+              </div>
             </div>
             <Button
               variant="outline"
