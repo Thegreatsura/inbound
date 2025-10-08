@@ -9,7 +9,7 @@ import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneLight, vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 
 const codeBlockVariants = cva(
-  "relative w-full self-stretch flex items-center gap-2.5 text-xs font-mono border border-border bg-card rounded-md overflow-x-auto",
+  "relative w-full flex items-center gap-2.5 text-xs font-mono border border-border bg-card rounded-md overflow-x-auto ",
   {
     variants: {
       variant: {
@@ -37,7 +37,7 @@ const codeBlockVariants = cva(
 
 export interface CodeBlockProps
   extends React.HTMLAttributes<HTMLDivElement>,
-    VariantProps<typeof codeBlockVariants> {
+  VariantProps<typeof codeBlockVariants> {
   code: string;
   language?: string;
   copy?: boolean;
@@ -85,9 +85,7 @@ export const CodeBlock = React.forwardRef<HTMLDivElement, CodeBlockProps>(
             background: "transparent",
             padding: 0,
           }}
-          codeTagProps={{
-            style: { fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace" }
-          }}
+
           PreTag={(props) => (
             <pre {...props} className={cn("m-0 flex-1 overflow-x-auto", wrap ? "whitespace-pre-wrap" : "whitespace-pre")} />
           )}
@@ -95,7 +93,7 @@ export const CodeBlock = React.forwardRef<HTMLDivElement, CodeBlockProps>(
           {code}
         </SyntaxHighlighter>
       ) : (
-        <pre className={cn("m-0 flex-1 overflow-x-auto text-foreground/60", wrap ? "whitespace-pre-wrap" : "whitespace-pre") }>
+        <pre className={cn("m-0 flex-1 overflow-x-auto text-foreground/60", wrap ? "whitespace-pre-wrap" : "whitespace-pre")}>
           <code data-language={language}>{code}</code>
         </pre>
       )

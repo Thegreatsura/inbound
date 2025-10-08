@@ -21,12 +21,13 @@ export function SiteHeader() {
   const shouldReduceMotion = useReducedMotion();
 
   useEffect(() => {
-    if (typeof window === "undefined" || typeof document === "undefined") return;
-    
+    if (typeof window === "undefined" || typeof document === "undefined")
+      return;
+
     const saved = localStorage.getItem("theme");
     const themeValue = saved === "light" ? "light" : "dark";
     setTheme(themeValue);
-    
+
     // Apply the theme to the DOM immediately
     document.documentElement.classList.toggle("dark", themeValue === "dark");
   }, []);
@@ -41,7 +42,7 @@ export function SiteHeader() {
     } else {
       document.body.style.overflow = "unset";
     }
-    
+
     return () => {
       document.body.style.overflow = "unset";
     };
@@ -84,9 +85,11 @@ export function SiteHeader() {
     };
 
     document.addEventListener("keydown", handleKeyDown);
-    
+
     // Focus the close button when menu opens
-    const closeButton = mobileMenuRef.current?.querySelector('[aria-label="Close menu"]') as HTMLElement;
+    const closeButton = mobileMenuRef.current?.querySelector(
+      '[aria-label="Close menu"]'
+    ) as HTMLElement;
     if (closeButton) {
       closeButton.focus();
     }
@@ -127,16 +130,20 @@ export function SiteHeader() {
   const isActive = (href: string) => {
     // Normalize href to ensure it starts with "/"
     const normalizedHref = href.startsWith("/") ? href : `/${href}`;
-    
+
     // Handle anchor links (e.g., "/#features")
     if (normalizedHref.includes("#")) {
       const [path, hash] = normalizedHref.split("#");
-      const currentHash = typeof window !== "undefined" ? window.location.hash : "";
+      const currentHash =
+        typeof window !== "undefined" ? window.location.hash : "";
       return pathname === path && currentHash === `#${hash}`;
     }
-    
+
     // Handle regular paths
-    return pathname === normalizedHref || (normalizedHref === "/blog" && pathname.startsWith("/blog"));
+    return (
+      pathname === normalizedHref ||
+      (normalizedHref === "/blog" && pathname.startsWith("/blog"))
+    );
   };
 
   return (
@@ -149,9 +156,9 @@ export function SiteHeader() {
               inbound
             </span>
           </Link>
-          
+
           <div className="flex items-center">
-            <nav className="hidden md:flex items-center gap-6 text-sm">
+            <nav className="hidden md:flex items-center gap-6 text-sm tracking-normal">
               {["/features", "/examples", "/pricing", "/docs", "/blog"].map(
                 (href) => (
                   <Link
@@ -163,6 +170,7 @@ export function SiteHeader() {
                   >
                     {href
                       .replace("/", "")
+
                       .replace("#", "")
                       .replace(/^\w/, (c) => c.toUpperCase())}
                   </Link>
@@ -179,7 +187,7 @@ export function SiteHeader() {
                   <Link href="/login">Get Started</Link>
                 </Button>
               )}
-              <Button
+              {/* <Button
                 variant="secondary"
                 size="icon"
                 onClick={toggleTheme}
@@ -206,9 +214,9 @@ export function SiteHeader() {
                     />
                   </g>
                 </svg>
-              </Button>
+              </Button> */}
             </nav>
-            
+
             <Button
               ref={mobileMenuToggleRef}
               variant="secondary"
@@ -231,13 +239,13 @@ export function SiteHeader() {
       <AnimatePresence>
         {isMobileMenuOpen && (
           <div className="fixed inset-0 z-[9999] md:hidden">
-            <div 
+            <div
               className="absolute inset-0 bg-black/50 backdrop-blur-sm"
               onClick={closeMobileMenu}
               aria-hidden="true"
             />
-            
-            <motion.div 
+
+            <motion.div
               ref={mobileMenuRef}
               role="dialog"
               aria-modal="true"
@@ -246,17 +254,23 @@ export function SiteHeader() {
               initial={shouldReduceMotion ? { x: 0 } : { x: "100%" }}
               animate={{ x: 0 }}
               exit={shouldReduceMotion ? { x: 0 } : { x: "100%" }}
-              transition={shouldReduceMotion ? { duration: 0 } : { ease: "easeOut", duration: 0.3 }}
+              transition={
+                shouldReduceMotion
+                  ? { duration: 0 }
+                  : { ease: "easeOut", duration: 0.3 }
+              }
             >
               <div className="flex flex-col h-full">
-                <h2 id="mobile-menu-title" className="sr-only">Navigation Menu</h2>
+                <h2 id="mobile-menu-title" className="sr-only">
+                  Navigation Menu
+                </h2>
                 <div className="flex items-center justify-between p-6 border-b border-border">
-                <Link href="/" className="flex items-center gap-2">
-            <InboundIcon width={32} height={32} />
-            <span className="text-2xl font-outfit font-semibold tracking-tight">
-              inbound
-            </span>
-          </Link>
+                  <Link href="/" className="flex items-center gap-2">
+                    <InboundIcon width={32} height={32} />
+                    <span className="text-2xl font-outfit font-semibold tracking-tight">
+                      inbound
+                    </span>
+                  </Link>
                   <Button
                     variant="secondary"
                     size="icon"
@@ -266,31 +280,35 @@ export function SiteHeader() {
                     <CircleXmark width={18} height={18} />
                   </Button>
                 </div>
-                
+
                 <nav className="flex-1 p-6">
                   <div className="flex flex-col gap-6">
-                    {["/features", "/examples", "/pricing", "/docs", "/blog"].map(
-                      (href) => (
-                        <Link
-                          key={href}
-                          href={href}
-                          className={`text-lg py-3 px-4 rounded-lg transition-colors ${
-                            isActive(href) 
-                              ? "bg-primary/10 text-primary font-medium" 
-                              : "hover:bg-muted/50"
-                          }`}
-                          onClick={closeMobileMenu}
-                        >
-                          {href
-                            .replace("/", "")
-                            .replace("#", "")
-                            .replace(/^\w/, (c) => c.toUpperCase())}
-                        </Link>
-                      )
-                    )}
+                    {[
+                      "/features",
+                      "/examples",
+                      "/pricing",
+                      "/docs",
+                      "/blog",
+                    ].map((href) => (
+                      <Link
+                        key={href}
+                        href={href}
+                        className={`text-lg py-3 px-4 rounded-lg transition-colors ${
+                          isActive(href)
+                            ? "bg-primary/10 text-primary font-medium"
+                            : "hover:bg-muted/50"
+                        }`}
+                        onClick={closeMobileMenu}
+                      >
+                        {href
+                          .replace("/", "")
+                          .replace("#", "")
+                          .replace(/^\w/, (c) => c.toUpperCase())}
+                      </Link>
+                    ))}
                   </div>
                 </nav>
-                
+
                 <div className="p-6 border-t border-border space-y-4">
                   {session?.user ? (
                     <Button variant="primary" asChild className="w-full">
@@ -305,8 +323,8 @@ export function SiteHeader() {
                       </Link>
                     </Button>
                   )}
-                  
-                  <Button
+
+                  {/* <Button
                     variant="secondary"
                     onClick={toggleTheme}
                     className="w-full"
@@ -335,7 +353,7 @@ export function SiteHeader() {
                       </g>
                     </svg>
                     Switch to {theme === "dark" ? "light" : "dark"} mode
-                  </Button>
+                  </Button> */}
                 </div>
               </div>
             </motion.div>
