@@ -239,25 +239,15 @@ export default function PricingPage() {
           {plans.map((plan, index) => (
             <div
               key={plan.name}
-              className={`bg-card border rounded-xl p-8 relative ${
+              className={`bg-card border border-dotted rounded-none p-8 relative ${
                 isCurrentPlan(plan) 
-                  ? 'border-green-500 shadow-lg ring-2 ring-green-500/20' 
-                  : plan.popular 
-                    ? 'border-primary shadow-lg scale-105' 
-                    : 'border-border'
+                  ? 'border-foreground' 
+                  : 'border-border'
               }`}
             >
-              {isCurrentPlan(plan) ? (
-                <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                  <span className="bg-green-500 text-white text-sm font-medium px-4 py-1 rounded-full">
-                    Current Plan
-                  </span>
-                </div>
-              ) : plan.popular && (
-                <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                  <span className="bg-primary text-primary-foreground text-sm font-medium px-4 py-1 rounded-full">
-                    Most Popular
-                  </span>
+              {isCurrentPlan(plan) && (
+                <div className="absolute top-2 left-2 text-xs text-muted-foreground border border-dotted rounded-none px-2 py-0.5">
+                  Current plan
                 </div>
               )}
               
@@ -282,7 +272,7 @@ export default function PricingPage() {
 
               <Button
                 className="w-full mb-6"
-                variant={isCurrentPlan(plan) ? 'secondary' : plan.ctaVariant}
+                variant={isCurrentPlan(plan) ? 'secondary' : 'outline'}
                 onClick={() => handlePlanSelection(plan)}
                 disabled={isLoading === plan.autumn_id || isCurrentPlan(plan)}
               >
@@ -295,7 +285,7 @@ export default function PricingPage() {
                   <div className="flex items-center gap-2">
                     {getButtonText(plan)}
                     {isCurrentPlan(plan) && (
-                      <CircleCheck width="16" height="16" className="text-green-500" />
+                      <CircleCheck width="16" height="16" className="text-foreground" fill="currentColor" secondaryfill="var(--muted-foreground)" />
                     )}
                   </div>
                 )}
@@ -304,7 +294,7 @@ export default function PricingPage() {
               <div className="space-y-3">
                 {plan.features.core.map((feature, i) => (
                   <div key={i} className="flex items-start gap-3">
-                    <CircleCheck width="16" height="16" className="text-green-500 mt-0.5 flex-shrink-0" />
+                    <CircleCheck width="16" height="16" className="text-foreground mt-0.5 flex-shrink-0" fill="currentColor" secondaryfill="var(--muted-foreground)" />
                     <span className="text-sm text-muted-foreground">{feature}</span>
                   </div>
                 ))}
@@ -314,13 +304,35 @@ export default function PricingPage() {
         </div>
       </section>
 
+      {/* Real-world examples */}
+      <section className="max-w-5xl mx-auto px-6 py-10">
+        <h2 className="text-2xl font-semibold mb-6 text-center">Real examples</h2>
+        <div className="grid md:grid-cols-3 gap-4">
+          <div className="border border-dotted rounded-none p-4">
+            <div className="text-sm text-muted-foreground mb-1">Indie SaaS</div>
+            <div className="text-sm">42,300 emails/month • 3 domains</div>
+            <div className="text-sm mt-2">Fits: <span className="font-medium">Pro</span> ($15/mo)</div>
+          </div>
+          <div className="border border-dotted rounded-none p-4">
+            <div className="text-sm text-muted-foreground mb-1">Seed-stage startup</div>
+            <div className="text-sm">88,900 emails/month • 8 domains</div>
+            <div className="text-sm mt-2">Fits: <span className="font-medium">Growth</span> ($39/mo)</div>
+          </div>
+          <div className="border border-dotted rounded-none p-4">
+            <div className="text-sm text-muted-foreground mb-1">B2C app</div>
+            <div className="text-sm">205,000 emails/month • 20 domains</div>
+            <div className="text-sm mt-2">Fits: <span className="font-medium">Scale</span> ($79/mo)</div>
+          </div>
+        </div>
+      </section>
+
       {/* Feature Comparison Tables */}
       <section className="max-w-7xl mx-auto px-6 py-20">
         
         {/* Email Sending Features */}
         <div className="mb-16">
           <h2 className="text-2xl font-bold mb-8 text-center">Email Sending</h2>
-          <div className="bg-card border border-border rounded-xl overflow-hidden">
+          <div className="bg-card border border-border border-dotted rounded-none">
             <table className="w-full">
               <thead className="bg-muted/50">
                 <tr>
@@ -341,17 +353,17 @@ export default function PricingPage() {
                 </tr>
                 <tr className="bg-muted/20">
                   <td className="p-4">Email templates</td>
-                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-green-500 mx-auto" /></td>
-                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-green-500 mx-auto" /></td>
-                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-green-500 mx-auto" /></td>
-                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-green-500 mx-auto" /></td>
+                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
+                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
+                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
+                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
                 </tr>
                 <tr>
                   <td className="p-4">Attachment support</td>
-                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-green-500 mx-auto" /></td>
-                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-green-500 mx-auto" /></td>
-                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-green-500 mx-auto" /></td>
-                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-green-500 mx-auto" /></td>
+                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
+                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
+                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
+                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
                 </tr>
               </tbody>
             </table>
@@ -361,7 +373,7 @@ export default function PricingPage() {
         {/* Inbound Email Processing */}
         <div className="mb-16">
           <h2 className="text-2xl font-bold mb-8 text-center">Inbound Email Processing</h2>
-          <div className="bg-card border border-border rounded-xl overflow-hidden">
+          <div className="bg-card border border-border border-dotted rounded-none">
             <table className="w-full">
               <thead className="bg-muted/50">
                 <tr>
@@ -382,38 +394,38 @@ export default function PricingPage() {
                 </tr>
                 <tr className="bg-muted/20">
                   <td className="p-4">Webhook delivery</td>
-                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-green-500 mx-auto" /></td>
-                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-green-500 mx-auto" /></td>
-                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-green-500 mx-auto" /></td>
-                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-green-500 mx-auto" /></td>
+                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
+                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
+                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
+                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
                 </tr>
                 <tr>
                   <td className="p-4">Email parsing</td>
-                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-green-500 mx-auto" /></td>
-                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-green-500 mx-auto" /></td>
-                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-green-500 mx-auto" /></td>
-                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-green-500 mx-auto" /></td>
+                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
+                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
+                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
+                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
                 </tr>
                 <tr className="bg-muted/20">
                   <td className="p-4">Email threading</td>
-                  <td className="text-center p-4"><CircleXmark width="16" height="16" className="text-red-500 mx-auto" /></td>
-                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-green-500 mx-auto" /></td>
-                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-green-500 mx-auto" /></td>
-                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-green-500 mx-auto" /></td>
+                  <td className="text-center p-4"><CircleXmark width="16" height="16" className="text-muted-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
+                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
+                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
+                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
                 </tr>
                 <tr>
                   <td className="p-4">AI email classification</td>
-                  <td className="text-center p-4"><CircleXmark width="16" height="16" className="text-red-500 mx-auto" /></td>
-                  <td className="text-center p-4"><CircleXmark width="16" height="16" className="text-red-500 mx-auto" /></td>
-                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-green-500 mx-auto" /></td>
-                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-green-500 mx-auto" /></td>
+                  <td className="text-center p-4"><CircleXmark width="16" height="16" className="text-muted-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
+                  <td className="text-center p-4"><CircleXmark width="16" height="16" className="text-muted-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
+                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
+                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
                 </tr>
                 <tr className="bg-muted/20">
                   <td className="p-4">Custom email parsing</td>
-                  <td className="text-center p-4"><CircleXmark width="16" height="16" className="text-red-500 mx-auto" /></td>
-                  <td className="text-center p-4"><CircleXmark width="16" height="16" className="text-red-500 mx-auto" /></td>
-                  <td className="text-center p-4"><CircleXmark width="16" height="16" className="text-red-500 mx-auto" /></td>
-                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-green-500 mx-auto" /></td>
+                  <td className="text-center p-4"><CircleXmark width="16" height="16" className="text-muted-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
+                  <td className="text-center p-4"><CircleXmark width="16" height="16" className="text-muted-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
+                  <td className="text-center p-4"><CircleXmark width="16" height="16" className="text-muted-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
+                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
                 </tr>
               </tbody>
             </table>
@@ -423,7 +435,7 @@ export default function PricingPage() {
         {/* Deliverability & Reliability */}
         <div className="mb-16">
           <h2 className="text-2xl font-bold mb-8 text-center">Deliverability & Reliability</h2>
-          <div className="bg-card border border-border rounded-xl overflow-hidden">
+          <div className="bg-card border border-border border-dotted rounded-none">
             <table className="w-full">
               <thead className="bg-muted/50">
                 <tr>
@@ -451,31 +463,31 @@ export default function PricingPage() {
                 </tr>
                 <tr>
                   <td className="p-4">Bounce handling</td>
-                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-green-500 mx-auto" /></td>
-                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-green-500 mx-auto" /></td>
-                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-green-500 mx-auto" /></td>
-                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-green-500 mx-auto" /></td>
+                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
+                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
+                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
+                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
                 </tr>
                 <tr className="bg-muted/20">
                   <td className="p-4">Reputation monitoring</td>
-                  <td className="text-center p-4"><CircleXmark width="16" height="16" className="text-red-500 mx-auto" /></td>
-                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-green-500 mx-auto" /></td>
-                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-green-500 mx-auto" /></td>
-                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-green-500 mx-auto" /></td>
+                  <td className="text-center p-4"><CircleXmark width="16" height="16" className="text-muted-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
+                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
+                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
+                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
                 </tr>
                 <tr>
                   <td className="p-4">Delivery optimization</td>
-                  <td className="text-center p-4"><CircleXmark width="16" height="16" className="text-red-500 mx-auto" /></td>
-                  <td className="text-center p-4"><CircleXmark width="16" height="16" className="text-red-500 mx-auto" /></td>
-                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-green-500 mx-auto" /></td>
-                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-green-500 mx-auto" /></td>
+                  <td className="text-center p-4"><CircleXmark width="16" height="16" className="text-muted-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
+                  <td className="text-center p-4"><CircleXmark width="16" height="16" className="text-muted-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
+                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
+                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
                 </tr>
                 <tr className="bg-muted/20">
                   <td className="p-4">Dedicated IP option</td>
-                  <td className="text-center p-4"><CircleXmark width="16" height="16" className="text-red-500 mx-auto" /></td>
-                  <td className="text-center p-4"><CircleXmark width="16" height="16" className="text-red-500 mx-auto" /></td>
-                  <td className="text-center p-4"><CircleXmark width="16" height="16" className="text-red-500 mx-auto" /></td>
-                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-green-500 mx-auto" /></td>
+                  <td className="text-center p-4"><CircleXmark width="16" height="16" className="text-muted-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
+                  <td className="text-center p-4"><CircleXmark width="16" height="16" className="text-muted-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
+                  <td className="text-center p-4"><CircleXmark width="16" height="16" className="text-muted-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
+                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
                 </tr>
                 <tr>
                   <td className="p-4">Custom sending domains</td>
@@ -486,17 +498,17 @@ export default function PricingPage() {
                 </tr>
                 <tr className="bg-muted/20">
                   <td className="p-4">DKIM signing</td>
-                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-green-500 mx-auto" /></td>
-                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-green-500 mx-auto" /></td>
-                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-green-500 mx-auto" /></td>
-                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-green-500 mx-auto" /></td>
+                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
+                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
+                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
+                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
                 </tr>
                 <tr>
                   <td className="p-4">Open & click tracking (powered by dub.co)</td>
-                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-green-500 mx-auto" /></td>
-                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-green-500 mx-auto" /></td>
-                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-green-500 mx-auto" /></td>
-                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-green-500 mx-auto" /></td>
+                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
+                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
+                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
+                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
                 </tr>
               </tbody>
             </table>
@@ -507,7 +519,7 @@ export default function PricingPage() {
         {/* Customer Support */}
         <div className="mb-16">
           <h2 className="text-2xl font-bold mb-8 text-center">Customer Support</h2>
-          <div className="bg-card border border-border rounded-xl overflow-hidden">
+          <div className="bg-card border border-border border-dotted rounded-none">
             <table className="w-full">
               <thead className="bg-muted/50">
                 <tr>
@@ -535,24 +547,24 @@ export default function PricingPage() {
                 </tr>
                 <tr>
                   <td className="p-4">Setup assistance</td>
-                  <td className="text-center p-4"><CircleXmark width="16" height="16" className="text-red-500 mx-auto" /></td>
-                  <td className="text-center p-4"><CircleXmark width="16" height="16" className="text-red-500 mx-auto" /></td>
-                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-green-500 mx-auto" /></td>
-                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-green-500 mx-auto" /></td>
+                  <td className="text-center p-4"><CircleXmark width="16" height="16" className="text-muted-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
+                  <td className="text-center p-4"><CircleXmark width="16" height="16" className="text-muted-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
+                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
+                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
                 </tr>
                 <tr className="bg-muted/20">
                   <td className="p-4">Custom integrations</td>
-                  <td className="text-center p-4"><CircleXmark width="16" height="16" className="text-red-500 mx-auto" /></td>
-                  <td className="text-center p-4"><CircleXmark width="16" height="16" className="text-red-500 mx-auto" /></td>
-                  <td className="text-center p-4"><CircleXmark width="16" height="16" className="text-red-500 mx-auto" /></td>
-                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-green-500 mx-auto" /></td>
+                  <td className="text-center p-4"><CircleXmark width="16" height="16" className="text-muted-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
+                  <td className="text-center p-4"><CircleXmark width="16" height="16" className="text-muted-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
+                  <td className="text-center p-4"><CircleXmark width="16" height="16" className="text-muted-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
+                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
                 </tr>
                 <tr>
                   <td className="p-4">Dedicated Slack channel</td>
-                  <td className="text-center p-4"><CircleXmark width="16" height="16" className="text-red-500 mx-auto" /></td>
-                  <td className="text-center p-4"><CircleXmark width="16" height="16" className="text-red-500 mx-auto" /></td>
-                  <td className="text-center p-4"><CircleXmark width="16" height="16" className="text-red-500 mx-auto" /></td>
-                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-green-500 mx-auto" /></td>
+                  <td className="text-center p-4"><CircleXmark width="16" height="16" className="text-muted-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
+                  <td className="text-center p-4"><CircleXmark width="16" height="16" className="text-muted-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
+                  <td className="text-center p-4"><CircleXmark width="16" height="16" className="text-muted-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
+                  <td className="text-center p-4"><CircleCheck width="16" height="16" className="text-foreground mx-auto" fill="currentColor" secondaryfill="var(--muted-foreground)" /></td>
                 </tr>
               </tbody>
             </table>
@@ -561,7 +573,7 @@ export default function PricingPage() {
 
 
         {/* All Features Summary */}
-        <div className="bg-muted/30 rounded-2xl p-12 text-center">
+        <div className="bg-muted/30 border border-dotted rounded-none p-12 text-center">
           <h2 className="text-3xl font-bold mb-4">Need more emails or custom features?</h2>
           <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
             Our Scale plan can handle millions of emails per month. 
@@ -588,49 +600,49 @@ export default function PricingPage() {
           </p>
           
           <div className="space-y-6">
-            <div className="bg-card border border-border rounded-lg p-6">
+            <div className="bg-card border border-border border-dotted rounded-none p-6">
               <h3 className="text-lg font-semibold mb-2">What counts as an email?</h3>
               <p className="text-muted-foreground">
                 Both sent and received emails count toward your monthly limit. Each individual recipient counts as one email (so sending to 3 people = 3 emails).
               </p>
             </div>
             
-            <div className="bg-card border border-border rounded-lg p-6">
+            <div className="bg-card border border-border border-dotted rounded-none p-6">
               <h3 className="text-lg font-semibold mb-2">Can I change plans anytime?</h3>
               <p className="text-muted-foreground">
                 Yes! You can upgrade or downgrade your plan at any time. Changes take effect immediately and we'll prorate any billing differences.
               </p>
             </div>
             
-            <div className="bg-card border border-border rounded-lg p-6">
+            <div className="bg-card border border-border border-dotted rounded-none p-6">
               <h3 className="text-lg font-semibold mb-2">What happens if I exceed my limit?</h3>
               <p className="text-muted-foreground">
                 We'll notify you when you're approaching your limit. If you exceed it, we'll pause email sending until you upgrade or the next billing cycle starts.
               </p>
             </div>
 
-            <div className="bg-card border border-border rounded-lg p-6">
+            <div className="bg-card border border-border border-dotted rounded-none p-6">
               <h3 className="text-lg font-semibold mb-2">Do you offer refunds?</h3>
               <p className="text-muted-foreground">
                 We offer a 30-day money-back guarantee on all paid plans. If you're not satisfied, we'll refund your payment in full.
               </p>
             </div>
 
-            <div className="bg-card border border-border rounded-lg p-6">
+            <div className="bg-card border border-border border-dotted rounded-none p-6">
               <h3 className="text-lg font-semibold mb-2">What's included in data retention?</h3>
               <p className="text-muted-foreground">
                 We store email metadata, parsed content, webhook delivery logs, and analytics for the specified retention period. Raw email content is stored securely in AWS S3.
               </p>
             </div>
 
-            <div className="bg-card border border-border rounded-lg p-6">
+            <div className="bg-card border border-border border-dotted rounded-none p-6">
               <h3 className="text-lg font-semibold mb-2">How does billing work for overages?</h3>
               <p className="text-muted-foreground">
                 Additional emails beyond your plan limit are billed at competitive rates. We'll notify you before charging any overages and recommend upgrading to a higher plan for better value.
               </p>
             </div>
 
-            <div className="bg-card border border-border rounded-lg p-6">
+            <div className="bg-card border border-border border-dotted rounded-none p-6">
               <h3 className="text-lg font-semibold mb-2">Is there an enterprise plan?</h3>
               <p className="text-muted-foreground">
                 Yes! For high-volume applications (1M+ emails/month) or custom requirements, contact our sales team for enterprise pricing and features.
@@ -643,7 +655,7 @@ export default function PricingPage() {
 
       {/* CTA Section */}
       <section className="max-w-6xl mx-auto px-6 py-20">
-        <div className="bg-gradient-to-br from-primary/10 via-primary/5 to-background rounded-3xl p-12 text-center">
+        <div className="border border-dotted rounded-none p-12 text-center">
           <h2 className="text-4xl font-bold mb-6 text-foreground">Ready to build better email experiences?</h2>
           <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
             Join thousands of developers who trust inbound for reliable, modern email infrastructure. 
