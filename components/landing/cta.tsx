@@ -6,18 +6,18 @@ export function CTA() {
     return (
         <section className="w-full px-4 py-16 max-md:py-12">
             <div className="mx-auto">
-                <div className="text-center flex flex-col items-center gap-4 border border-border bg-card rounded-2xl px-6 sm:px-8 h-[330px] justify-center shadow-sm">
+                <div className="text-center flex flex-col items-center gap-4 border border-border border-dashed bg-card px-6 sm:px-8 h-[330px] justify-center">
                     <h2 className="text-3xl md:text-4xl lg:text-5xl font-semibold leading-tight tracking-tight">
-                        Ready to Build with Email?
+                        Ship email features faster
                     </h2>
                     <p className="text-sm sm:text-base text-muted-foreground tracking-normal">
-                        Join developers who've simplified their email infrastructure with Inbound.
+                        Send, receive, and reply—all in one SDK with clear docs.
                     </p>
                     <div className="flex items-center gap-3 sm:gap-4 mt-2">
-                        <Button asChild className="h-10 px-4">
+                        <Button asChild className="h-10 px-4 rounded-none">
                             <a href="/login">Start Free</a>
                         </Button>
-                        <Button asChild variant="secondary" className="h-10 px-4">
+                        <Button asChild variant="secondary" className="h-10 px-4 rounded-none">
                             <a href="/docs">View Documentation</a>
                         </Button>
                     </div>

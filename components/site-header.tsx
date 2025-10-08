@@ -187,7 +187,7 @@ export function SiteHeader() {
                   <Link href="/login">Get Started</Link>
                 </Button>
               )}
-              <Button
+              {/* <Button
                 variant="secondary"
                 size="icon"
                 onClick={toggleTheme}
@@ -214,7 +214,7 @@ export function SiteHeader() {
                     />
                   </g>
                 </svg>
-              </Button>
+              </Button> */}
             </nav>
 
             <Button
@@ -324,7 +324,7 @@ export function SiteHeader() {
                     </Button>
                   )}
 
-                  <Button
+                  {/* <Button
                     variant="secondary"
                     onClick={toggleTheme}
                     className="w-full"
@@ -353,7 +353,7 @@ export function SiteHeader() {
                       </g>
                     </svg>
                     Switch to {theme === "dark" ? "light" : "dark"} mode
-                  </Button>
+                  </Button> */}
                 </div>
               </div>
             </motion.div>

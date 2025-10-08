@@ -207,7 +207,7 @@ export default function Hero({ content }: HeroProps) {
       });
 
       setScrollKey((prev) => prev + 1);
-    }, 4000);
+    }, 2000);
 
     return () => clearInterval(interval);
   }, []);
@@ -298,9 +298,9 @@ export default function Hero({ content }: HeroProps) {
   return (
     <div className="xl:h-[calc(100dvh-89px)] min-h-[calc(100dvh-89px)] overflow-hidden py-16 max-md:py-12 items-center justify-center px-4 flex gap-24 relative max-[1074px]:flex-col max-[1074px]:items-start max-[1074px]:gap-12">
       {/* left side */}
-      <div className="flex flex-col gap-6 justify-between flex-1 h-full">
+      <div className="flex flex-col gap-6 justify-center flex-1 h-full">
         {/* heading */}
-        <div className="flex flex-col gap-8">
+        <div className="flex flex-col gap-4">
           <h1 className="text-[4.5rem] max-sm:text-[3.6rem] max-xs:text-[3.2rem] font-semibold max-w-lg leading-[4.9rem] max-sm:leading-[3.8rem] max-xs:leading-[3.5rem] tracking-tight">
             {content.heroPrimaryText}
           </h1>
@@ -320,7 +320,7 @@ export default function Hero({ content }: HeroProps) {
           </div>
         </div>
         {/* trusted by */}
-        <div className="flex flex-col gap-4 border w-full p-6 rounded-2xl max-[1074px]:hidden">
+        <div className="flex flex-col gap-4 w-full max-[1074px]:hidden">
           <p className="tracking-normal opacity-80">Trusted by builders at</p>
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-3 opacity-60">
@@ -364,14 +364,17 @@ export default function Hero({ content }: HeroProps) {
               </svg>
               <p className="tracking-normal">churchspace.co</p>
             </div>
+            <div className="flex items-center gap-2 opacity-60">
+              <img src="/images/agentuity.png" alt="Agentuity logo" className="h-5 w-auto" />
+            </div>
           </div>
         </div>
       </div>
 
       {/* right side */}
-      <div className="relative flex flex-col gap-3 justify-between h-full flex-1 z-20 bg-transparent max-[1074px]:w-full">
+      <div className="relative flex flex-col gap-3 justify-between h-full flex-1 z-20 bg-transparent max-[1074px]:w-full border-x border-dashed">
         {/* Email Cards - Animated */}
-        <div className="flex flex-col gap-3 border rounded-2xl p-4 tracking-normal overflow-hidden h-[380px] relative">
+        <div className="flex flex-col gap-3 border-y border-dashed p-4 tracking-normal overflow-hidden h-[380px] relative">
           {/* Top fade overlay */}
           <div className="absolute top-0 left-0 right-0 max-sm:h-1 h-28 bg-gradient-to-b from-card to-transparent z-10 pointer-events-none" />
 
@@ -438,20 +441,20 @@ export default function Hero({ content }: HeroProps) {
                       y: { duration: 0.6, ease: [0.25, 0.1, 0.25, 1] },
                       scale: { duration: 0.8, ease: [0.25, 0.1, 0.25, 1] },
                     }}
-                    className="rounded-lg p-3 flex items-start gap-4 tracking-normal"
+                    className="p-3 flex items-start gap-4 tracking-normal"
                     style={{
                       zIndex: totalLogs - distanceFromCenter,
                     }}
                   >
                     <div
-                      className={`flex items-center justify-center size-10 rounded-lg ${config.bgColor} shrink-0`}
+                      className={`flex items-center justify-center size-10 ${config.bgColor} shrink-0`}
                     >
                       <span className={config.textColor}>{config.icon}</span>
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-4">
                         <span
-                          className={`px-3 py-1 rounded-lg ${config.bgColor} ${config.textColor} font-medium tracking-normal text-xs capitalize`}
+                          className={`px-3 py-1 ${config.bgColor} ${config.textColor} font-medium tracking-normal text-xs capitalize`}
                         >
                           {log.status}
                         </span>
@@ -481,7 +484,7 @@ export default function Hero({ content }: HeroProps) {
           </motion.div>
         </div>
         {/* Code Snippet Card - Animated */}
-        <AnimatedHeightDiv className="bg-transparent border rounded-2xl overflow-hidden relative tracking-normal">
+        <AnimatedHeightDiv className="bg-transparent border-y border-dashed overflow-hidden relative tracking-normal">
           <div className="p-4 flex flex-col gap-4 justify-center">
             <AnimatePresence mode="wait">
               <motion.div
@@ -489,7 +492,7 @@ export default function Hero({ content }: HeroProps) {
                 initial={{ opacity: 0, filter: "blur(4px)" }}
                 animate={{ opacity: 1, filter: "blur(0px)" }}
                 exit={{ opacity: 0, filter: "blur(4px)" }}
-                transition={{ duration: 0.5, ease: "linear" }}
+                transition={{ duration: 0.2, ease: "easeIn" }}
                 className="h-full flex flex-col justify-center"
               >
                 <pre className="text-[13px]">
@@ -509,17 +512,17 @@ export default function Hero({ content }: HeroProps) {
                 className="text-center opacity-80"
               >
                 {currentCodeIndex === 0 && (
-                  <div className="p-1 border w-full rounded-2xl relative">
+                  <div className="p-1 border border-dashed w-full relative">
                     <div className="flex items-center gap-4">
                       <div className="flex items-center gap-2 text-lg flex-1">
                         <Input
                           placeholder="your-webhook-url"
-                          className="w-full tracking-normal text-left h-10 placeholder:opacity-70 font-normal"
+                          className="w-full tracking-normal text-left h-10 placeholder:opacity-70 font-normal bg-transparent border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none outline-none"
                         />
                       </div>
                       <Button
-                        variant={"secondary"}
-                        className="tracking-normal h-10"
+                        variant={"primary"}
+                        className="tracking-normal h-10 rounded-none"
                       >
                         Test Webhook
                       </Button>
@@ -527,17 +530,17 @@ export default function Hero({ content }: HeroProps) {
                   </div>
                 )}
                 {currentCodeIndex === 1 && (
-                  <div className="p-1 border w-full rounded-2xl relative">
+                  <div className="p-1 border border-dashed w-full relative">
                     <div className="flex items-center gap-4">
                       <div className="flex items-center gap-2 text-lg flex-1">
                         <Input
                           placeholder="recipient@example.com"
-                          className="w-full tracking-normal text-left h-10 placeholder:opacity-70 font-normal"
+                          className="w-full tracking-normal text-left h-10 placeholder:opacity-70 font-normal bg-transparent border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none outline-none"
                         />
                       </div>
                       <Button
                         variant={"primary"}
-                        className="tracking-normal h-10"
+                        className="tracking-normal h-10 rounded-none"
                       >
                         Send Email
                       </Button>
@@ -545,17 +548,17 @@ export default function Hero({ content }: HeroProps) {
                   </div>
                 )}
                 {currentCodeIndex === 2 && (
-                  <div className="p-1 border w-full rounded-2xl relative">
+                  <div className="p-1 border border-dashed w-full relative">
                     <div className="flex items-center gap-4">
                       <div className="flex items-center gap-2 text-lg flex-1">
                         <Input
                           placeholder="Your reply message..."
-                          className="w-full tracking-normal text-left h-10 placeholder:opacity-70 font-normal"
+                          className="w-full tracking-normal text-left h-10 placeholder:opacity-70 font-normal bg-transparent border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none outline-none"
                         />
                       </div>
                       <Button
-                        variant={"outline"}
-                        className="tracking-normal h-10"
+                        variant={"primary"}
+                        className="tracking-normal h-10 rounded-none"
                       >
                         Reply
                       </Button>
