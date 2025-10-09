@@ -3,6 +3,7 @@
 import { Badge } from "@/components/ui/badge"
 import { CodeBlock } from "@/components/ui/code-block"
 import Code2 from "@/components/icons/code-2"
+import CirclePlay from "@/components/icons/circle-play"
 
 export function DeveloperExperience() {
     return (
@@ -22,6 +23,15 @@ export function DeveloperExperience() {
                     <p className="text-left text-muted-foreground text-sm sm:text-base leading-6 sm:leading-7 tracking-normal">
                         A simple, consistent REST API with typed webhooks. Clear errors. Predictable resources.
                     </p>
+                    <a 
+                        href="https://youtu.be/MOi19cSQdRI" 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 text-sm text-primary hover:underline mt-2"
+                    >
+                        <CirclePlay width={16} height={16} />
+                        Watch setup tutorial
+                    </a>
                 </div>
             </div>
 

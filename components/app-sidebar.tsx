@@ -33,6 +33,7 @@ import Book2 from "./icons/book-2";
 import { Collapsible } from "./ui/collapsible";
 import { Button } from "./ui/button";
 import EnvelopePlus from "./icons/envelope-plus";
+import CirclePlay from "./icons/circle-play";
 import {
   Card,
   CardContent,
@@ -203,6 +204,18 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         >
           <SidebarGroupContent>
             <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton tooltip="Video Tutorial" asChild>
+                  <a
+                    href="https://youtu.be/MOi19cSQdRI"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <CirclePlay className="h-4 w-4" />
+                    <span>Video Tutorial</span>
+                  </a>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton tooltip="Docs" asChild>
                   <a
