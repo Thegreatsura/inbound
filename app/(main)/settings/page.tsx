@@ -1,6 +1,6 @@
 "use client"
 
-import { useSession } from '@/lib/auth/auth-client'
+import { useSession, signOut } from '@/lib/auth/auth-client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -22,6 +22,7 @@ import {
 import CreditCard2 from "@/components/icons/credit-card-2"
 import ChartTrendUp from "@/components/icons/chart-trend-up"
 import CircleCheck from "@/components/icons/circle-check"
+import CircleLogout from "@/components/icons/circle-logout"
 import { formatDistanceToNow } from 'date-fns'
 import { PricingTable } from '@/components/autumn/pricing-table-format'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -55,6 +56,14 @@ export default function SettingsPage() {
   
   const router = useRouter()
   const searchParams = useSearchParams()
+
+  const handleSignOut = async () => {
+    try {
+      await signOut()
+    } catch (error) {
+      toast.error('Failed to sign out')
+    }
+  }
 
   const handleUpdateProfile = async (formData: FormData) => {
     setIsLoading(true)
@@ -406,6 +415,23 @@ export default function SettingsPage() {
                 {new Date(session.user.updatedAt).toLocaleDateString()}
               </span>
             </div>
+          </CardContent>
+        </Card>
+
+        <div className="h-4 border-b border-slate-800"></div>
+
+        <Card className="border-none bg-transparent">
+          <CardHeader className="p-0 mb-4">
+            <CardTitle>Sign out</CardTitle>
+            <CardDescription>
+              Sign out of your account on this device
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Button variant="outline" onClick={handleSignOut}>
+              <CircleLogout width="16" height="16" className="mr-2" />
+              Sign out
+            </Button>
           </CardContent>
         </Card>
         </div>

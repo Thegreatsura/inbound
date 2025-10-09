@@ -1,5 +1,6 @@
 "use client"
 import * as React from "react"
+import Link from "next/link"
 import DoubleChevronDown from "@/components/icons/double-chevron-down"
 import CirclePlus from "@/components/icons/circle-plus"
 import { DotLottiePlayer, Controls } from "@dotlottie/react-player"
@@ -45,18 +46,19 @@ export function TeamSwitcher({
     return (
       <SidebarMenu>
         <SidebarMenuItem>
-          <div className="flex items-center justify-center gap-2 w-full mx-auto">
-            <button
-              type="button"
+          <Link
+            href="/"
+            className="flex items-center justify-center gap-2 w-full mx-auto"
+            onClick={() => {
+              const p = playerRef.current
+              if (!p) return
+              try { p.seek?.(0) } catch {}
+              p.play?.()
+            }}
+          >
+            <div
               aria-label="Play inbound animation"
               className="h-12 w-12 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
-              onClick={() => {
-                const p = playerRef.current
-                if (!p) return
-                try { p.seek?.(0) } catch {}
-                p.play?.()
-                // theme toggle disabled
-              }}
             >
               <DotLottiePlayer
                 ref={playerRef}
@@ -66,13 +68,13 @@ export function TeamSwitcher({
                 loop={false}
                 className="pointer-events-none"
               />
-            </button>
+            </div>
             <div className="text-left text-xl leading-tight group-data-[collapsible=icon]:hidden">
               <span className="truncate font-semibold text-3xl -ml-2 font-outfit">
                 inbound
               </span>
             </div>
-          </div>
+          </Link>
         </SidebarMenuItem>
       </SidebarMenu>
     )
