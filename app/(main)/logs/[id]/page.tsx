@@ -191,7 +191,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
 
     inboundDetails = {
       id: row.id,
-      emailId: row.id, // keep consistent for links; primary id
+      emailId: row.emailId, // The actual emailId used by the API for replies
       messageId: row.messageId,
       subject: row.subject,
       from: fromParsed?.addresses?.[0]?.address || 'unknown',
@@ -469,7 +469,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
                     <h3 className="text-sm font-semibold">Delivery Information</h3>
                     {inboundDetails.deliveries.length > 0 && (
                       <ResendEmailDialog 
-                        emailId={id}
+                        emailId={inboundDetails.emailId}
                         defaultEndpointId={inboundDetails.deliveries[0]?.config?.endpointId}
                         deliveries={inboundDetails.deliveries}
                       />
@@ -565,7 +565,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
                   <div>
                     <span className="text-muted-foreground">{isInbound ? "Inbound Email ID" : "Outbound Email ID"}:</span>
                     <div className="mt-1">
-                      <ClickableId id={id} />
+                      <ClickableId id={isInbound ? (inboundDetails?.emailId || id) : (outboundDetails?.id || id)} />
                     </div>
                   </div>
                   {((isInbound && inboundDetails?.messageId) || (outboundDetails && 'id' in outboundDetails)) && (
