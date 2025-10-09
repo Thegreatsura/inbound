@@ -22,7 +22,6 @@ import Copy2 from '@/components/icons/copy-2'
 import Code2 from '@/components/icons/code-2'
 import CirclePlay from '@/components/icons/circle-play'
 import ChevronDown from '@/components/icons/chevron-down'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 
 export default function OnboardingPage() {
   const { data: session, isPending } = useSession()
@@ -376,25 +375,6 @@ export default function OnboardingPage() {
             {isSkipping ? 'Skipping...' : 'Skip onboarding'}
           </Button>
         </div>
-
-        {/* Video Tutorial Card */}
-        <Alert className="mb-6 bg-primary/5 border-primary/20">
-          <AlertDescription className="flex items-start gap-3">
-            <CirclePlay className="h-5 w-5 mt-0.5 text-primary flex-shrink-0" />
-            <div className="flex-1">
-              <p className="font-medium text-sm mb-2">Prefer to watch a video?</p>
-              <a 
-                href="https://youtu.be/MOi19cSQdRI" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="text-sm text-primary hover:underline inline-flex items-center gap-1"
-              >
-                Watch our setup tutorial video
-                <span className="text-xs">↗</span>
-              </a>
-            </div>
-          </AlertDescription>
-        </Alert>
 
         {/* Step 1: Create an API key */}
         <Card className="rounded-xl mb-6">
