@@ -189,6 +189,11 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
       }
     })
 
+    // Defensive check: emailId should never be null since it's NOT NULL in schema
+    if (!row.emailId) {
+      console.error(`[CRITICAL] Email ID missing for structured email ${row.id}. This indicates a data integrity issue.`)
+    }
+
     inboundDetails = {
       id: row.id,
       emailId: row.emailId, // The actual emailId used by the API for replies
@@ -283,6 +288,12 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
     }
 
     const row = details[0]
+    
+    // Defensive check: id should never be null since it's the primary key
+    if (!row.id) {
+      console.error(`[CRITICAL] Sent email ID missing. This indicates a data integrity issue.`)
+    }
+    
     const parseJSON = (s: string | null) => { try { return s ? JSON.parse(s) : [] } catch { return [] } }
     const to = parseJSON(row.to)
     const cc = parseJSON(row.cc)
@@ -565,7 +576,19 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
                   <div>
                     <span className="text-muted-foreground">{isInbound ? "Inbound Email ID" : "Outbound Email ID"}:</span>
                     <div className="mt-1">
-                      <ClickableId id={isInbound ? (inboundDetails?.emailId || id) : (outboundDetails?.id || id)} />
+                      {isInbound ? (
+                        inboundDetails?.emailId ? (
+                          <ClickableId id={inboundDetails.emailId} />
+                        ) : (
+                          <span className="text-destructive text-xs">Data integrity error - missing emailId</span>
+                        )
+                      ) : (
+                        outboundDetails?.id ? (
+                          <ClickableId id={outboundDetails.id} />
+                        ) : (
+                          <span className="text-destructive text-xs">Data integrity error - missing id</span>
+                        )
+                      )}
                     </div>
                   </div>
                   {((isInbound && inboundDetails?.messageId) || (outboundDetails && 'id' in outboundDetails)) && (
