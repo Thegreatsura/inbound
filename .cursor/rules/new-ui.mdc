@@ -1,0 +1,7 @@
+---
+alwaysApply: true
+---
+
+We are going to be working on the new website UI for the inbound.new website. 
+
+The default theme we will be in is light mode, all styles and such should be added to the globals.css file under light mode. 

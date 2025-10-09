@@ -17,7 +17,7 @@ import {
   endpointDeliveries,
   sentEmails,
 } from "@/lib/db/schema";
-import { eq, and, sql, desc, gte } from "drizzle-orm";
+import { eq, and, sql, desc, gte, inArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { AWSSESReceiptRuleManager } from "@/lib/aws-ses/aws-ses-rules";
 import {
@@ -2795,43 +2795,95 @@ export async function getUnifiedEmailLogs(options?: {
     }
 
     const userId = session.user.id;
-    let allEmails: any[] = [];
+
+    // Build where conditions FIRST so they can be reused for both queries and stats
+    // Build inbound where conditions
+    let inboundWhereConditions = [eq(structuredEmails.userId, userId)];
+
+    // Add time range filter
+    if (timeRangeStart) {
+      inboundWhereConditions.push(
+        gte(structuredEmails.createdAt, timeRangeStart)
+      );
+    }
+
+    // Add domain filter for inbound emails - extract domain from toData JSON
+    if (domainFilter !== "all") {
+      inboundWhereConditions.push(
+        sql`${structuredEmails.toData}::jsonb->'addresses'->0->>'address' LIKE ${`%@${domainFilter}`}`
+      );
+    }
+
+    // Add search filter for inbound emails
+    if (searchQuery) {
+      inboundWhereConditions.push(
+        sql`(
+          ${structuredEmails.subject} ILIKE ${`%${searchQuery}%`} OR
+          ${structuredEmails.messageId} ILIKE ${`%${searchQuery}%`} OR
+          ${structuredEmails.fromData}::text ILIKE ${`%${searchQuery}%`} OR
+          ${structuredEmails.toData}::text ILIKE ${`%${searchQuery}%`}
+        )`
+      );
+    }
+
+    // Add status filter for inbound emails at SQL level
+    if (statusFilter !== "all" && statusFilter !== "pending" && statusFilter !== "failed" && statusFilter !== "delivered") {
+      // Handle special inbound-only filters
+      if (statusFilter === "no_delivery") {
+        inboundWhereConditions.push(
+          sql`NOT EXISTS (
+            SELECT 1 FROM ${endpointDeliveries} 
+            WHERE ${endpointDeliveries.emailId} = ${structuredEmails.emailId}
+          )`
+        );
+      } else if (statusFilter === "parse_failed") {
+        inboundWhereConditions.push(eq(structuredEmails.parseSuccess, false));
+      }
+    }
+
+    // Build outbound where conditions
+    let outboundWhereConditions = [eq(sentEmails.userId, userId)];
+
+    // Add time range filter
+    if (timeRangeStart) {
+      outboundWhereConditions.push(gte(sentEmails.createdAt, timeRangeStart));
+    }
+
+    // Add domain filter for outbound emails
+    if (domainFilter !== "all") {
+      outboundWhereConditions.push(eq(sentEmails.fromDomain, domainFilter));
+    }
+
+    // Add search filter for outbound emails
+    if (searchQuery) {
+      outboundWhereConditions.push(
+        sql`(
+          ${sentEmails.subject} ILIKE ${`%${searchQuery}%`} OR
+          ${sentEmails.messageId} ILIKE ${`%${searchQuery}%`} OR
+          ${sentEmails.from} ILIKE ${`%${searchQuery}%`} OR
+          ${sentEmails.to}::text ILIKE ${`%${searchQuery}%`}
+        )`
+      );
+    }
+
+    // Add status filter for outbound emails at SQL level
+    if (statusFilter === "delivered") {
+      outboundWhereConditions.push(eq(sentEmails.status, "sent"));
+    } else if (statusFilter === "failed") {
+      outboundWhereConditions.push(eq(sentEmails.status, "failed"));
+    } else if (statusFilter === "pending") {
+      outboundWhereConditions.push(eq(sentEmails.status, "pending"));
+    }
+
+    // We'll fetch both types and merge them at the SQL level
+    const combinedEmails: any[] = [];
 
     // Fetch inbound emails if not filtered to outbound only
     if (typeFilter === "all" || typeFilter === "inbound") {
-      // Build where conditions for inbound emails
-      let inboundWhereConditions = [eq(structuredEmails.userId, userId)];
 
-      // Add time range filter
-      if (timeRangeStart) {
-        inboundWhereConditions.push(
-          gte(structuredEmails.createdAt, timeRangeStart)
-        );
-      }
-
-      // Add domain filter for inbound emails - extract domain from toData JSON
-      if (domainFilter !== "all") {
-        inboundWhereConditions.push(
-          sql`${structuredEmails.toData}::jsonb->'addresses'->0->>'address' LIKE ${`%@${domainFilter}`}`
-        );
-      }
-
-      // Add search filter for inbound emails
-      if (searchQuery) {
-        inboundWhereConditions.push(
-          sql`(
-                        ${structuredEmails.subject} ILIKE ${`%${searchQuery}%`} OR
-                        ${structuredEmails.messageId} ILIKE ${`%${searchQuery}%`} OR
-                        ${structuredEmails.fromData}::text ILIKE ${`%${searchQuery}%`} OR
-                        ${structuredEmails.toData}::text ILIKE ${`%${searchQuery}%`}
-                    )`
-        );
-      }
-
-      // Fetch inbound emails with delivery status
-      const inboundEmailsWithDeliveries = await db
+      // Fetch inbound emails - only fields needed for list view
+      const inboundEmailsRaw = await db
         .select({
-          // Structured email info
           id: structuredEmails.id,
           emailId: structuredEmails.emailId,
           messageId: structuredEmails.messageId,
@@ -2839,367 +2891,280 @@ export async function getUnifiedEmailLogs(options?: {
           date: structuredEmails.date,
           fromData: structuredEmails.fromData,
           toData: structuredEmails.toData,
-          textBody: structuredEmails.textBody,
-          htmlBody: structuredEmails.htmlBody,
           attachments: structuredEmails.attachments,
           parseSuccess: structuredEmails.parseSuccess,
-          parseError: structuredEmails.parseError,
           createdAt: structuredEmails.createdAt,
-          updatedAt: structuredEmails.updatedAt,
-          isRead: structuredEmails.isRead,
-          readAt: structuredEmails.readAt,
-
-          // SES event info for auth results
-          spfVerdict: sesEvents.spfVerdict,
-          dkimVerdict: sesEvents.dkimVerdict,
-          dmarcVerdict: sesEvents.dmarcVerdict,
-          spamVerdict: sesEvents.spamVerdict,
-          virusVerdict: sesEvents.virusVerdict,
           processingTimeMillis: sesEvents.processingTimeMillis,
-
-          // Endpoint delivery info
-          endpointDeliveryId: endpointDeliveries.id,
-          endpointDeliveryStatus: endpointDeliveries.status,
-          endpointDeliveryType: endpointDeliveries.deliveryType,
-          endpointDeliveryAttempts: endpointDeliveries.attempts,
-          endpointDeliveryLastAttempt: endpointDeliveries.lastAttemptAt,
-          endpointDeliveryResponseData: endpointDeliveries.responseData,
-          endpointName: endpoints.name,
-          endpointType: endpoints.type,
-          endpointConfig: endpoints.config,
         })
         .from(structuredEmails)
         .leftJoin(sesEvents, eq(structuredEmails.sesEventId, sesEvents.id))
-        .leftJoin(
-          endpointDeliveries,
-          eq(structuredEmails.emailId, endpointDeliveries.emailId)
-        )
-        .leftJoin(endpoints, eq(endpointDeliveries.endpointId, endpoints.id))
         .where(and(...inboundWhereConditions))
         .orderBy(desc(structuredEmails.createdAt));
 
-      // Process inbound emails
-      const inboundEmailsMap = new Map();
+      // Fetch deliveries for these emails separately to avoid cartesian product
+      const emailIds = inboundEmailsRaw.map(e => e.emailId);
+      let deliveriesMap = new Map<string, any[]>();
+      
+      if (emailIds.length > 0) {
+        const deliveries = await db
+          .select({
+            emailId: endpointDeliveries.emailId,
+            id: endpointDeliveries.id,
+            status: endpointDeliveries.status,
+            deliveryType: endpointDeliveries.deliveryType,
+            responseData: endpointDeliveries.responseData,
+            endpointName: endpoints.name,
+            endpointType: endpoints.type,
+          })
+          .from(endpointDeliveries)
+          .leftJoin(endpoints, eq(endpointDeliveries.endpointId, endpoints.id))
+          .where(inArray(endpointDeliveries.emailId, emailIds));
 
-      inboundEmailsWithDeliveries.forEach((row) => {
-        const emailId = row.emailId;
+        // Group deliveries by emailId
+        deliveries.forEach(delivery => {
+          if (!deliveriesMap.has(delivery.emailId!)) {
+            deliveriesMap.set(delivery.emailId!, []);
+          }
 
-        if (!inboundEmailsMap.has(emailId)) {
-          // Parse JSON fields for display
-          let parsedFromData = null;
-          let parsedToData = null;
-          let parsedAttachments = [];
-
+          // Parse responseData to extract error and responseCode
+          let parsedResponse: any = null;
           try {
-            if (row.fromData) parsedFromData = JSON.parse(row.fromData);
-            if (row.toData) parsedToData = JSON.parse(row.toData);
-            if (row.attachments)
-              parsedAttachments = JSON.parse(row.attachments);
+            parsedResponse = delivery.responseData ? JSON.parse(delivery.responseData) : null;
           } catch (e) {
-            console.error("Failed to parse inbound email data:", e);
+            // Ignore parse errors
           }
 
-          const fromAddress =
-            parsedFromData?.addresses?.[0]?.address || "unknown";
-          const recipient = parsedToData?.addresses?.[0]?.address || "unknown";
-          const domain = recipient.split("@")[1] || "";
-
-          // Create preview from text or HTML content
-          let preview = "No preview available";
-          if (row.textBody) {
-            preview = row.textBody.slice(0, 150).replace(/\n/g, " ").trim();
-          } else if (row.htmlBody) {
-            preview = row.htmlBody
-              .replace(/<[^>]*>/g, "")
-              .slice(0, 150)
-              .replace(/\n/g, " ")
-              .trim();
-          }
-
-          inboundEmailsMap.set(emailId, {
-            type: "inbound",
-            id: row.id,
-            emailId: row.emailId,
-            messageId: row.messageId,
-            from: fromAddress,
-            recipient: recipient,
-            subject: row.subject || "No Subject",
-            receivedAt: row.date?.toISOString() || row.createdAt?.toISOString(),
-            domain: domain,
-            isRead: row.isRead || false,
-            readAt: row.readAt?.toISOString() || null,
-            preview: preview,
-            attachmentCount: parsedAttachments.length,
-            hasAttachments: parsedAttachments.length > 0,
-            parseSuccess: row.parseSuccess,
-            parseError: row.parseError,
-            processingTimeMs: row.processingTimeMillis || 0,
-            createdAt: row.createdAt?.toISOString(),
-            updatedAt: row.updatedAt?.toISOString() || null,
-            authResults: {
-              spf: row.spfVerdict || "UNKNOWN",
-              dkim: row.dkimVerdict || "UNKNOWN",
-              dmarc: row.dmarcVerdict || "UNKNOWN",
-              spam: row.spamVerdict || "UNKNOWN",
-              virus: row.virusVerdict || "UNKNOWN",
+          deliveriesMap.get(delivery.emailId!)!.push({
+            id: delivery.id,
+            type: delivery.deliveryType || "unknown",
+            status: delivery.status || "unknown",
+            error: parsedResponse?.error || null,
+            responseCode: parsedResponse?.statusCode || parsedResponse?.responseCode || null,
+            config: {
+              name: delivery.endpointName || "Unknown Endpoint",
+              type: delivery.endpointType || "unknown",
             },
-            deliveries: [],
           });
+        });
+      }
+
+      // Process inbound emails - only build list view data
+      for (const row of inboundEmailsRaw) {
+        let parsedFromData = null;
+        let parsedToData = null;
+        let parsedAttachments = [];
+
+        try {
+          if (row.fromData) parsedFromData = JSON.parse(row.fromData);
+          if (row.toData) parsedToData = JSON.parse(row.toData);
+          if (row.attachments) parsedAttachments = JSON.parse(row.attachments);
+        } catch (e) {
+          console.error("Failed to parse inbound email data:", e);
         }
 
-        const email = inboundEmailsMap.get(emailId);
+        const fromAddress = parsedFromData?.addresses?.[0]?.address || "unknown";
+        const recipient = parsedToData?.addresses?.[0]?.address || "unknown";
+        const domain = recipient.split("@")[1] || "";
 
-        // Add endpoint delivery if exists
-        if (row.endpointDeliveryId) {
-          let endpointConfig = null;
-          try {
-            endpointConfig = {
-              name: row.endpointName || "Unknown Endpoint",
-              type: row.endpointType || "unknown",
-              config: row.endpointConfig
-                ? JSON.parse(row.endpointConfig)
-                : null,
-            };
-          } catch (e) {
-            console.error("Failed to parse endpoint config:", e);
+        const emailDeliveries = deliveriesMap.get(row.emailId) || [];
+
+        // Apply status filter based on deliveries if needed
+        if (statusFilter === "delivered") {
+          if (!emailDeliveries.some(d => d.status === "success")) {
+            continue;
           }
-
-          let responseData = null;
-          try {
-            responseData = row.endpointDeliveryResponseData
-              ? JSON.parse(row.endpointDeliveryResponseData)
-              : null;
-          } catch (e) {
-            console.error("Failed to parse endpoint response data:", e);
+        } else if (statusFilter === "failed") {
+          if (!emailDeliveries.some(d => d.status === "failed") && row.parseSuccess !== false) {
+            continue;
           }
-
-          email.deliveries.push({
-            id: row.endpointDeliveryId,
-            type: row.endpointDeliveryType || "unknown",
-            status: row.endpointDeliveryStatus || "unknown",
-            attempts: row.endpointDeliveryAttempts || 0,
-            lastAttemptAt:
-              row.endpointDeliveryLastAttempt?.toISOString() || null,
-            responseData: responseData,
-            config: endpointConfig,
-          });
+        } else if (statusFilter === "pending") {
+          if (!emailDeliveries.some(d => d.status === "pending")) {
+            continue;
+          }
         }
-      });
 
-      allEmails.push(...Array.from(inboundEmailsMap.values()));
+        combinedEmails.push({
+          type: "inbound",
+          id: row.id,
+          emailId: row.emailId,
+          messageId: row.messageId,
+          from: fromAddress,
+          recipient: recipient,
+          subject: row.subject || "No Subject",
+          domain: domain,
+          hasAttachments: parsedAttachments.length > 0,
+          parseSuccess: row.parseSuccess,
+          processingTimeMs: row.processingTimeMillis || 0,
+          createdAt: row.createdAt?.toISOString(),
+          deliveries: emailDeliveries,
+        });
+      }
     }
 
     // Fetch outbound emails if not filtered to inbound only
     if (typeFilter === "all" || typeFilter === "outbound") {
-      // Build where conditions for outbound emails
-      let outboundWhereConditions = [eq(sentEmails.userId, userId)];
-
-      // Add time range filter
-      if (timeRangeStart) {
-        outboundWhereConditions.push(gte(sentEmails.createdAt, timeRangeStart));
-      }
-
-      // Add domain filter for outbound emails - extract domain from fromDomain
-      if (domainFilter !== "all") {
-        outboundWhereConditions.push(eq(sentEmails.fromDomain, domainFilter));
-      }
-
-      // Add search filter for outbound emails
-      if (searchQuery) {
-        outboundWhereConditions.push(
-          sql`(
-                        ${sentEmails.subject} ILIKE ${`%${searchQuery}%`} OR
-                        ${sentEmails.messageId} ILIKE ${`%${searchQuery}%`} OR
-                        ${sentEmails.from} ILIKE ${`%${searchQuery}%`} OR
-                        ${sentEmails.to}::text ILIKE ${`%${searchQuery}%`}
-                    )`
-        );
-      }
-
-      // Fetch outbound emails
+      // Fetch outbound emails - only fields needed for list view
       const outboundEmails = await db
         .select({
           id: sentEmails.id,
-          from: sentEmails.from,
           fromAddress: sentEmails.fromAddress,
           fromDomain: sentEmails.fromDomain,
           to: sentEmails.to,
-          cc: sentEmails.cc,
-          bcc: sentEmails.bcc,
-          replyTo: sentEmails.replyTo,
           subject: sentEmails.subject,
-          textBody: sentEmails.textBody,
-          htmlBody: sentEmails.htmlBody,
-          headers: sentEmails.headers,
           attachments: sentEmails.attachments,
           status: sentEmails.status,
           messageId: sentEmails.messageId,
           provider: sentEmails.provider,
-          providerResponse: sentEmails.providerResponse,
           sentAt: sentEmails.sentAt,
-          failureReason: sentEmails.failureReason,
-          idempotencyKey: sentEmails.idempotencyKey,
           createdAt: sentEmails.createdAt,
-          updatedAt: sentEmails.updatedAt,
         })
         .from(sentEmails)
         .where(and(...outboundWhereConditions))
         .orderBy(desc(sentEmails.createdAt));
 
-      // Process outbound emails
-      const processedOutboundEmails = outboundEmails.map((email) => {
-        // Parse JSON fields
+      // Process outbound emails - only build list view data
+      for (const email of outboundEmails) {
         let toArray = [];
-        let ccArray = [];
-        let bccArray = [];
-        let replyToArray = [];
         let parsedAttachments = [];
 
         try {
           if (email.to) toArray = JSON.parse(email.to);
-          if (email.cc) ccArray = JSON.parse(email.cc);
-          if (email.bcc) bccArray = JSON.parse(email.bcc);
-          if (email.replyTo) replyToArray = JSON.parse(email.replyTo);
-          if (email.attachments)
-            parsedAttachments = JSON.parse(email.attachments);
+          if (email.attachments) parsedAttachments = JSON.parse(email.attachments);
         } catch (e) {
           console.error("Failed to parse outbound email data:", e);
         }
 
-        // Create preview from text or HTML content
-        let preview = "No preview available";
-        if (email.textBody) {
-          preview = email.textBody.slice(0, 150).replace(/\n/g, " ").trim();
-        } else if (email.htmlBody) {
-          preview = email.htmlBody
-            .replace(/<[^>]*>/g, "")
-            .slice(0, 150)
-            .replace(/\n/g, " ")
-            .trim();
-        }
-
-        return {
+        combinedEmails.push({
           type: "outbound",
           id: email.id,
-          emailId: email.id, // For outbound emails, id and emailId are the same
+          emailId: email.id,
           messageId: email.messageId || "",
           from: email.fromAddress,
           to: toArray,
-          cc: ccArray.length > 0 ? ccArray : null,
-          bcc: bccArray.length > 0 ? bccArray : null,
-          replyTo: replyToArray.length > 0 ? replyToArray : null,
           subject: email.subject || "No Subject",
           domain: email.fromDomain,
-          isRead: true, // Outbound emails are always "read" by definition
-          readAt: email.sentAt?.toISOString() || null,
-          preview: preview,
-          attachmentCount: parsedAttachments.length,
           hasAttachments: parsedAttachments.length > 0,
           status: email.status,
           provider: email.provider || "ses",
           sentAt: email.sentAt?.toISOString() || null,
-          failureReason: email.failureReason,
-          providerResponse: email.providerResponse
-            ? JSON.parse(email.providerResponse)
-            : null,
-          idempotencyKey: email.idempotencyKey,
           createdAt: email.createdAt?.toISOString(),
-          updatedAt: email.updatedAt?.toISOString() || null,
-        };
-      });
-
-      allEmails.push(...processedOutboundEmails);
+        });
+      }
     }
 
-    // Sort all emails by creation date (most recent first)
-    allEmails.sort(
+    // Sort combined emails by creation date (most recent first)
+    combinedEmails.sort(
       (a, b) =>
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
 
-    // Apply status filter
-    if (statusFilter !== "all") {
-      allEmails = allEmails.filter((email) => {
-        switch (statusFilter) {
-          case "delivered":
-            if (email.type === "inbound") {
-              return email.deliveries.some((d: any) => d.status === "success");
-            } else {
-              return email.status === "sent";
-            }
-          case "failed":
-            if (email.type === "inbound") {
-              return (
-                email.deliveries.some((d: any) => d.status === "failed") ||
-                !email.parseSuccess
-              );
-            } else {
-              return email.status === "failed";
-            }
-          case "pending":
-            if (email.type === "inbound") {
-              return email.deliveries.some((d: any) => d.status === "pending");
-            } else {
-              return email.status === "pending";
-            }
-          case "no_delivery":
-            return email.type === "inbound" && email.deliveries.length === 0;
-          case "parse_failed":
-            return email.type === "inbound" && !email.parseSuccess;
-          default:
-            return true;
-        }
-      });
-    }
+    // Apply pagination AFTER sorting
+    const total = combinedEmails.length;
+    const paginatedEmails = combinedEmails.slice(offset, offset + limit);
 
-    // Apply pagination
-    const paginatedEmails = allEmails.slice(offset, offset + limit);
-
-    // Get unique domains for filter options
+    // Get unique domains from paginated results for filter dropdown (lightweight)
     const uniqueDomainsSet = new Set<string>();
-    allEmails.forEach((email) => {
+    paginatedEmails.forEach((email) => {
       if (email.domain) {
         uniqueDomainsSet.add(email.domain);
       }
     });
     const uniqueDomains = Array.from(uniqueDomainsSet).sort();
 
-    // Calculate stats
-    const inboundEmails = allEmails.filter((e) => e.type === "inbound");
-    const outboundEmails = allEmails.filter((e) => e.type === "outbound");
+    // Calculate LIFETIME stats using SQL aggregates (not filtered by time/domain/search)
+    // Only filter by userId for lifetime totals
+    const lifetimeInboundConditions = [eq(structuredEmails.userId, userId)];
+    const lifetimeOutboundConditions = [eq(sentEmails.userId, userId)];
+
+    // Inbound stats
+    const inboundStatsQuery = db
+      .select({
+        totalInbound: sql<number>`COUNT(*)`.as('total_inbound'),
+        avgProcessing: sql<number>`AVG(${sesEvents.processingTimeMillis})`.as('avg_processing'),
+        parseFailed: sql<number>`COUNT(CASE WHEN ${structuredEmails.parseSuccess} = false THEN 1 END)`.as('parse_failed'),
+      })
+      .from(structuredEmails)
+      .leftJoin(sesEvents, eq(structuredEmails.sesEventId, sesEvents.id))
+      .where(and(...lifetimeInboundConditions));
+
+    // Outbound stats
+    const outboundStatsQuery = db
+      .select({
+        totalOutbound: sql<number>`COUNT(*)`.as('total_outbound'),
+        sent: sql<number>`COUNT(CASE WHEN ${sentEmails.status} = 'sent' THEN 1 END)`.as('sent'),
+        failed: sql<number>`COUNT(CASE WHEN ${sentEmails.status} = 'failed' THEN 1 END)`.as('failed'),
+        pending: sql<number>`COUNT(CASE WHEN ${sentEmails.status} = 'pending' THEN 1 END)`.as('pending'),
+      })
+      .from(sentEmails)
+      .where(and(...lifetimeOutboundConditions));
+
+    // Inbound delivery stats - use separate queries for accuracy
+    const withDeliveriesQuery = db
+      .select({ count: sql<number>`COUNT(DISTINCT e.email_id)`.as('count') })
+      .from(sql`(
+        SELECT DISTINCT ${endpointDeliveries.emailId} as email_id
+        FROM ${endpointDeliveries}
+        INNER JOIN ${structuredEmails} ON ${endpointDeliveries.emailId} = ${structuredEmails.emailId}
+        WHERE ${structuredEmails.userId} = ${userId}
+      ) e`);
+
+    const successfulDeliveriesQuery = db
+      .select({ count: sql<number>`COUNT(DISTINCT e.email_id)`.as('count') })
+      .from(sql`(
+        SELECT DISTINCT ${endpointDeliveries.emailId} as email_id
+        FROM ${endpointDeliveries}
+        INNER JOIN ${structuredEmails} ON ${endpointDeliveries.emailId} = ${structuredEmails.emailId}
+        WHERE ${structuredEmails.userId} = ${userId}
+          AND ${endpointDeliveries.status} = 'success'
+      ) e`);
+
+    const failedDeliveriesQuery = db
+      .select({ count: sql<number>`COUNT(DISTINCT e.email_id)`.as('count') })
+      .from(sql`(
+        SELECT DISTINCT ${endpointDeliveries.emailId} as email_id
+        FROM ${endpointDeliveries}
+        INNER JOIN ${structuredEmails} ON ${endpointDeliveries.emailId} = ${structuredEmails.emailId}
+        WHERE ${structuredEmails.userId} = ${userId}
+          AND ${endpointDeliveries.status} = 'failed'
+      ) e`);
+
+    const pendingDeliveriesQuery = db
+      .select({ count: sql<number>`COUNT(DISTINCT e.email_id)`.as('count') })
+      .from(sql`(
+        SELECT DISTINCT ${endpointDeliveries.emailId} as email_id
+        FROM ${endpointDeliveries}
+        INNER JOIN ${structuredEmails} ON ${endpointDeliveries.emailId} = ${structuredEmails.emailId}
+        WHERE ${structuredEmails.userId} = ${userId}
+          AND ${endpointDeliveries.status} = 'pending'
+      ) e`);
+
+    const [inboundStats, outboundStats, withDeliveries, successfulDeliveries, failedDeliveries, pendingDeliveries] = await Promise.all([
+      inboundStatsQuery,
+      outboundStatsQuery,
+      withDeliveriesQuery,
+      successfulDeliveriesQuery,
+      failedDeliveriesQuery,
+      pendingDeliveriesQuery,
+    ]);
+
+    const inboundStatsRow = inboundStats[0] || { totalInbound: 0, avgProcessing: 0, parseFailed: 0 };
+    const outboundStatsRow = outboundStats[0] || { totalOutbound: 0, sent: 0, failed: 0, pending: 0 };
+    
+    // Parse counts as numbers to avoid string concatenation
+    const withDeliveriesCount = Number(withDeliveries[0]?.count || 0);
+    const successfulDeliveriesCount = Number(successfulDeliveries[0]?.count || 0);
+    const failedDeliveriesCount = Number(failedDeliveries[0]?.count || 0);
+    const pendingDeliveriesCount = Number(pendingDeliveries[0]?.count || 0);
 
     const stats = {
-      totalEmails: allEmails.length,
-      inbound: inboundEmails.length,
-      outbound: outboundEmails.length,
-      delivered: allEmails.filter((e) => {
-        if (e.type === "inbound") {
-          return e.deliveries.some((d: any) => d.status === "success");
-        } else {
-          return e.status === "sent";
-        }
-      }).length,
-      failed: allEmails.filter((e) => {
-        if (e.type === "inbound") {
-          return (
-            e.deliveries.some((d: any) => d.status === "failed") ||
-            !e.parseSuccess
-          );
-        } else {
-          return e.status === "failed";
-        }
-      }).length,
-      pending: allEmails.filter((e) => {
-        if (e.type === "inbound") {
-          return e.deliveries.some((d: any) => d.status === "pending");
-        } else {
-          return e.status === "pending";
-        }
-      }).length,
-      noDelivery: inboundEmails.filter((e) => e.deliveries.length === 0).length,
-      avgProcessingTime:
-        inboundEmails.reduce((sum, e) => sum + (e.processingTimeMs || 0), 0) /
-        (inboundEmails.length || 1),
+      totalEmails: Number(inboundStatsRow.totalInbound) + Number(outboundStatsRow.totalOutbound),
+      inbound: Number(inboundStatsRow.totalInbound),
+      outbound: Number(outboundStatsRow.totalOutbound),
+      delivered: successfulDeliveriesCount + Number(outboundStatsRow.sent),
+      failed: failedDeliveriesCount + Number(inboundStatsRow.parseFailed) + Number(outboundStatsRow.failed),
+      pending: pendingDeliveriesCount + Number(outboundStatsRow.pending),
+      noDelivery: Number(inboundStatsRow.totalInbound) - withDeliveriesCount,
+      avgProcessingTime: Math.round(Number(inboundStatsRow.avgProcessing) || 0),
     };
 
     return {
@@ -3207,10 +3172,10 @@ export async function getUnifiedEmailLogs(options?: {
       data: {
         emails: paginatedEmails,
         pagination: {
-          total: allEmails.length,
+          total,
           limit,
           offset,
-          hasMore: offset + limit < allEmails.length,
+          hasMore: offset + limit < total,
         },
         filters: {
           uniqueDomains,

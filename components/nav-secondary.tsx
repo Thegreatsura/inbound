@@ -32,10 +32,10 @@ export function NavSecondary({
                   <SidebarMenuButton 
                     tooltip={item.title}
                     isActive={true}
-                    className="cursor-default opacity-80"
+                    className="cursor-default"
                   >
-                    {item.icon && <item.icon className="h-4 w-4 opacity-80" />}
-                    <span className="opacity-80">{item.title}</span>
+                    {item.icon && <item.icon className="h-4 w-4" />}
+                    <span>{item.title}</span>
                   </SidebarMenuButton>
                 ) : (
                   <SidebarMenuButton 
@@ -45,11 +45,9 @@ export function NavSecondary({
                   >
                     <OptimizedLink href={item.url} className="flex items-center gap-2">
                       {item.icon && (
-                        <item.icon
-                          className="h-4 w-4 opacity-50 text-black dark:text-white"
-                        />
+                        <item.icon className="h-4 w-4 opacity-60" />
                       )}
-                      <span className="opacity-50 text-black dark:text-white">{item.title}</span>
+                      <span className="opacity-60">{item.title}</span>
                     </OptimizedLink>
                   </SidebarMenuButton>
                 )}

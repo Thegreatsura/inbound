@@ -18,6 +18,7 @@ import Globe2 from "@/components/icons/globe-2"
 import Cloud2 from "@/components/icons/cloud-2"
 import Code2 from "@/components/icons/code-2"
 import StackPerspective2 from "@/components/icons/stack-perspective-2"
+import EmailFlow from "@/components/icons/email-flow"
 import UserGroup from "@/components/icons/user-group"
 
 export interface NavigationItem {
@@ -41,7 +42,7 @@ export const navigationConfig: NavigationConfig = {
     {
       title: "Email Flow",
       url: "/logs",
-      icon: StackPerspective2,
+      icon: EmailFlow,
       description: "View email flow, delivery status, and routing details"
     },
     {

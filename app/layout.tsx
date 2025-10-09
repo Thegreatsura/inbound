@@ -146,7 +146,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en">
       <head>
         {/* Structured Data for SEO */}
 
@@ -207,8 +207,8 @@ export default function RootLayout({
                 try {
                   var theme = localStorage.getItem('theme');
                   var d = document.documentElement;
-                  if (theme === 'light') d.classList.remove('dark');
-                  else d.classList.add('dark');
+                  if (theme === 'dark') d.classList.add('dark');
+                  else d.classList.remove('dark');
                 } catch {}
               })();
             `,

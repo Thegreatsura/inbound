@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { format } from 'date-fns'
 import CircleCheck from '@/components/icons/circle-check'
-import ObjRemove from '@/components/icons/obj-remove'
+import CircleXmark from '@/components/icons/circle-xmark'
 import CirclePlus from '@/components/icons/circle-plus'
 import Refresh2 from '@/components/icons/refresh-2'
 import BoltLightning from '@/components/icons/bolt-lightning'
@@ -30,6 +30,7 @@ import Ban2 from '@/components/icons/ban-2'
 import { toast } from 'sonner'
 import { EndpointWithStats } from '@/features/endpoints/types'
 import { ApiIdLabel } from '@/components/api-id-label'
+import SidebarToggleButton from '@/components/sidebar-toggle-button'
 
 type FilterType = 'all' | 'webhook' | 'email' | 'email_group'
 type FilterStatus = 'all' | 'active' | 'disabled'
@@ -264,7 +265,7 @@ export default function EndpointsPage() {
           <Card className="border-destructive/50 bg-destructive/10">
             <CardContent className="p-2">
               <div className="flex items-center gap-2 text-destructive">
-                <ObjRemove width="16" height="16" />
+                <CircleXmark width="16" height="16" />
                 <span>{error.message}</span>
                 <Button variant="ghost" size="sm" onClick={() => refetch()} className="ml-auto text-destructive hover:text-destructive/80">
                   Try Again
@@ -283,11 +284,14 @@ export default function EndpointsPage() {
         <div className="max-w-5xl mx-auto px-2">
           <div className="mb-6">
             <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-semibold text-foreground mb-1 tracking-tight">Endpoints</h2>
-                <p className="text-muted-foreground text-sm font-medium">
-                  {totalEndpoints} endpoints
-                </p>
+              <div className="flex items-center gap-2">
+                <SidebarToggleButton />
+                <div>
+                  <h2 className="text-2xl font-semibold text-foreground mb-1 tracking-tight">Endpoints</h2>
+                  <p className="text-muted-foreground text-sm font-medium">
+                    {totalEndpoints} endpoints
+                  </p>
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 <Button size="default" onClick={() => setCreateDialogOpen(true)}>
@@ -391,7 +395,7 @@ export default function EndpointsPage() {
                       onClick={() => setShowMigrationSuccess(false)}
                       className="text-green-500 hover:text-green-500/80"
                     >
-                      <ObjRemove width="16" height="16" />
+                      <CircleXmark width="16" height="16" />
                     </Button>
                   </div>
                 </CardContent>

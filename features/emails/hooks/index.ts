@@ -83,6 +83,8 @@ export function useInfiniteUnifiedEmailLogsQuery(options: Omit<EmailLogsOptions,
     },
     staleTime: 30 * 1000,
     gcTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false, // Prevent refetch on window focus for better performance
+    refetchOnMount: false, // Use cached data if available instead of refetching
     placeholderData: (prev) => prev,
   })
 }

@@ -148,7 +148,7 @@ export function SiteHeader() {
 
   return (
     <>
-      <header className="border-b border-border bg-sidebar/90 backdrop-blur-sm sticky top-0 z-[100]">
+      <header className="border-b border-border bg-background/90 backdrop-blur-sm sticky top-0 z-[100]">
         <div className="max-w-7xl mx-auto px-4 py-6 flex justify-between items-center">
           <Link href="/" className="flex items-center gap-2">
             <InboundIcon width={32} height={32} />
