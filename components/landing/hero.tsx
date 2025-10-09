@@ -7,6 +7,7 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { AnimatedHeightDiv } from "../animated-height-div";
 import { HomepageContent } from "@/app/actions/homepage";
+import CirclePlay from "@/components/icons/circle-play";
 
 interface EmailLog {
   id: string;
@@ -309,19 +310,34 @@ export default function Hero({ content }: HeroProps) {
           <p className="text-lg tracking-normal opacity-80">
             {content.heroSublineText}
           </p>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Button 
-              className="tracking-normal h-10 max-xs:grow"
+              className="tracking-normal h-10"
               onClick={() => router.push('/login')}
             >
               {content.ctaButtonPrimaryText}
             </Button>
             <Button
               variant={"secondary"}
-              className="tracking-normal h-10 max-xs:grow"
+              className="tracking-normal h-10"
               onClick={() => router.push('/docs')}
             >
               View Documentation
+            </Button>
+            <Button
+              variant={"ghost"}
+              className="tracking-normal h-10"
+              asChild
+            >
+              <a 
+                href="https://youtu.be/MOi19cSQdRI" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2"
+              >
+                <CirclePlay width={16} height={16} />
+                Watch Tutorial
+              </a>
             </Button>
           </div>
         </div>

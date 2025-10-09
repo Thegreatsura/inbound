@@ -7,6 +7,7 @@ import { LoginForm } from "@/components/login-form";
 import InboundIcon from "@/components/icons/inbound";
 import { useSession } from "@/lib/auth/auth-client";
 import { Button } from "@/components/ui/button";
+import CirclePlay from "@/components/icons/circle-play";
 
 // Component that handles search params logic
 function LoginContent() {
@@ -195,6 +196,15 @@ function LoginContent() {
             />
           </div>
           <div className="flex flex-col items-center gap-2 -mt-4 p-4 pt-6 bg-muted/50 border border-border rounded-b-2xl shadow-[0_4px_10px_0.5px_rgba(0,0,0,0.1),inset_0_0_0_1px_rgba(255,255,255,0.8)] dark:shadow-[0_4px_10px_0.5px_rgba(0,0,0,0.3),inset_0_0_0_1px_rgba(255,255,255,0.1)]">
+            <a 
+              href="https://youtu.be/MOi19cSQdRI" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 text-xs text-primary hover:underline mb-2"
+            >
+              <CirclePlay width={14} height={14} />
+              Watch setup tutorial video
+            </a>
             <p className="text-xs text-muted-foreground">
               By clicking signing in , you agree to our{" "}
               <Link href="/terms" className="underline underline-offset-2 hover:text-foreground transition-colors">
