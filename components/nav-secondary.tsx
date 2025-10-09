@@ -32,10 +32,10 @@ export function NavSecondary({
                   <SidebarMenuButton 
                     tooltip={item.title}
                     isActive={true}
-                    className="cursor-default opacity-80"
+                    className="cursor-default"
                   >
-                    {item.icon && <item.icon className="h-4 w-4 opacity-80" />}
-                    <span className="opacity-80">{item.title}</span>
+                    {item.icon && <item.icon className="h-4 w-4" />}
+                    <span>{item.title}</span>
                   </SidebarMenuButton>
                 ) : (
                   <SidebarMenuButton 

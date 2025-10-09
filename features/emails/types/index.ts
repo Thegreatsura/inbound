@@ -1,23 +1,17 @@
-// User email log types with delivery status
+// User email log types with delivery status (simplified for list view)
 export interface EmailLogDelivery {
   id: string
   type: 'webhook' | 'email_forward' | 'unknown'
   status: 'success' | 'failed' | 'pending' | 'unknown'
-  attempts: number
-  lastAttemptAt: string | null
   error?: string | null
-  deliveryTimeMs?: number | null
   responseCode?: number | null
-  responseData?: any
   config?: {
     name: string
     type?: string
-    url?: string
-    config?: any
   }
 }
 
-// Base interface for common email log properties
+// Base interface for common email log properties (only fields used in list view)
 export interface BaseEmailLogEntry {
   id: string
   emailId: string
@@ -25,30 +19,16 @@ export interface BaseEmailLogEntry {
   from: string
   subject: string
   domain: string
-  isRead: boolean
-  readAt: string | null
-  preview: string
-  attachmentCount: number
   hasAttachments: boolean
   createdAt: string
-  updatedAt: string | null
 }
 
 // Inbound email log entry (received emails)
 export interface InboundEmailLogEntry extends BaseEmailLogEntry {
   type: 'inbound'
   recipient: string
-  receivedAt: string
   parseSuccess: boolean
-  parseError: string | null
   processingTimeMs: number
-  authResults: {
-    spf: string
-    dkim: string
-    dmarc: string
-    spam: string
-    virus: string
-  }
   deliveries: EmailLogDelivery[]
 }
 
@@ -56,15 +36,9 @@ export interface InboundEmailLogEntry extends BaseEmailLogEntry {
 export interface OutboundEmailLogEntry extends BaseEmailLogEntry {
   type: 'outbound'
   to: string[] // Array of recipients
-  cc?: string[] | null
-  bcc?: string[] | null
-  replyTo?: string[] | null
   status: 'pending' | 'sent' | 'failed'
   provider: string
   sentAt: string | null
-  failureReason: string | null
-  providerResponse?: any
-  idempotencyKey?: string | null
 }
 
 // Union type for all email log entries

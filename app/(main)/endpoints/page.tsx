@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { format } from 'date-fns'
 import CircleCheck from '@/components/icons/circle-check'
-import ObjRemove from '@/components/icons/obj-remove'
+import CircleXmark from '@/components/icons/circle-xmark'
 import CirclePlus from '@/components/icons/circle-plus'
 import Refresh2 from '@/components/icons/refresh-2'
 import BoltLightning from '@/components/icons/bolt-lightning'
@@ -265,7 +265,7 @@ export default function EndpointsPage() {
           <Card className="border-destructive/50 bg-destructive/10">
             <CardContent className="p-2">
               <div className="flex items-center gap-2 text-destructive">
-                <ObjRemove width="16" height="16" />
+                <CircleXmark width="16" height="16" />
                 <span>{error.message}</span>
                 <Button variant="ghost" size="sm" onClick={() => refetch()} className="ml-auto text-destructive hover:text-destructive/80">
                   Try Again
@@ -395,7 +395,7 @@ export default function EndpointsPage() {
                       onClick={() => setShowMigrationSuccess(false)}
                       className="text-green-500 hover:text-green-500/80"
                     >
-                      <ObjRemove width="16" height="16" />
+                      <CircleXmark width="16" height="16" />
                     </Button>
                   </div>
                 </CardContent>

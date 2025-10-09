@@ -38,7 +38,6 @@ import Globe2 from "@/components/icons/globe-2";
 import Envelope2 from "@/components/icons/envelope-2";
 import CirclePlus from "@/components/icons/circle-plus";
 import Refresh2 from "@/components/icons/refresh-2";
-import ObjRemove from "@/components/icons/obj-remove";
 import BoltLightning from "@/components/icons/bolt-lightning";
 import UserGroup from "@/components/icons/user-group";
 import Download2 from "@/components/icons/download-2";
@@ -770,7 +769,7 @@ export default function DomainDetailPage() {
         <Card className="border-destructive/50 bg-destructive/10">
           <CardContent className="pt-6">
             <div className="flex items-center gap-2 text-destructive">
-              <ObjRemove width="16" height="16" />
+              <CircleXmark width="16" height="16" />
               <span>
                 {domainError instanceof Error
                   ? domainError.message

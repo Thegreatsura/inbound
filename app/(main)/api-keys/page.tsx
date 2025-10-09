@@ -28,7 +28,7 @@ import Trash2 from "@/components/icons/trash-2"
 import Refresh2 from "@/components/icons/refresh-2"
 import Magnifier2 from "@/components/icons/magnifier-2"
 import Filter2 from "@/components/icons/filter-2"
-import ObjRemove from "@/components/icons/obj-remove"
+import CircleXmark from "@/components/icons/circle-xmark"
 import { ApiIdLabel } from '@/components/api-id-label'
 import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 import SidebarToggleButton from '@/components/sidebar-toggle-button'
@@ -171,7 +171,7 @@ export default function ApiKeysPage() {
         <div className="max-w-6xl mx-auto">
           <div className="bg-destructive/10 border border-destructive/20 rounded-xl p-6">
             <div className="flex items-center gap-2 text-destructive">
-              <ObjRemove width="16" height="16" />
+              <CircleXmark width="16" height="16" />
               <span>{apiKeysError instanceof Error ? apiKeysError.message : 'Failed to load API keys'}</span>
               <Button variant="ghost" size="sm" onClick={() => refetchApiKeys()} className="ml-auto text-destructive hover:text-destructive/80">
                 Try Again
