@@ -205,10 +205,10 @@ export default function RootLayout({
             __html: `
               (function(){
                 try {
-                  var theme = localStorage.getItem('theme');
                   var d = document.documentElement;
-                  if (theme === 'dark') d.classList.add('dark');
-                  else d.classList.remove('dark');
+                  // Enforce light mode only
+                  d.classList.remove('dark');
+                  try { localStorage.setItem('theme', 'light'); } catch {}
                 } catch {}
               })();
             `,

@@ -34,16 +34,8 @@ export function TeamSwitcher({
   const [activeTeam, setActiveTeam] = React.useState(teams[0])
   const playerRef = React.useRef<any>(null)
   const toggleTheme = React.useCallback(() => {
-    if (typeof document === "undefined") return
-    const root = document.documentElement
-    const isDark = root.classList.contains("dark")
-    if (isDark) {
-      root.classList.remove("dark")
-      try { localStorage.setItem("theme", "light") } catch {}
-    } else {
-      root.classList.add("dark")
-      try { localStorage.setItem("theme", "dark") } catch {}
-    }
+    // Disabled: light-only mode
+    return
   }, [])
   if (!activeTeam) {
     return null
@@ -63,7 +55,7 @@ export function TeamSwitcher({
                 if (!p) return
                 try { p.seek?.(0) } catch {}
                 p.play?.()
-                // toggleTheme()
+                // theme toggle disabled
               }}
             >
               <DotLottiePlayer

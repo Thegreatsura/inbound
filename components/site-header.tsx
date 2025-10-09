@@ -13,7 +13,7 @@ import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 export function SiteHeader() {
   const pathname = usePathname();
   const { data: session } = useSession();
-  const [theme, setTheme] = useState<"light" | "dark">("dark");
+  const [theme, setTheme] = useState<"light" | "dark">("light");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const mobileMenuToggleRef = useRef<HTMLButtonElement>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
@@ -21,15 +21,11 @@ export function SiteHeader() {
   const shouldReduceMotion = useReducedMotion();
 
   useEffect(() => {
-    if (typeof window === "undefined" || typeof document === "undefined")
-      return;
-
-    const saved = localStorage.getItem("theme");
-    const themeValue = saved === "light" ? "light" : "dark";
-    setTheme(themeValue);
-
-    // Apply the theme to the DOM immediately
-    document.documentElement.classList.toggle("dark", themeValue === "dark");
+    if (typeof window === "undefined" || typeof document === "undefined") return;
+    // Enforce light mode only
+    try { localStorage.setItem("theme", "light"); } catch {}
+    setTheme("light");
+    document.documentElement.classList.remove("dark");
   }, []);
 
   useEffect(() => {
@@ -100,10 +96,8 @@ export function SiteHeader() {
   }, [isMobileMenuOpen]);
 
   const toggleTheme = () => {
-    const next = theme === "light" ? "dark" : "light";
-    setTheme(next);
-    localStorage.setItem("theme", next);
-    document.documentElement.classList.toggle("dark", next === "dark");
+    // Disabled: light-only mode
+    return;
   };
 
   const toggleMobileMenu = () => {

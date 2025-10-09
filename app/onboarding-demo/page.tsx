@@ -40,8 +40,8 @@ export default function OnboardingDemoPage() {
     receivedAt: string
   } | null>(null)
 
-  // Theme management for easter egg
-  const [theme, setTheme] = useState<'light' | 'dark'>('dark')
+  // Light-only mode enforced (easter egg disabled)
+  const [theme, setTheme] = useState<'light' | 'dark'>('light')
 
   // Set default demo email when session loads
   useEffect(() => {
@@ -83,29 +83,18 @@ export default function OnboardingDemoPage() {
     return () => clearInterval(interval)
   }, [pollEndTime, isListeningForReply])
 
-  // Initialize theme from localStorage
+  // Initialize and enforce light-only
   useEffect(() => {
     try {
-      const saved = localStorage.getItem('theme')
-      const initialTheme = saved === 'light' ? 'light' : 'dark'
-      setTheme(initialTheme)
+      localStorage.setItem('theme', 'light')
+      setTheme('light')
+      const d = document.documentElement
+      d.classList.remove('dark')
     } catch { }
   }, [])
 
-  // Theme toggle function (easter egg)
-  const toggleTheme = () => {
-    try {
-      const next = theme === 'light' ? 'dark' : 'light'
-      setTheme(next)
-      localStorage.setItem('theme', next)
-      const d = document.documentElement
-      if (next === 'light') d.classList.remove('dark')
-      else d.classList.add('dark')
-      
-      // Fun toast message for the easter egg
-      toast.success(`Switched to ${next} mode! 🎨`)
-    } catch { }
-  }
+  // Theme toggle disabled
+  const toggleTheme = () => { return }
 
   const handleCreateApiKey = async () => {
     try {
