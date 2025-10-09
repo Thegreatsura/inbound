@@ -469,7 +469,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
                     <h3 className="text-sm font-semibold">Delivery Information</h3>
                     {inboundDetails.deliveries.length > 0 && (
                       <ResendEmailDialog 
-                        emailId={inboundDetails.emailId}
+                        emailId={inboundDetails.id}
                         defaultEndpointId={inboundDetails.deliveries[0]?.config?.endpointId}
                         deliveries={inboundDetails.deliveries}
                       />
