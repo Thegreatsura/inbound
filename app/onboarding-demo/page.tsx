@@ -344,13 +344,28 @@ export default function OnboardingDemoPage() {
               email data for maximum observability.
             </p>
             
-            <div className="mt-6">
+            <div className="mt-6 flex items-center gap-3">
               <Button
                 variant="outline"
                 onClick={() => router.push('/logs')}
                 className="text-muted-foreground hover:text-foreground border-border hover:border-foreground/20"
               >
                 Skip to Dashboard
+              </Button>
+              <Button
+                variant="ghost"
+                asChild
+                className="text-primary hover:text-primary/80"
+              >
+                <a 
+                  href="https://youtu.be/MOi19cSQdRI" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2"
+                >
+                  <CirclePlay width={16} height={16} />
+                  Watch Video Tutorial
+                </a>
               </Button>
             </div>
           </div>
@@ -706,6 +721,22 @@ export default function OnboardingDemoPage() {
         {/* Right Sidebar */}
         <div className="w-80 px-12 py-12 bg-muted/20">
           <div className="space-y-8">
+            <div className="bg-card rounded-lg p-4 border border-border shadow-sm">
+              <div className="font-semibold text-sm text-foreground mb-3">Video Tutorial</div>
+              <a 
+                href="https://youtu.be/MOi19cSQdRI" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 text-xs text-primary hover:underline font-medium"
+              >
+                <CirclePlay width={14} height={14} />
+                Watch setup tutorial
+              </a>
+              <p className="text-xs text-muted-foreground font-medium tracking-[-0.02em] mt-2">
+                Learn how to set up and use Inbound in this step-by-step video guide.
+              </p>
+            </div>
+
             <div className="bg-card rounded-lg p-4 border border-border shadow-sm">
               <div className="font-semibold text-sm text-foreground mb-2">inbound Email SDK</div>
               <p className="text-xs text-muted-foreground font-medium tracking-[-0.02em]">
