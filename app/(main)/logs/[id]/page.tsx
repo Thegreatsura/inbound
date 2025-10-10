@@ -191,7 +191,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
 
     inboundDetails = {
       id: row.id,
-      emailId: row.id, // keep consistent for links; primary id
+      emailId: row.emailId, // receivedEmails.id reference  
       messageId: row.messageId,
       subject: row.subject,
       from: fromParsed?.addresses?.[0]?.address || 'unknown',
@@ -560,17 +560,25 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
           <div className="space-y-4">
             <Card className="rounded-xl overflow-hidden">
               <CardContent className="p-6">
-                <h3 className="text-sm font-semibold mb-3">Details</h3>
+                <h3 className="text-sm font-semibold mb-3">Email Identifiers</h3>
                 <div className="space-y-4 text-sm">
                   <div>
-                    <span className="text-muted-foreground">{isInbound ? "Inbound Email ID" : "Outbound Email ID"}:</span>
+                    <span className="text-muted-foreground">Record ID {isInbound ? "(structuredEmails.id)" : "(sentEmails.id)"}:</span>
                     <div className="mt-1">
                       <ClickableId id={id} />
                     </div>
                   </div>
+                  {isInbound && inboundDetails?.emailId && inboundDetails.emailId !== id && (
+                    <div>
+                      <span className="text-muted-foreground">Legacy Email ID (receivedEmails.id):</span>
+                      <div className="mt-1 text-xs text-muted-foreground font-mono">
+                        {inboundDetails.emailId}
+                      </div>
+                    </div>
+                  )}
                   {((isInbound && inboundDetails?.messageId) || (outboundDetails && 'id' in outboundDetails)) && (
                     <div>
-                      <span className="text-muted-foreground">Message ID:</span>
+                      <span className="text-muted-foreground">Message ID (RFC 822):</span>
                       <div className="mt-1">
                         <ClickableId id={isInbound ? inboundDetails?.messageId || '' : outboundDetails?.id || ''} preview={true} />
                       </div>

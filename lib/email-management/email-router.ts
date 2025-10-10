@@ -92,31 +92,7 @@ export async function routeEmail(emailId: string): Promise<void> {
  * Get email data with structured information
  */
 async function getEmailWithStructuredData(emailId: string) {
-  // First get the email record to find the recipient
-  const emailRecord = await db
-    .select({
-      recipient: structuredEmails.emailId, // We'll get this from receivedEmails
-      userId: structuredEmails.userId,
-    })
-    .from(structuredEmails)
-    .where(eq(structuredEmails.emailId, emailId))
-    .limit(1)
-
-  if (!emailRecord[0]) {
-    return null
-  }
-
-  // Get the recipient from receivedEmails table
-  const { receivedEmails } = await import('@/lib/db/schema')
-  const recipientRecord = await db
-    .select({ recipient: receivedEmails.recipient })
-    .from(receivedEmails)
-    .where(eq(receivedEmails.id, emailId))
-    .limit(1)
-
-  const recipient = recipientRecord[0]?.recipient
-
-  // Now get the full structured email data
+  // Get the full structured email data in a single query
   const emailWithStructuredData = await db
     .select({
       // Email record fields
@@ -128,6 +104,7 @@ async function getEmailWithStructuredData(emailId: string) {
       messageId: structuredEmails.messageId,
       date: structuredEmails.date,
       subject: structuredEmails.subject,
+      recipient: structuredEmails.recipient,
       fromData: structuredEmails.fromData,
       toData: structuredEmails.toData,
       ccData: structuredEmails.ccData,
@@ -145,18 +122,16 @@ async function getEmailWithStructuredData(emailId: string) {
       parseError: structuredEmails.parseError,
     })
     .from(structuredEmails)
-    .where(eq(structuredEmails.emailId, emailId))
+    .where(eq(structuredEmails.id, emailId))
     .limit(1)
 
   const result = emailWithStructuredData[0]
-  if (result) {
-    return {
-      ...result,
-      recipient: recipient || null
-    }
+  if (!result) {
+    return null
   }
 
-  return null
+  // Recipient is now stored directly in structuredEmails.recipient
+  return result
 }
 
 /**

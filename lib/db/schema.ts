@@ -274,13 +274,14 @@ export const parsedEmails = pgTable('parsed_emails', { // deprecating.... use st
 
 export const structuredEmails = pgTable('structured_emails', {
   id: varchar('id', { length: 255 }).primaryKey(),
-  emailId: varchar('email_id', { length: 255 }).notNull(), // Reference to receivedEmails table
+  emailId: varchar('email_id', { length: 255 }).notNull(), // Self-referencing (same as id) - kept for backward compatibility with existing queries
   sesEventId: varchar('ses_event_id', { length: 255 }).notNull(), // Reference to sesEvents table
 
   // Core email fields matching ParsedEmailData
   messageId: varchar('message_id', { length: 255 }), // string | undefined
   date: timestamp('date'), // Date | undefined  
   subject: text('subject'), // string | undefined
+  recipient: varchar('recipient', { length: 255 }), // Specific recipient for this email record
 
   // Address fields - stored as JSON matching ParsedEmailAddress structure
   fromData: text('from_data'), // ParsedEmailAddress | null - JSON: { text: string, addresses: Array<{name: string|null, address: string|null}> }

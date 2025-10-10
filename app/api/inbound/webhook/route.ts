@@ -2,7 +2,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { sesEvents, receivedEmails, parsedEmails, structuredEmails, emailDomains, emailAddresses, webhooks, webhookDeliveries } from '@/lib/db/schema'
+import { sesEvents, structuredEmails, emailDomains, emailAddresses, webhooks, webhookDeliveries } from '@/lib/db/schema'
 import { nanoid } from 'nanoid'
 import { eq, and } from 'drizzle-orm'
 import { Autumn as autumn } from 'autumn-js'
@@ -165,131 +165,23 @@ async function checkAndTrackInboundTrigger(userId: string, recipient: string): P
 }
 
 /**
- * Create a parsed email record from ParsedEmailData
- */
-async function createParsedEmailRecord(emailId: string, parsedEmailData: ParsedEmailData): Promise<void> {
-  try {
-    console.log(`📝 Webhook - Creating parsed email record for ${emailId}`)
-
-    // Helper function to extract first address from ParsedEmailAddress
-    const extractFirstAddress = (addressData: any) => {
-      if (!addressData || !addressData.addresses || addressData.addresses.length === 0) {
-        return { address: null, name: null }
-      }
-      const first = addressData.addresses[0]
-      return {
-        address: first.address || null,
-        name: first.name || null
-      }
-    }
-
-    // Extract primary from address for indexing
-    const fromInfo = extractFirstAddress(parsedEmailData.from)
-
-    // Count attachments
-    const attachmentCount = parsedEmailData.attachments?.length || 0
-    const hasAttachments = attachmentCount > 0
-
-    const parsedEmailRecord = {
-      id: nanoid(),
-      emailId: emailId,
-      messageId: parsedEmailData.messageId || null,
-      
-      // From address fields
-      fromText: parsedEmailData.from?.text || null,
-      fromAddress: fromInfo.address,
-      fromName: fromInfo.name,
-      
-      // To addresses
-      toText: parsedEmailData.to?.text || null,
-      toAddresses: parsedEmailData.to?.addresses ? JSON.stringify(parsedEmailData.to.addresses) : null,
-      
-      // CC addresses
-      ccText: parsedEmailData.cc?.text || null,
-      ccAddresses: parsedEmailData.cc?.addresses ? JSON.stringify(parsedEmailData.cc.addresses) : null,
-      
-      // BCC addresses
-      bccText: parsedEmailData.bcc?.text || null,
-      bccAddresses: parsedEmailData.bcc?.addresses ? JSON.stringify(parsedEmailData.bcc.addresses) : null,
-      
-      // Reply-to addresses
-      replyToText: parsedEmailData.replyTo?.text || null,
-      replyToAddresses: parsedEmailData.replyTo?.addresses ? JSON.stringify(parsedEmailData.replyTo.addresses) : null,
-      
-      // Email content
-      subject: parsedEmailData.subject || null,
-      textBody: parsedEmailData.textBody || null,
-      htmlBody: parsedEmailData.htmlBody || null,
-      
-      // Email threading
-      inReplyTo: parsedEmailData.inReplyTo || null,
-      references: parsedEmailData.references ? JSON.stringify(parsedEmailData.references) : null,
-      
-      // Email metadata
-      priority: typeof parsedEmailData.priority === 'string' ? parsedEmailData.priority : null,
-      emailDate: parsedEmailData.date || null,
-      
-      // Attachments
-      attachments: parsedEmailData.attachments ? JSON.stringify(parsedEmailData.attachments) : null,
-      attachmentCount: attachmentCount,
-      hasAttachments: hasAttachments,
-      
-      // Headers
-      headers: parsedEmailData.headers ? JSON.stringify(parsedEmailData.headers) : null,
-      
-      // Content flags
-      hasTextBody: !!parsedEmailData.textBody,
-      hasHtmlBody: !!parsedEmailData.htmlBody,
-      
-      // Parsing metadata
-      parseSuccess: true,
-      parseError: null,
-      
-      // Timestamps
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    }
-
-    await db.insert(parsedEmails).values(parsedEmailRecord)
-    console.log(`✅ Webhook - Created parsed email record ${parsedEmailRecord.id} for email ${emailId}`)
-
-  } catch (error) {
-    console.error(`❌ Webhook - Error creating parsed email record for ${emailId}:`, error)
-    
-    // Create a minimal record indicating parse failure
-    try {
-      const failedParseRecord = {
-        id: nanoid(),
-        emailId: emailId,
-        parseSuccess: false,
-        parseError: error instanceof Error ? error.message : 'Unknown parsing error',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      }
-      await db.insert(parsedEmails).values(failedParseRecord)
-      console.log(`⚠️ Webhook - Created failed parse record for email ${emailId}`)
-    } catch (insertError) {
-      console.error(`❌ Webhook - Failed to create failed parse record for ${emailId}:`, insertError)
-    }
-  }
-}
-
-/**
  * Create a structured email record from ParsedEmailData that matches the type exactly
  */
 async function createStructuredEmailRecord(
-  emailId: string, 
   sesEventId: string, 
   parsedEmailData: ParsedEmailData, 
-  userId: string
-): Promise<void> {
+  userId: string,
+  recipient: string
+): Promise<string> {
   try {
-    console.log(`📝 Webhook - Creating structured email record for ${emailId}`)
+    console.log(`📝 Webhook - Creating structured email record for recipient ${recipient}`)
 
+    const structuredEmailId = 'inbnd_' + nanoid()
     const structuredEmailRecord = {
-      id: nanoid(),
-      emailId: emailId,
+      id: structuredEmailId,
+      emailId: structuredEmailId, // Self-referencing for backward compatibility
       sesEventId: sesEventId,
+      recipient: recipient,
       
       // Core email fields matching ParsedEmailData exactly
       messageId: parsedEmailData.messageId || null,
@@ -333,17 +225,21 @@ async function createStructuredEmailRecord(
     }
 
     await db.insert(structuredEmails).values(structuredEmailRecord)
-    console.log(`✅ Webhook - Created structured email record ${structuredEmailRecord.id} for email ${emailId}`)
+    console.log(`✅ Webhook - Created structured email record ${structuredEmailId}`)
+    
+    return structuredEmailId
 
   } catch (error) {
-    console.error(`❌ Webhook - Error creating structured email record for ${emailId}:`, error)
+    console.error(`❌ Webhook - Error creating structured email record for recipient ${recipient}:`, error)
     
     // Create a minimal record indicating parse failure
     try {
+      const failedStructuredId = 'inbnd_' + nanoid()
       const failedStructuredRecord = {
-        id: nanoid(),
-        emailId: emailId,
+        id: failedStructuredId,
+        emailId: failedStructuredId, // Self-referencing
         sesEventId: sesEventId,
+        recipient: recipient,
         parseSuccess: false,
         parseError: error instanceof Error ? error.message : 'Unknown parsing error',
         userId: userId,
@@ -351,9 +247,11 @@ async function createStructuredEmailRecord(
         updatedAt: new Date(),
       }
       await db.insert(structuredEmails).values(failedStructuredRecord)
-      console.log(`⚠️ Webhook - Created failed structured parse record for email ${emailId}`)
+      console.log(`⚠️ Webhook - Created failed structured parse record ${failedStructuredId}`)
+      return failedStructuredId
     } catch (insertError) {
-      console.error(`❌ Webhook - Failed to create failed structured parse record for ${emailId}:`, insertError)
+      console.error(`❌ Webhook - Failed to create failed structured parse record for recipient ${recipient}:`, insertError)
+      throw insertError
     }
   }
 }
@@ -368,24 +266,16 @@ export async function triggerEmailAction(emailId: string): Promise<{ success: bo
   try {
     console.log(`🎯 triggerEmailAction - Processing email ID: ${emailId}`)
 
-    // Get the email record with structured data
-    const emailWithStructuredData = await db
+    // Get the structured email record directly
+    const emailRecords = await db
       .select({
-        // Email record fields
-        emailId: receivedEmails.id,
-        messageId: receivedEmails.messageId,
-        from: receivedEmails.from,
-        to: receivedEmails.to,
-        recipient: receivedEmails.recipient,
-        subject: receivedEmails.subject,
-        receivedAt: receivedEmails.receivedAt,
-        userId: receivedEmails.userId,
-        
-        // Structured email data (ParsedEmailData)
-        structuredId: structuredEmails.id,
-        structuredMessageId: structuredEmails.messageId,
-        structuredDate: structuredEmails.date,
-        structuredSubject: structuredEmails.subject,
+        // All structured email data
+        id: structuredEmails.id,
+        emailId: structuredEmails.emailId,
+        messageId: structuredEmails.messageId,
+        date: structuredEmails.date,
+        subject: structuredEmails.subject,
+        recipient: structuredEmails.recipient,
         fromData: structuredEmails.fromData,
         toData: structuredEmails.toData,
         ccData: structuredEmails.ccData,
@@ -401,23 +291,31 @@ export async function triggerEmailAction(emailId: string): Promise<{ success: bo
         priority: structuredEmails.priority,
         parseSuccess: structuredEmails.parseSuccess,
         parseError: structuredEmails.parseError,
+        userId: structuredEmails.userId,
       })
-      .from(receivedEmails)
-      .leftJoin(structuredEmails, eq(receivedEmails.id, structuredEmails.emailId))
-      .where(eq(receivedEmails.id, emailId))
+      .from(structuredEmails)
+      .where(eq(structuredEmails.id, emailId))
       .limit(1)
 
-    if (!emailWithStructuredData[0]) {
+    if (!emailRecords[0]) {
       return { success: false, error: 'Email not found' }
     }
 
-    const emailData = emailWithStructuredData[0]
+    const emailData = emailRecords[0]
 
-    // Check if we have structured data
-    if (!emailData.structuredId || !emailData.parseSuccess) {
+    // Check if parsing was successful
+    if (!emailData.parseSuccess) {
       return { 
         success: false, 
-        error: `No structured email data found or parsing failed: ${emailData.parseError || 'Unknown error'}` 
+        error: `Email parsing failed: ${emailData.parseError || 'Unknown error'}` 
+      }
+    }
+
+    // Check if recipient exists
+    if (!emailData.recipient) {
+      return {
+        success: false,
+        error: 'Email recipient not found'
       }
     }
 
@@ -467,9 +365,9 @@ export async function triggerEmailAction(emailId: string): Promise<{ success: bo
 
     // Reconstruct ParsedEmailData from structured data
     const parsedEmailData: ParsedEmailData = {
-      messageId: emailData.structuredMessageId || undefined,
-      date: emailData.structuredDate || undefined,
-      subject: emailData.structuredSubject || undefined,
+      messageId: emailData.messageId || undefined,
+      date: emailData.date || undefined,
+      subject: emailData.subject || undefined,
       from: emailData.fromData ? JSON.parse(emailData.fromData) : null,
       to: emailData.toData ? JSON.parse(emailData.toData) : null,
       cc: emailData.ccData ? JSON.parse(emailData.ccData) : null,
@@ -490,13 +388,13 @@ export async function triggerEmailAction(emailId: string): Promise<{ success: bo
       event: 'email.received',
       timestamp: new Date().toISOString(),
       email: {
-        id: emailData.structuredId, // Use structured email ID for v2 API compatibility
+        id: emailData.id, // structuredEmails.id
         messageId: emailData.messageId,
-        from: emailData.from,
-        to: JSON.parse(emailData.to),
+        from: emailData.fromData ? JSON.parse(emailData.fromData) : null,
+        to: emailData.toData ? JSON.parse(emailData.toData) : null,
         recipient: emailData.recipient,
         subject: emailData.subject,
-        receivedAt: emailData.receivedAt,
+        receivedAt: emailData.date,
         
         // Full ParsedEmailData structure
         parsedData: parsedEmailData,
@@ -528,14 +426,14 @@ export async function triggerEmailAction(emailId: string): Promise<{ success: bo
     }
 
     // Prepare headers
-    const headers: HeadersInit = {
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       'User-Agent': 'InboundEmail-Webhook/1.0',
       'X-Webhook-Event': 'email.received',
       'X-Webhook-ID': webhook.id,
       'X-Webhook-Timestamp': webhookPayload.timestamp,
-      'X-Email-ID': emailData.structuredId, // Use structured email ID for v2 API compatibility
-      'X-Message-ID': emailData.messageId,
+      'X-Email-ID': emailData.id,
+      'X-Message-ID': emailData.messageId || '',
     }
 
     if (signature) {
@@ -598,7 +496,7 @@ export async function triggerEmailAction(emailId: string): Promise<{ success: bo
     // Create final delivery record with all data
     const deliveryRecord = {
       id: deliveryId,
-      emailId: emailData.emailId,
+      emailId: emailData.id, // structuredEmails.id
       webhookId: webhook.id,
       endpoint: webhook.url,
       payload: payloadString,
@@ -782,7 +680,7 @@ export async function POST(request: NextRequest) {
           let parsedEmailData: ParsedEmailData | null = null
           console.log('Email content:', record.emailContent)
           if (record.emailContent) {
-            console.log(`📧📧📧 Webhook - Parsing email content for ${mail.messageId}`)
+            console.log(`📧 Webhook - Parsing email content for ${mail.messageId}`)
             try {
               parsedEmailData = await parseEmail(record.emailContent)
               console.log(`✅ Webhook - Successfully parsed email content for ${mail.messageId}`)
@@ -791,85 +689,33 @@ export async function POST(request: NextRequest) {
             }
           }
 
-          const emailRecord = {
-            id: nanoid(),
-            sesEventId: sesEventId,
-            messageId: mail.messageId,
-            from: mail.source,
-            to: JSON.stringify(mail.destination),
-            recipient: recipient,
-            subject: mail.commonHeaders.subject || 'No Subject',
-            
-            // Parsed email data fields
-            fromParsed: parsedEmailData?.from ? JSON.stringify(parsedEmailData.from) : null,
-            toParsed: parsedEmailData?.to ? JSON.stringify(parsedEmailData.to) : null,
-            ccParsed: parsedEmailData?.cc ? JSON.stringify(parsedEmailData.cc) : null,
-            bccParsed: parsedEmailData?.bcc ? JSON.stringify(parsedEmailData.bcc) : null,
-            replyToParsed: parsedEmailData?.replyTo ? JSON.stringify(parsedEmailData.replyTo) : null,
-            
-            // Email content
-            textBody: parsedEmailData?.textBody || null,
-            htmlBody: parsedEmailData?.htmlBody || null,
-            rawEmailContent: record.emailContent || null,
-            
-            // Email metadata
-            inReplyTo: parsedEmailData?.inReplyTo || null,
-            references: parsedEmailData?.references ? JSON.stringify(parsedEmailData.references) : null,
-            priority: typeof parsedEmailData?.priority === 'string' ? parsedEmailData.priority : null,
-            
-            // Attachments and headers
-            attachments: parsedEmailData?.attachments ? JSON.stringify(parsedEmailData.attachments) : null,
-            headers: parsedEmailData?.headers ? JSON.stringify(parsedEmailData.headers) : null,
-            
-            // Timestamps
-            emailDate: parsedEmailData?.date || null,
-            receivedAt: new Date(mail.timestamp),
-            processedAt: new Date(),
-            
-            // Status and tracking
-            status: emailStatus,
-            isRead: false,
-            readAt: null,
-            
-            // Legacy metadata field for backward compatibility
-            metadata: JSON.stringify({
+          // Create structured email record - this is now the PRIMARY and ONLY record
+          let structuredEmailId: string
+          if (parsedEmailData) {
+            structuredEmailId = await createStructuredEmailRecord(sesEventId, parsedEmailData, userId, recipient)
+          } else {
+            // Create minimal record for unparseable emails
+            console.warn(`⚠️ Webhook - No parsed data for ${mail.messageId}, creating minimal record`)
+            structuredEmailId = 'inbnd_' + nanoid()
+            const minimalRecord = {
+              id: structuredEmailId,
+              emailId: structuredEmailId,
+              sesEventId: sesEventId,
               recipient: recipient,
-              authResults: {
-                spf: receipt.spfVerdict.status,
-                dkim: receipt.dkimVerdict.status,
-                dmarc: receipt.dmarcVerdict.status,
-                spam: receipt.spamVerdict.status,
-                virus: receipt.virusVerdict.status,
-              },
-              s3Location: record.s3Location || {
-                bucket: receipt.action.bucketName,
-                key: receipt.action.objectKey,
-              },
-              headers: mail.commonHeaders,
-              lambdaContext: payload.context,
-              processingTimeMillis: receipt.processingTimeMillis,
-              emailContent: record.emailContent ? {
-                hasContent: true,
-                contentSize: record.emailContent.length,
-                contentPreview: record.emailContent.substring(0, 500) + (record.emailContent.length > 500 ? '...' : '')
-              } : {
-                hasContent: false,
-                s3Error: record.s3Error
-              },
-              inboundTriggerTracked: true, // Flag to indicate this email was tracked for inbound triggers
-              parsedSuccessfully: !!parsedEmailData, // Flag to indicate if email was successfully parsed
-              senderBlocked: senderBlocked, // Flag to indicate if the sender was blocked
-              blockedReason: senderBlocked ? 'Sender email address is on the blocklist' : null
-            }),
-            userId: userId,
-            updatedAt: new Date(),
+              messageId: mail.messageId,
+              subject: mail.commonHeaders.subject || 'No Subject',
+              parseSuccess: false,
+              parseError: 'Failed to parse email content',
+              userId: userId,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            }
+            await db.insert(structuredEmails).values(minimalRecord)
           }
-
-          await db.insert(receivedEmails).values(emailRecord)
           
           // Initialize email processing record
           const emailProcessingRecord = {
-            emailId: emailRecord.id,
+            emailId: structuredEmailId,
             sesEventId: sesEventId,
             messageId: mail.messageId,
             recipient: recipient,
@@ -877,18 +723,11 @@ export async function POST(request: NextRequest) {
             webhookDelivery: null as { success: boolean; deliveryId?: string; error?: string } | null,
           }
 
-          console.log(`✅ Webhook - Stored email ${mail.messageId} for ${recipient}`);
-
-          // Create parsed email record if we have parsed data
-          if (parsedEmailData) {
-            await createParsedEmailRecord(emailRecord.id, parsedEmailData) // this will be deprecated in the future
-            // Create structured email record that matches ParsedEmailData type exactly
-            await createStructuredEmailRecord(emailRecord.id, sesEventId, parsedEmailData, userId)
-          }
+          console.log(`✅ Webhook - Stored email ${mail.messageId} for ${recipient} with ID ${structuredEmailId}`);
 
           // Route email using the new unified routing system (skip routing for blocked emails)
           if (emailStatus === 'blocked') {
-            console.log(`🚫 Webhook - Skipping routing for blocked email ${emailRecord.id} from ${mail.source}`)
+            console.log(`🚫 Webhook - Skipping routing for blocked email ${structuredEmailId} from ${mail.source}`)
             
             // Update processing record to indicate blocked
             emailProcessingRecord.webhookDelivery = {
@@ -898,8 +737,8 @@ export async function POST(request: NextRequest) {
           } else {
             try {
               
-              await routeEmail(emailRecord.id)
-              console.log(`✅ Webhook - Successfully routed email ${emailRecord.id}`)
+              await routeEmail(structuredEmailId)
+              console.log(`✅ Webhook - Successfully routed email ${structuredEmailId}`)
               
               // Update processing record with success
               emailProcessingRecord.webhookDelivery = {
@@ -907,7 +746,7 @@ export async function POST(request: NextRequest) {
                 deliveryId: undefined // Will be tracked in endpointDeliveries table
               }
             } catch (routingError) {
-              console.error(`❌ Webhook - Failed to route email ${emailRecord.id}:`, routingError)
+              console.error(`❌ Webhook - Failed to route email ${structuredEmailId}:`, routingError)
               
               // Update processing record with failure
               emailProcessingRecord.webhookDelivery = {
