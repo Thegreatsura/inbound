@@ -563,7 +563,7 @@ export class EmailThreader {
       }
     }
     
-    // Check if it's an email ID in structuredEmails (using emailId field which references receivedEmails.id)
+    // Check if it's a structured email ID (primary check - uses structuredEmails.id)
     const structuredEmail = await db
       .select({ 
         id: structuredEmails.id,
@@ -573,18 +573,42 @@ export class EmailThreader {
       .from(structuredEmails)
       .where(
         and(
-          eq(structuredEmails.emailId, id), // ✅ Fixed: Use emailId field
+          eq(structuredEmails.id, id),
           eq(structuredEmails.userId, userId)
         )
       )
       .limit(1)
     
     if (structuredEmail[0]) {
-      console.log(`📧 ID ${id} is an email ID`)
+      console.log(`📧 ID ${id} is a structured email ID`)
       return {
         emailId: id,
         isThreadId: false,
         threadId: structuredEmail[0].threadId || undefined
+      }
+    }
+    
+    // Fallback: Check if it's a legacy emailId (for backward compatibility with old IDs)
+    const legacyEmail = await db
+      .select({ 
+        id: structuredEmails.id,
+        threadId: structuredEmails.threadId 
+      })
+      .from(structuredEmails)
+      .where(
+        and(
+          eq(structuredEmails.emailId, id),
+          eq(structuredEmails.userId, userId)
+        )
+      )
+      .limit(1)
+    
+    if (legacyEmail[0]) {
+      console.log(`📧 ID ${id} is a legacy email ID, resolved to ${legacyEmail[0].id}`)
+      return {
+        emailId: legacyEmail[0].id,
+        isThreadId: false,
+        threadId: legacyEmail[0].threadId || undefined
       }
     }
     

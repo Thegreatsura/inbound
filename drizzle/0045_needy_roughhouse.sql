@@ -1,0 +1,1 @@
+ALTER TABLE "structured_emails" ADD COLUMN "recipient" varchar(255);
