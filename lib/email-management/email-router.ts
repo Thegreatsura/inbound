@@ -7,7 +7,7 @@
 
 import { db } from '@/lib/db'
 import { structuredEmails, emailAddresses, endpoints, endpointDeliveries, emailDomains } from '@/lib/db/schema'
-import { eq, and } from 'drizzle-orm'
+import { eq, and, or } from 'drizzle-orm'
 import { triggerEmailAction } from './webhook-trigger'
 import { EmailForwarder } from './email-forwarder'
 import { EmailThreader } from './email-threader'
@@ -122,7 +122,12 @@ async function getEmailWithStructuredData(emailId: string) {
       parseError: structuredEmails.parseError,
     })
     .from(structuredEmails)
-    .where(eq(structuredEmails.id, emailId))
+    .where(
+      or(
+        eq(structuredEmails.id, emailId),
+        eq(structuredEmails.emailId, emailId)
+      )
+    )
     .limit(1)
 
   const result = emailWithStructuredData[0]
