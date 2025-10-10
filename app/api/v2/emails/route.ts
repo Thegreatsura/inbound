@@ -21,7 +21,7 @@ import { canUserSendFromEmail, extractEmailAddress, extractDomain } from '@/lib/
 
 // POST /api/v2/emails types
 export interface PostEmailsRequest {
-    from: string // Now supports both "email@domain.com" and "Display Name <email@domain.com>" formats
+    from: string
     to: string | string[]
     subject: string
     bcc?: string | string[]

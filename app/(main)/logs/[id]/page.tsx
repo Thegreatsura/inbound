@@ -574,7 +574,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
                 <h3 className="text-sm font-semibold mb-3">Email Identifiers</h3>
                 <div className="space-y-4 text-sm">
                   <div>
-                    <span className="text-muted-foreground">Record ID {isInbound ? "(structuredEmails.id)" : "(sentEmails.id)"}:</span>
+                    <span className="text-muted-foreground">Record ID:</span>
                     <div className="mt-1">
                       {isInbound ? (
                         inboundDetails?.emailId ? (
