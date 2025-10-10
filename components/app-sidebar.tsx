@@ -33,6 +33,7 @@ import Book2 from "./icons/book-2";
 import { Collapsible } from "./ui/collapsible";
 import { Button } from "./ui/button";
 import EnvelopePlus from "./icons/envelope-plus";
+import CirclePlay from "./icons/circle-play";
 import {
   Card,
   CardContent,
@@ -116,12 +117,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 >
                   <a
                     href="/add"
-                    className="flex items-center gap-2 w-full justify-between"
+                    className="flex items-center gap-2 w-full justify-between group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:gap-0"
                   >
-                    <span className="group-data-[collapsible=icon]:hidden">
+                    <span className="group-data-[collapsible=icon]:hidden text-[13px] sm:text-[14px] truncate">
                       new inbound
                     </span>
-                    <EnvelopePlus className="h-4 w-4" />
+                    <EnvelopePlus className="h-4 w-4 group-data-[collapsible=icon]:mx-0" />
                   </a>
                 </Button>
               </SidebarMenuItem>
@@ -161,8 +162,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
         {/* GENERAL section */}
 
-        <div className="px-2 mt-1">
-          <span className="ml-2 text-[13px] font-semibold tracking-[0.08em] text-foreground/30">
+        <div className="px-2 mt-1 group-data-[collapsible=icon]:hidden">
+          <span className="ml-2 text-[13px] font-semibold tracking-[0.08em] text-sidebar-foreground/30">
             GENERAL
           </span>
         </div>
@@ -171,7 +172,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         {/* FEATURES section */}
         {data.navFeatures.length > 0 && (
           <div className="mt-4">
-            <div className="px-2 mb-1">
+            <div className="px-2 mb-1 group-data-[collapsible=icon]:hidden">
               <span className="ml-2 text-[13px] font-semibold tracking-[0.08em] text-foreground/30">
                 FEATURES
               </span>
@@ -183,8 +184,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         {/* ADMIN section */}
         {data.navAdmin.length > 0 && (
           <div className="mt-4">
-            <div className="px-2 mb-1">
-              <span className="ml-2 text-[13px] font-semibold tracking-[0.08em] text-foreground/30">
+            <div className="px-2 mb-1 group-data-[collapsible=icon]:hidden">
+            <span className="ml-2 text-[13px] font-semibold tracking-[0.08em] text-sidebar-foreground/30">
                 ADMIN
               </span>
             </div>
@@ -203,6 +204,18 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         >
           <SidebarGroupContent>
             <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton tooltip="Video Tutorial" asChild>
+                  <a
+                    href="https://youtu.be/MOi19cSQdRI"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <CirclePlay className="h-4 w-4" />
+                    <span>Video Tutorial</span>
+                  </a>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton tooltip="Docs" asChild>
                   <a

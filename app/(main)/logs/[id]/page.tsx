@@ -189,6 +189,11 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
       }
     })
 
+    // Defensive check: emailId should never be null since it's NOT NULL in schema
+    if (!row.emailId) {
+      console.error(`[CRITICAL] Email ID missing for structured email ${row.id}. This indicates a data integrity issue.`)
+    }
+
     inboundDetails = {
       id: row.id,
       emailId: row.emailId, // receivedEmails.id reference  
@@ -283,6 +288,12 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
     }
 
     const row = details[0]
+    
+    // Defensive check: id should never be null since it's the primary key
+    if (!row.id) {
+      console.error(`[CRITICAL] Sent email ID missing. This indicates a data integrity issue.`)
+    }
+    
     const parseJSON = (s: string | null) => { try { return s ? JSON.parse(s) : [] } catch { return [] } }
     const to = parseJSON(row.to)
     const cc = parseJSON(row.cc)
@@ -432,7 +443,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
                     {(isInbound ? inboundDetails?.content?.htmlBody : outboundDetails?.html) ? (
                       <div className="border rounded-lg p-4 bg-muted/20 max-h-[640px] overflow-auto">
                         <iframe
-                          srcDoc={`<html><head><link href=\"https://fonts.googleapis.com/css2?family=Outfit:wght@100;200;300;400;500;600;700;800;900&display=swap\" rel=\"stylesheet\"><style>body{font-family:'Outfit',Arial,Helvetica,sans-serif;color:hsl(var(--foreground));background-color:transparent;margin:0;padding:16px;}*{font-family:'Outfit',Arial,Helvetica,sans-serif;font-weight:400;color:hsl(var(--foreground));}a{color:#2563eb !important;}@media (prefers-color-scheme: dark) {body,*{color:#ffffff;}a{color:#60a5fa !important;}}</style></head><body>${isInbound ? inboundDetails?.content?.htmlBody || '' : outboundDetails?.html || ''}</body></html>`}
+                          srcDoc={`<html><head><link href=\"https://fonts.googleapis.com/css2?family=Outfit:wght@100;200;300;400;500;600;700;800;900&display=swap\" rel=\"stylesheet\"><style>body{font-family:'Outfit',Arial,Helvetica,sans-serif;color:#000;background-color:transparent;margin:0;padding:16px;}*{font-family:'Outfit',Arial,Helvetica,sans-serif;font-weight:400;color:#000;}a{color:#2563eb !important;}</style></head><body>${isInbound ? inboundDetails?.content?.htmlBody || '' : outboundDetails?.html || ''}</body></html>`}
                           className="w-full min-h-[300px] border-0"
                           sandbox="allow-same-origin"
                           title="Email HTML Content"
@@ -469,7 +480,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
                     <h3 className="text-sm font-semibold">Delivery Information</h3>
                     {inboundDetails.deliveries.length > 0 && (
                       <ResendEmailDialog 
-                        emailId={id}
+                        emailId={inboundDetails.id}
                         defaultEndpointId={inboundDetails.deliveries[0]?.config?.endpointId}
                         deliveries={inboundDetails.deliveries}
                       />
@@ -565,7 +576,19 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
                   <div>
                     <span className="text-muted-foreground">Record ID {isInbound ? "(structuredEmails.id)" : "(sentEmails.id)"}:</span>
                     <div className="mt-1">
-                      <ClickableId id={id} />
+                      {isInbound ? (
+                        inboundDetails?.emailId ? (
+                          <ClickableId id={inboundDetails.emailId} />
+                        ) : (
+                          <span className="text-destructive text-xs">Data integrity error - missing emailId</span>
+                        )
+                      ) : (
+                        outboundDetails?.id ? (
+                          <ClickableId id={outboundDetails.id} />
+                        ) : (
+                          <span className="text-destructive text-xs">Data integrity error - missing id</span>
+                        )
+                      )}
                     </div>
                   </div>
                   {isInbound && inboundDetails?.emailId && inboundDetails.emailId !== id && (

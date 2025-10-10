@@ -326,6 +326,8 @@ export const structuredEmails = pgTable('structured_emails', {
 }, (table) => ({
   messageIdIdx: index('structured_emails_message_id_idx').on(table.messageId),
   threadIdIdx: index('structured_emails_thread_id_idx').on(table.threadId),
+  userCreatedIdx: index('structured_emails_user_created_idx').on(table.userId, table.createdAt),
+  userIdIdx: index('structured_emails_user_id_idx').on(table.userId),
 }));
 
 export const webhookDeliveries = pgTable('webhook_deliveries', {
@@ -393,7 +395,10 @@ export const endpointDeliveries = pgTable('endpoint_deliveries', {
   responseData: text('response_data'), // JSON response/error data
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
-});
+}, (table) => ({
+  emailStatusIdx: index('endpoint_deliveries_email_status_idx').on(table.emailId, table.status),
+  emailIdIdx: index('endpoint_deliveries_email_id_idx').on(table.emailId),
+}));
 
 // Blocked Emails table - stores email addresses that should be blocked from processing
 export const blockedEmails = pgTable('blocked_emails', {
@@ -450,6 +455,8 @@ export const sentEmails = pgTable('sent_emails', {
   updatedAt: timestamp('updated_at').defaultNow(),
 }, (table) => ({
   threadIdIdx: index('sent_emails_thread_id_idx').on(table.threadId),
+  userCreatedIdx: index('sent_emails_user_created_idx').on(table.userId, table.createdAt),
+  userStatusCreatedIdx: index('sent_emails_user_status_created_idx').on(table.userId, table.status, table.createdAt),
 }));
 
 // Email Threads table - stores conversation thread metadata

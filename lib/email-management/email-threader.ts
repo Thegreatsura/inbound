@@ -107,13 +107,13 @@ export class EmailThreader {
   private static async findExistingThreadByHeaders(email: EmailData, userId: string): Promise<string | null> {
     const messageIds = new Set<string>()
     
-    // Collect all potential thread message IDs
+    // Collect all potential thread message IDs (keep brackets since DB stores them with brackets)
     if (email.messageId) {
-      messageIds.add(this.cleanMessageId(email.messageId))
+      messageIds.add(email.messageId)
     }
     
     if (email.inReplyTo) {
-      messageIds.add(this.cleanMessageId(email.inReplyTo))
+      messageIds.add(email.inReplyTo)
     }
     
     if (email.references) {
@@ -127,8 +127,7 @@ export class EmailThreader {
         }
         
         refs.forEach(ref => {
-          const cleaned = this.cleanMessageId(ref)
-          if (cleaned) messageIds.add(cleaned)
+          if (ref.trim()) messageIds.add(ref.trim())
         })
       } catch (e) {
         console.error('Failed to parse references:', e)
@@ -296,13 +295,13 @@ export class EmailThreader {
   static async processSentEmailForThreading(sentEmailId: string, originalEmailId: string, userId: string): Promise<ThreadingResult> {
     console.log(`📤 Processing sent email ${sentEmailId} for threading (reply to ${originalEmailId})`)
     
-    // Get the original email's thread
+    // Get the original email's thread - use emailId field since resolveEmailId returns receivedEmails.id
     const originalEmail = await db
       .select({ threadId: structuredEmails.threadId })
       .from(structuredEmails)
       .where(
         and(
-          eq(structuredEmails.id, originalEmailId),
+          eq(structuredEmails.emailId, originalEmailId), // Fixed: Use emailId field
           eq(structuredEmails.userId, userId)
         )
       )
@@ -355,6 +354,8 @@ export class EmailThreader {
   
   /**
    * Helper: Clean and normalize message ID
+   * ⚠️ WARNING: Do NOT use for database queries! The database stores message IDs with brackets.
+   * This helper is kept for potential future use (e.g., display purposes).
    */
   private static cleanMessageId(messageId: string): string {
     if (!messageId) return ''

@@ -16,12 +16,13 @@ import Globe2 from '@/components/icons/globe-2'
 import Envelope2 from '@/components/icons/envelope-2'
 import CirclePlus from '@/components/icons/circle-plus'
 import Refresh2 from '@/components/icons/refresh-2'
-import ObjRemove from '@/components/icons/obj-remove'
+import CircleXmark from '@/components/icons/circle-xmark'
 import Magnifier2 from '@/components/icons/magnifier-2'
 import Filter2 from '@/components/icons/filter-2'
 
 import type { DomainWithStats } from '@/app/api/v2/domains/route'
 import { ApiIdLabel } from '@/components/api-id-label'
+import SidebarToggleButton from '@/components/sidebar-toggle-button'
 
 export default function EmailsPage() {
   const [searchQuery, setSearchQuery] = useState('')
@@ -80,7 +81,7 @@ export default function EmailsPage() {
         <div className="max-w-6xl mx-auto">
           <div className="bg-destructive/10 border border-destructive/20 rounded-xl p-6">
             <div className="flex items-center gap-2 text-destructive">
-              <ObjRemove width="16" height="16" />
+              <CircleXmark width="16" height="16" />
               <span>{error.message}</span>
               <Button variant="ghost" size="sm" onClick={() => refetchDomains()} className="ml-auto text-destructive hover:text-destructive/80">
                 Try Again
@@ -98,13 +99,16 @@ export default function EmailsPage() {
         {/* Header */}
         <div className="mb-6">
           <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-semibold text-foreground mb-1 tracking-tight">
-                Domains
-              </h2>
-              <p className="text-muted-foreground text-sm font-medium">
-                {domainsResponse?.pagination.total || 0} domains
-              </p>
+            <div className="flex items-center gap-2">
+              <SidebarToggleButton />
+              <div>
+                <h2 className="text-2xl font-semibold text-foreground mb-1 tracking-tight">
+                  Domains
+                </h2>
+                <p className="text-muted-foreground text-sm font-medium">
+                  {domainsResponse?.pagination.total || 0} domains
+                </p>
+              </div>
             </div>
             <div className="flex items-center gap-2">
               <Button size="default" asChild>
