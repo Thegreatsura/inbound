@@ -8,7 +8,7 @@
 import { db } from '@/lib/db'
 import { structuredEmails, emailAddresses, endpoints, endpointDeliveries, emailDomains } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
-import { triggerEmailAction } from '@/app/api/inbound/webhook/route'
+import { triggerEmailAction } from './webhook-trigger'
 import { EmailForwarder } from './email-forwarder'
 import { EmailThreader } from './email-threader'
 import { nanoid } from 'nanoid'
