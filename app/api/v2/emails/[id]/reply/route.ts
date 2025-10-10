@@ -34,6 +34,56 @@ import { EmailThreader } from "@/lib/email-management/email-threader";
  * Has types? ✅
  */
 
+// Error handling utilities
+interface ValidationError {
+  field: string;
+  code: string;
+  message: string;
+  details?: Record<string, any>;
+}
+
+interface APIError {
+  error: string;
+  code?: string;
+  field?: string;
+  details?: string;
+}
+
+function createValidationError(field: string, code: string, message: string, details?: Record<string, any>): ValidationError {
+  return { field, code, message, details };
+}
+
+function logValidationError(error: ValidationError, requestId?: string): void {
+  console.error(`❌ VALIDATION ERROR [${error.code}] ${requestId ? `[${requestId}]` : ''}: ${error.message}`);
+  if (error.details) {
+    console.log("📋 Validation details:", error.details);
+  }
+}
+
+function toAPIError(error: ValidationError): APIError {
+  return {
+    error: error.message,
+    code: error.code,
+    field: error.field,
+    details: getErrorDetails(error.code)
+  };
+}
+
+function getErrorDetails(code: string): string {
+  const errorDetails: Record<string, string> = {
+    'MISSING_FROM_FIELD': 'The "from" field is required and must contain a valid email address. Example: "user@domain.com" or "User Name <user@domain.com>"',
+    'INVALID_FROM_TYPE': 'The "from" field must be a string containing a valid email address.',
+    'EMPTY_FROM_FIELD': 'The "from" field cannot be empty or contain only whitespace.',
+    'INVALID_EMAIL_FORMAT': 'The email address format is invalid. Expected format: user@domain.com',
+    'EMAIL_EXTRACTION_FAILED': 'Could not extract a valid email address from the "from" field.',
+    'DOMAIN_EXTRACTION_FAILED': 'Could not extract domain from the email address.',
+    'MISSING_CONTENT': 'Either "html" or "text" content must be provided.',
+    'INVALID_JSON': 'Request body must be valid JSON.'
+  };
+  
+  return errorDetails[code] || 'Please check your request and try again.';
+}
+
 // POST /api/v2/emails/[id]/reply-new types
 export interface PostEmailReplyNewRequest {
   from: string; // Can be "user@domain.com" or "User <user@domain.com>"
@@ -153,7 +203,9 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  console.log("📧 POST /api/v2/emails/[id]/reply-new - Starting request");
+  // Generate request ID for tracking
+  const requestId = `req_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+  console.log(`📧 [${requestId}] POST /api/v2/emails/[id]/reply-new - Starting request`);
 
   try {
     // Check for API version header for routing to historical versions
@@ -272,40 +324,31 @@ export async function POST(
 
     const original = originalEmail[0];
     
-    console.log("📨 Processing request body...");
+    console.log(`📨 [${requestId}] Processing request body`);
     let body: PostEmailReplyNewRequest;
     
     try {
       body = await request.json();
-      console.log("✅ Request body parsed successfully");
-      
-      // Log key request details for debugging (without sensitive content)
-      console.log("📋 Request details:", {
-        hasFrom: !!body.from,
-        fromValue: body.from ? `${body.from.substring(0, 20)}${body.from.length > 20 ? '...' : ''}` : null,
-        hasTo: !!body.to,
-        toCount: body.to ? (Array.isArray(body.to) ? body.to.length : 1) : 0,
-        hasSubject: !!body.subject,
-        hasHtml: !!body.html,
-        hasText: !!body.text,
-        hasAttachments: !!(body.attachments && body.attachments.length > 0),
-        attachmentCount: body.attachments?.length || 0,
-        replyAll: !!body.replyAll,
-        hasHeaders: !!(body.headers && Object.keys(body.headers).length > 0),
-        headerCount: body.headers ? Object.keys(body.headers).length : 0,
-        hasTags: !!(body.tags && body.tags.length > 0),
-        tagCount: body.tags?.length || 0,
-      });
+      console.log(`✅ [${requestId}] Request body parsed successfully`);
     } catch (jsonError) {
-      console.error("❌ Failed to parse request JSON:", jsonError);
-      return NextResponse.json(
-        { 
-          error: "Invalid JSON in request body",
-          details: jsonError instanceof Error ? jsonError.message : "Request body must be valid JSON"
-        },
-        { status: 400 }
-      );
+      const error = createValidationError('body', 'INVALID_JSON', 'Invalid JSON in request body', {
+        error: jsonError instanceof Error ? jsonError.message : 'Unknown JSON error'
+      });
+      logValidationError(error, requestId);
+      
+      return NextResponse.json(toAPIError(error), { status: 400 });
     }
+
+    // Log sanitized request summary for debugging
+    console.log(`📋 [${requestId}] Request summary:`, {
+      hasFrom: !!body.from,
+      fromLength: body.from?.length || 0,
+      hasTo: !!body.to,
+      hasSubject: !!body.subject,
+      hasContent: !!(body.html || body.text),
+      hasAttachments: !!(body.attachments?.length),
+      replyAll: !!body.replyAll
+    });
 
     // Parse original email data
     let originalFromData = null;
@@ -366,219 +409,100 @@ export async function POST(
 
     const subject = body.subject || `Re: ${original.subject || "No Subject"}`;
 
-    console.log("🔍 Starting field validation...");
+    console.log(`🔍 [${requestId}] Starting field validation`);
     
-    // Enhanced validation for the 'from' field with comprehensive logging
+    // Validate 'from' field
     if (!body.from) {
-      console.error("❌ VALIDATION ERROR: Missing 'from' field");
-      console.log("📋 Request body analysis:");
-      console.log("  - 'from' field present:", !!body.from);
-      console.log("  - 'from' field type:", typeof body.from);
-      console.log("  - 'from' field value:", body.from);
-      console.log("  - Request has other fields:", {
-        to: !!body.to,
-        subject: !!body.subject,
-        html: !!body.html,
-        text: !!body.text
+      const error = createValidationError('from', 'MISSING_FROM_FIELD', 'The "from" field is required', {
+        received: { value: body.from, type: typeof body.from }
       });
-      
-      return NextResponse.json(
-        { 
-          error: "Missing required field: 'from'",
-          details: "The 'from' field is required and must contain a valid email address. Example: 'user@domain.com' or 'User Name <user@domain.com>'",
-          field: "from",
-          received: {
-            from: body.from,
-            hasFrom: !!body.from,
-            fromType: typeof body.from
-          }
-        },
-        { status: 400 }
-      );
+      logValidationError(error, requestId);
+      return NextResponse.json(toAPIError(error), { status: 400 });
     }
 
-    // Additional validation for empty or invalid 'from' values
     if (typeof body.from !== 'string') {
-      console.error("❌ VALIDATION ERROR: Invalid 'from' field type");
-      console.log("📋 'from' field details:");
-      console.log("  - Expected type: string");
-      console.log("  - Received type:", typeof body.from);
-      console.log("  - Received value:", body.from);
-      
-      return NextResponse.json(
-        { 
-          error: "Invalid 'from' field type",
-          details: "The 'from' field must be a string containing a valid email address",
-          field: "from",
-          expected: "string",
-          received: {
-            type: typeof body.from,
-            value: body.from
-          }
-        },
-        { status: 400 }
-      );
+      const error = createValidationError('from', 'INVALID_FROM_TYPE', 'The "from" field must be a string', {
+        received: { value: body.from, type: typeof body.from }
+      });
+      logValidationError(error, requestId);
+      return NextResponse.json(toAPIError(error), { status: 400 });
     }
 
     if (body.from.trim().length === 0) {
-      console.error("❌ VALIDATION ERROR: Empty 'from' field");
-      console.log("📋 'from' field details:");
-      console.log("  - Original length:", body.from.length);
-      console.log("  - Trimmed length:", body.from.trim().length);
-      console.log("  - Contains only whitespace:", /^\s*$/.test(body.from));
-      
-      return NextResponse.json(
-        { 
-          error: "Empty 'from' field",
-          details: "The 'from' field cannot be empty or contain only whitespace characters",
-          field: "from",
-          received: {
-            value: body.from,
-            length: body.from.length,
-            trimmedLength: body.from.trim().length
-          }
-        },
-        { status: 400 }
-      );
+      const error = createValidationError('from', 'EMPTY_FROM_FIELD', 'The "from" field cannot be empty', {
+        received: { originalLength: body.from.length, trimmedLength: body.from.trim().length }
+      });
+      logValidationError(error, requestId);
+      return NextResponse.json(toAPIError(error), { status: 400 });
     }
 
-    console.log("✅ 'from' field validation passed");
-
-    // Validate email content
+    // Validate content
     if (!body.html && !body.text) {
-      console.error("❌ VALIDATION ERROR: No email content provided");
-      console.log("📋 Content validation details:");
-      console.log("  - HTML content present:", !!body.html);
-      console.log("  - Text content present:", !!body.text);
-      console.log("  - HTML content type:", typeof body.html);
-      console.log("  - Text content type:", typeof body.text);
-      
-      return NextResponse.json(
-        { 
-          error: "Missing email content",
-          details: "Either 'html' or 'text' content must be provided. You can provide both for better compatibility.",
-          fields: ["html", "text"],
-          received: {
-            html: {
-              present: !!body.html,
-              type: typeof body.html
-            },
-            text: {
-              present: !!body.text,
-              type: typeof body.text
-            }
-          }
-        },
-        { status: 400 }
-      );
+      const error = createValidationError('content', 'MISSING_CONTENT', 'Email content is required', {
+        received: { hasHtml: !!body.html, hasText: !!body.text }
+      });
+      logValidationError(error, requestId);
+      return NextResponse.json(toAPIError(error), { status: 400 });
     }
 
-    console.log("✅ Content validation passed");
+    console.log(`✅ [${requestId}] Basic validation passed`);
 
-    // Extract sender information and format with name if provided
-    console.log("📧 Extracting sender information from 'from' field...");
+    // Extract and validate email components
+    console.log(`📧 [${requestId}] Extracting email components`);
     let fromAddress: string;
     let fromDomain: string;
     let senderName: string | undefined;
 
     try {
       fromAddress = extractEmailAddress(body.from);
-      console.log("✅ Email address extracted:", fromAddress);
       
       if (!fromAddress) {
-        console.error("❌ VALIDATION ERROR: Could not extract valid email address from 'from' field");
-        console.log("📋 Email extraction details:");
-        console.log("  - Original 'from' value:", body.from);
-        console.log("  - Extracted address:", fromAddress);
-        
-        return NextResponse.json(
-          { 
-            error: "Invalid email address in 'from' field",
-            details: "Could not extract a valid email address from the 'from' field. Please ensure it contains a valid email address.",
-            field: "from",
-            received: body.from,
-            examples: [
-              "user@domain.com",
-              "User Name <user@domain.com>",
-              "\"User Name\" <user@domain.com>"
-            ]
-          },
-          { status: 400 }
-        );
+        const error = createValidationError('from', 'EMAIL_EXTRACTION_FAILED', 'Could not extract email address', {
+          received: body.from
+        });
+        logValidationError(error, requestId);
+        return NextResponse.json(toAPIError(error), { status: 400 });
       }
 
       // Validate email format
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(fromAddress)) {
-        console.error("❌ VALIDATION ERROR: Invalid email format in extracted address");
-        console.log("📋 Email format validation:");
-        console.log("  - Original 'from' value:", body.from);
-        console.log("  - Extracted address:", fromAddress);
-        console.log("  - Regex test result:", emailRegex.test(fromAddress));
-        
-        return NextResponse.json(
-          { 
-            error: "Invalid email format in 'from' field",
-            details: "The extracted email address does not match the required format (user@domain.com).",
-            field: "from",
-            received: {
-              original: body.from,
-              extracted: fromAddress
-            },
-            format: "user@domain.com"
-          },
-          { status: 400 }
-        );
+        const error = createValidationError('from', 'INVALID_EMAIL_FORMAT', 'Invalid email address format', {
+          received: { original: body.from, extracted: fromAddress }
+        });
+        logValidationError(error, requestId);
+        return NextResponse.json(toAPIError(error), { status: 400 });
       }
 
       fromDomain = extractDomain(body.from);
-      console.log("✅ Domain extracted:", fromDomain);
-      
       if (!fromDomain) {
-        console.error("❌ VALIDATION ERROR: Could not extract domain from 'from' field");
-        console.log("📋 Domain extraction details:");
-        console.log("  - Original 'from' value:", body.from);
-        console.log("  - Extracted address:", fromAddress);
-        console.log("  - Extracted domain:", fromDomain);
-        
-        return NextResponse.json(
-          { 
-            error: "Could not extract domain from 'from' field",
-            details: "Unable to determine the domain from the provided email address.",
-            field: "from",
-            received: {
-              original: body.from,
-              extractedEmail: fromAddress,
-              extractedDomain: fromDomain
-            }
-          },
-          { status: 400 }
-        );
+        const error = createValidationError('from', 'DOMAIN_EXTRACTION_FAILED', 'Could not extract domain', {
+          received: { original: body.from, extractedEmail: fromAddress }
+        });
+        logValidationError(error, requestId);
+        return NextResponse.json(toAPIError(error), { status: 400 });
       }
 
       senderName = extractEmailName(body.from) || undefined;
-      console.log("📝 Sender name extracted:", senderName || "(none)");
+      console.log(`✅ [${requestId}] Email extraction successful: ${fromAddress} (${fromDomain})`);
       
     } catch (extractionError) {
-      console.error("❌ VALIDATION ERROR: Exception during email extraction:", extractionError);
-      return NextResponse.json(
-        { 
-          error: "Failed to process 'from' field",
-          details: "An error occurred while processing the 'from' field. Please check the format.",
-          field: "from",
-          received: body.from,
-          errorType: extractionError instanceof Error ? extractionError.message : "Unknown error"
-        },
-        { status: 400 }
-      );
+      const error = createValidationError('from', 'EMAIL_EXTRACTION_FAILED', 'Failed to process email address', {
+        received: body.from,
+        error: extractionError instanceof Error ? extractionError.message : 'Unknown error'
+      });
+      logValidationError(error, requestId);
+      return NextResponse.json(toAPIError(error), { status: 400 });
     }
     
     const formattedFromAddress = formatSenderAddress(fromAddress, senderName);
 
-    console.log("📧 Reply details:", {
-      from: body.from,
-      to: toAddresses,
-      subject,
+    console.log(`📧 [${requestId}] Reply configuration:`, {
+      from: fromAddress,
+      domain: fromDomain,
+      senderName: senderName || null,
+      to: toAddresses.length,
+      subject: subject.substring(0, 50) + (subject.length > 50 ? '...' : ''),
       originalMessageId: original.messageId,
       replyAll: body.replyAll || false,
       isThreadReply: isThreadReply,
