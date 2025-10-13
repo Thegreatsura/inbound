@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSession } from "@/lib/auth/auth-client";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -155,8 +155,11 @@ export default function DomainDetailPage() {
     gcTime: 10 * 60 * 1000, // 10 minutes
   });
 
-  const { data: userEndpoints = [], isLoading: isEndpointsLoading } =
-    useEndpointsQuery();
+  const { 
+    data: userEndpoints = [], 
+    isLoading: isEndpointsLoading, 
+    refetch: refetchEndpoints 
+  } = useEndpointsQuery();
 
   // Get auth recommendations for verified domains
   const {
@@ -216,12 +219,24 @@ export default function DomainDetailPage() {
   // Zone file generation state
   const [isGeneratingZoneFile, setIsGeneratingZoneFile] = useState(false);
 
+  // Refetch endpoints when navigating to this page to ensure fresh data
+  useEffect(() => {
+    if (domainId) {
+      // Small delay to ensure any pending endpoint creations are completed
+      const timer = setTimeout(() => {
+        refetchEndpoints();
+      }, 100);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [domainId, refetchEndpoints]);
+
   // Set catch-all endpoint ID when data loads
-  useState(() => {
+  useEffect(() => {
     if (domainDetailsData?.catchAllEndpointId) {
       setCatchAllEndpointId(domainDetailsData.catchAllEndpointId);
     }
-  });
+  }, [domainDetailsData?.catchAllEndpointId]);
 
   // Get email addresses from the query result
   const emailAddresses = emailAddressesData?.data || [];

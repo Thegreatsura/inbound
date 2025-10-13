@@ -25,7 +25,8 @@ export const useEndpointsQuery = (sortBy?: 'newest' | 'oldest') => {
   const endpointsQuery = useQuery({
     queryKey: ['endpoints', sortBy],
     queryFn: () => fetchEndpoints(sortBy),
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 30 * 1000, // 30 seconds (reduced from 5 minutes for better UX)
+    refetchOnWindowFocus: true, // Refetch when user returns to tab/page
   })
 
   // Check for migration needs when the query succeeds and returns empty results
