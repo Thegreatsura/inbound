@@ -321,7 +321,7 @@ export default function ApiKeysPage() {
 
                       <div className="flex items-center gap-2">
                         <span className="text-xs opacity-60">
-                          Key: {apiKey.prefix ? `${apiKey.prefix}_` : ''}***{apiKey.start}
+                          Key: {apiKey.prefix || ''}***{apiKey.start}
                         </span>
                         {apiKey.remaining !== null && (
                           <>
