@@ -101,6 +101,8 @@ export async function GET(
     console.log(`✅ Attachment download - Found SES event: ${sesEventId}`)
 
     const { s3BucketName, s3ObjectKey, emailContent } = sesEvent[0]
+    
+    console.log(`📦 Attachment download - SES event data: s3Bucket=${s3BucketName}, s3Key=${s3ObjectKey ? 'yes' : 'no'}, hasEmailContent=${!!emailContent}`)
 
     // Parse email to extract attachments
     let rawEmailContent: string | null = null
@@ -136,6 +138,7 @@ export async function GET(
           
           const buffer = Buffer.concat(chunks)
           rawEmailContent = buffer.toString('utf-8')
+          console.log(`✅ Attachment download - S3 fetch successful. Content size: ${rawEmailContent.length} bytes.`)
         } else {
           throw new Error('No email content in S3')
         }
@@ -143,17 +146,22 @@ export async function GET(
         console.error(`Failed to fetch from S3:`, s3Error)
         // Fallback to direct content
         rawEmailContent = emailContent
+        console.log(`🔄 Attachment download - S3 fetch failed, falling back to direct content (${rawEmailContent?.length || 0} bytes)`)
       }
     } else {
       rawEmailContent = emailContent
+      console.log(`📄 Attachment download - No S3 info, using direct email content (${rawEmailContent?.length || 0} bytes)`)
     }
 
     if (!rawEmailContent) {
+      console.error(`❌ Attachment download - No email content available: s3BucketName=${s3BucketName}, s3ObjectKey=${s3ObjectKey}, emailContent=${emailContent ? 'present' : 'null'}`)
       return NextResponse.json(
         { error: 'Email content not available' },
         { status: 404 }
       )
     }
+    
+    console.log(`✅ Attachment download - Email content ready (${rawEmailContent.length} bytes)`)
 
     // Parse the email to find the attachment
     const { simpleParser } = await import('mailparser')
