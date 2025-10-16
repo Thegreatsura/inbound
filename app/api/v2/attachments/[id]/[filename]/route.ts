@@ -55,14 +55,18 @@ export async function GET(
       .limit(1)
 
     if (!structuredEmail.length) {
+      console.error(`❌ Attachment download - Structured email not found: emailId=${emailId}, userId=${userId}`)
       return NextResponse.json(
         { error: 'Email not found or access denied' },
         { status: 404 }
       )
     }
+    
+    console.log(`✅ Attachment download - Found structured email: ${emailId}`)
 
     const sesEventId = structuredEmail[0].sesEventId
     if (!sesEventId) {
+      console.error(`❌ Attachment download - No SES event ID for email: ${emailId}`)
       return NextResponse.json(
         { error: 'Email event information not found' },
         { status: 404 }
@@ -95,6 +99,7 @@ export async function GET(
     // Try S3 first, then fallback to direct email content
     if (s3BucketName && s3ObjectKey) {
       try {
+        console.log(`📦 Attachment download - Fetching email from S3: ${s3BucketName}/${s3ObjectKey}`)
         // Import S3 client to fetch raw email content
         const { S3Client, GetObjectCommand } = await import('@aws-sdk/client-s3')
         
@@ -146,25 +151,33 @@ export async function GET(
     const parsed = await simpleParser(rawEmailContent)
 
     if (!parsed.attachments || parsed.attachments.length === 0) {
+      console.warn(`⚠️ Attachment download - No attachments found in email ${emailId}`)
       return NextResponse.json(
         { error: 'No attachments found in this email' },
         { status: 404 }
       )
     }
+    
+    const decodedFilename = decodeURIComponent(attachmentFilename)
+    console.log(`🔍 Attachment download - Looking for: "${decodedFilename}"`)
+    console.log(`📋 Attachment download - Available attachments (${parsed.attachments.length}): ${parsed.attachments.map(a => a.filename).join(', ')}`)
 
     // Find the specific attachment by filename
     const attachment = parsed.attachments.find(
-      (att) => att.filename === decodeURIComponent(attachmentFilename)
+      (att) => att.filename === decodedFilename
     )
 
     if (!attachment) {
+      console.error(`❌ Attachment download - Attachment not found`)
+      console.error(`   Looking for: "${decodedFilename}"`)
+      console.error(`   Available: ${parsed.attachments.map(a => `"${a.filename}"`).join(', ')}`)
       return NextResponse.json(
         { error: 'Attachment not found' },
         { status: 404 }
       )
     }
 
-    console.log(`✅ Attachment found: ${attachment.filename} (${attachment.size} bytes)`)
+    console.log(`✅ Attachment download - Found: ${attachment.filename} (${attachment.size} bytes)`)
 
     // Return the attachment with appropriate headers
     // Convert Buffer to Uint8Array for NextResponse compatibility
