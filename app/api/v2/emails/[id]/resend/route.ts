@@ -404,50 +404,57 @@ async function handleWebhookEndpoint(emailId: string, endpoint: any, emailData: 
     const strippedFields: string[] = []
 
     if (payloadString.length > MAX_WEBHOOK_PAYLOAD_SIZE) {
-      console.warn(`⚠️ handleWebhookEndpoint - Webhook payload too large (${payloadString.length} bytes), stripping fields`)
+      console.warn(`⚠️ handleWebhookEndpoint - Webhook payload too large (${payloadString.length} bytes), stripping attachment bodies from raw field`)
       
-      // Try stripping raw field first
+      // Try stripping attachment bodies from raw field first
       if (enhancedParsedData.raw) {
-        const payloadWithoutRaw = {
+        // Remove base64-encoded attachment bodies while preserving MIME structure and headers
+        // This regex finds base64 content blocks in multipart attachments and removes them
+        const cleanedRaw = enhancedParsedData.raw.replace(
+          /(?<=Content-Transfer-Encoding: base64\r?\n\r?\n)(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?\r?\n(?=--|\r?\n)/g,
+          '[binary attachment data removed]'
+        )
+        
+        const payloadWithCleanedRaw = {
           ...webhookPayload,
           email: {
             ...webhookPayload.email,
             parsedData: {
               ...enhancedParsedData,
-              raw: undefined
+              raw: cleanedRaw
             }
           }
         }
-        const payloadStringWithoutRaw = JSON.stringify(payloadWithoutRaw)
+        const payloadStringWithCleanedRaw = JSON.stringify(payloadWithCleanedRaw)
         
-        if (payloadStringWithoutRaw.length <= MAX_WEBHOOK_PAYLOAD_SIZE) {
-          finalPayload = payloadWithoutRaw
-          finalPayloadString = payloadStringWithoutRaw
-          strippedFields.push('raw')
-          console.log(`✅ handleWebhookEndpoint - Stripped 'raw' field, new size: ${payloadStringWithoutRaw.length} bytes`)
+        if (payloadStringWithCleanedRaw.length <= MAX_WEBHOOK_PAYLOAD_SIZE) {
+          finalPayload = payloadWithCleanedRaw
+          finalPayloadString = payloadStringWithCleanedRaw
+          strippedFields.push('raw (attachment bodies removed)')
+          console.log(`✅ handleWebhookEndpoint - Removed attachment bodies from raw field, new size: ${payloadStringWithCleanedRaw.length} bytes`)
         } else {
           // Still too large, also strip headers
-          const payloadWithoutRawAndHeaders = {
-            ...payloadWithoutRaw,
+          const payloadWithCleanedRawAndNoHeaders = {
+            ...payloadWithCleanedRaw,
             email: {
-              ...payloadWithoutRaw.email,
+              ...payloadWithCleanedRaw.email,
               parsedData: {
                 ...enhancedParsedData,
-                raw: undefined,
+                raw: cleanedRaw,
                 headers: {}
               }
             }
           }
-          const payloadStringWithoutRawAndHeaders = JSON.stringify(payloadWithoutRawAndHeaders)
-          finalPayload = payloadWithoutRawAndHeaders
-          finalPayloadString = payloadStringWithoutRawAndHeaders
-          strippedFields.push('raw', 'headers')
-          console.warn(`⚠️ handleWebhookEndpoint - Also stripped 'headers' field, final size: ${payloadStringWithoutRawAndHeaders.length} bytes`)
+          const payloadStringWithCleanedRawAndNoHeaders = JSON.stringify(payloadWithCleanedRawAndNoHeaders)
+          finalPayload = payloadWithCleanedRawAndNoHeaders
+          finalPayloadString = payloadStringWithCleanedRawAndNoHeaders
+          strippedFields.push('raw (attachment bodies removed)', 'headers')
+          console.warn(`⚠️ handleWebhookEndpoint - Also removed headers, final size: ${payloadStringWithCleanedRawAndNoHeaders.length} bytes`)
         }
       }
       
       if (strippedFields.length > 0) {
-        console.log(`📋 handleWebhookEndpoint - Stripped fields for ${endpoint.name}: ${strippedFields.join(', ')}`)
+        console.log(`📋 handleWebhookEndpoint - Cleaned payload for ${endpoint.name}: ${strippedFields.join(', ')}`)
       }
     }
 
