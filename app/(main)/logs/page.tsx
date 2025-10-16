@@ -36,11 +36,16 @@ import EnvelopeArrowLeft from '@/components/icons/envelope-arrow-left'
 import EnvelopeArrowRight from '@/components/icons/envelope-arrow-right'
 
 import { useInfiniteUnifiedEmailLogsQuery } from '@/features/emails/hooks'
+import { useDomainsListV2Query } from '@/features/domains/hooks/useDomainV2Hooks'
 import { useIntersectionObserver } from '@/hooks/useIntersectionObserver'
 import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 import type { EmailLogsOptions, EmailLogEntry, InboundEmailLogEntry, OutboundEmailLogEntry } from '@/features/emails/types'
 import SidebarToggleButton from '@/components/sidebar-toggle-button'
 import { Card } from '@/components/ui/card'
+
+// Configuration constants
+const DOMAINS_FETCH_LIMIT = 500 // Reasonable limit for domain dropdown - if users have more domains, 
+                                 // consider implementing search/autocomplete or pagination
 
 function getStatusColor(email: EmailLogEntry): string {
   if (email.type === 'inbound') {
@@ -225,9 +230,20 @@ export default function LogsPage() {
     fetchNextPage,
   } = useInfiniteUnifiedEmailLogsQuery(infiniteOptions)
 
+  // Fetch all available domains for the filter dropdown
+  const { 
+    data: domainsResponse, 
+    isLoading: domainsLoading, 
+    error: domainsError 
+  } = useDomainsListV2Query({ limit: DOMAINS_FETCH_LIMIT })
+  
+  const allAvailableDomains = domainsResponse?.data?.map(domain => domain.domain).sort() ?? []
+  const hasMoreDomains = domainsResponse?.pagination?.total && domainsResponse.pagination.total > DOMAINS_FETCH_LIMIT
+
   const firstPage = data?.pages?.[0]
   const stats = firstPage?.stats
-  const filtersUniqueDomains = firstPage?.filters?.uniqueDomains ?? []
+  // Use all available domains instead of just from current results
+  const filtersUniqueDomains = allAvailableDomains
 
   const { ref: sentinelRef, hasIntersected } = useIntersectionObserver({ rootMargin: '400px' })
   useEffect(() => {
@@ -237,7 +253,8 @@ export default function LogsPage() {
   }, [hasIntersected, hasNextPage, isFetchingNextPage, fetchNextPage])
 
   const handleRefresh = () => {
-    setRotationDegrees(prev => prev + 360)
+    // Spin counter-clockwise (negative rotation) like typical refresh icons
+    setRotationDegrees(prev => prev - 360)
     refetch()
   }
 
@@ -357,15 +374,49 @@ export default function LogsPage() {
               </SelectContent>
             </Select>
 
-            <Select value={domainFilter} onValueChange={setDomainFilter}>
+            <Select 
+              value={domainFilter} 
+              onValueChange={setDomainFilter}
+              disabled={domainsLoading}
+            >
               <SelectTrigger className="w-[140px] h-9 rounded-xl">
-                <SelectValue placeholder="Domain" />
+                <SelectValue placeholder={domainsLoading ? "Loading..." : "Domain"} />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Domains</SelectItem>
-                {filtersUniqueDomains.map((domain: string) => (
-                  <SelectItem key={domain} value={domain}>{domain}</SelectItem>
-                ))}
+                {domainsLoading ? (
+                  <SelectItem value="loading" disabled>
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <div 
+                        className="w-3 h-3 border border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" 
+                        aria-label="Loading domains"
+                      />
+                      Loading domains...
+                    </div>
+                  </SelectItem>
+                ) : domainsError ? (
+                  <SelectItem value="error" disabled>
+                    <div className="flex items-center gap-2 text-destructive">
+                      <CircleXmark width="12" height="12" />
+                      Failed to load domains
+                    </div>
+                  </SelectItem>
+                ) : filtersUniqueDomains.length > 0 ? (
+                  <>
+                    {filtersUniqueDomains.map((domain: string) => (
+                      <SelectItem key={domain} value={domain}>{domain}</SelectItem>
+                    ))}
+                    {hasMoreDomains && (
+                      <SelectItem value="more-domains" disabled>
+                        <div className="text-xs text-muted-foreground">
+                          + {(domainsResponse?.pagination?.total ?? 0) - DOMAINS_FETCH_LIMIT} more domains...
+                        </div>
+                      </SelectItem>
+                    )}
+                  </>
+                ) : (
+                  <SelectItem value="no-domains" disabled>No domains available</SelectItem>
+                )}
               </SelectContent>
             </Select>
 
