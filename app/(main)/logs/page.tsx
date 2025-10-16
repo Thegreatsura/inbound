@@ -36,6 +36,7 @@ import EnvelopeArrowLeft from '@/components/icons/envelope-arrow-left'
 import EnvelopeArrowRight from '@/components/icons/envelope-arrow-right'
 
 import { useInfiniteUnifiedEmailLogsQuery } from '@/features/emails/hooks'
+import { useDomainsListV2Query } from '@/features/domains/hooks/useDomainV2Hooks'
 import { useIntersectionObserver } from '@/hooks/useIntersectionObserver'
 import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 import type { EmailLogsOptions, EmailLogEntry, InboundEmailLogEntry, OutboundEmailLogEntry } from '@/features/emails/types'
@@ -225,9 +226,14 @@ export default function LogsPage() {
     fetchNextPage,
   } = useInfiniteUnifiedEmailLogsQuery(infiniteOptions)
 
+  // Fetch all available domains for the filter dropdown
+  const { data: domainsResponse } = useDomainsListV2Query({ limit: 1000 })
+  const allAvailableDomains = domainsResponse?.data?.map(domain => domain.domain).sort() ?? []
+
   const firstPage = data?.pages?.[0]
   const stats = firstPage?.stats
-  const filtersUniqueDomains = firstPage?.filters?.uniqueDomains ?? []
+  // Use all available domains instead of just from current results
+  const filtersUniqueDomains = allAvailableDomains
 
   const { ref: sentinelRef, hasIntersected } = useIntersectionObserver({ rootMargin: '400px' })
   useEffect(() => {
@@ -237,7 +243,8 @@ export default function LogsPage() {
   }, [hasIntersected, hasNextPage, isFetchingNextPage, fetchNextPage])
 
   const handleRefresh = () => {
-    setRotationDegrees(prev => prev + 360)
+    // Spin counter-clockwise (negative rotation) like typical refresh icons
+    setRotationDegrees(prev => prev - 360)
     refetch()
   }
 
@@ -357,15 +364,22 @@ export default function LogsPage() {
               </SelectContent>
             </Select>
 
-            <Select value={domainFilter} onValueChange={setDomainFilter}>
+            <Select value={domainFilter} onValueChange={(value) => {
+              // Allow direct switching between domains without clearing first
+              setDomainFilter(value)
+            }}>
               <SelectTrigger className="w-[140px] h-9 rounded-xl">
                 <SelectValue placeholder="Domain" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Domains</SelectItem>
-                {filtersUniqueDomains.map((domain: string) => (
-                  <SelectItem key={domain} value={domain}>{domain}</SelectItem>
-                ))}
+                {filtersUniqueDomains.length > 0 ? (
+                  filtersUniqueDomains.map((domain: string) => (
+                    <SelectItem key={domain} value={domain}>{domain}</SelectItem>
+                  ))
+                ) : (
+                  <SelectItem value="no-domains" disabled>No domains available</SelectItem>
+                )}
               </SelectContent>
             </Select>
 
