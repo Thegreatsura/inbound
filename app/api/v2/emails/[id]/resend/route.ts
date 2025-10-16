@@ -8,6 +8,9 @@ import { nanoid } from 'nanoid'
 import { EmailForwarder } from '@/lib/email-management/email-forwarder'
 import { sanitizeHtml, type ParsedEmailData } from '@/lib/email-management/email-parser'
 
+// Maximum webhook payload size (5MB safety margin)
+const MAX_WEBHOOK_PAYLOAD_SIZE = 1_000_000
+
 // Force rebuild
 /**
  * POST /api/v2/emails/{id}/resend
@@ -395,6 +398,59 @@ async function handleWebhookEndpoint(emailId: string, endpoint: any, emailData: 
       ...customHeaders
     }
 
+    // Check payload size and strip fields if necessary
+    let finalPayload = webhookPayload
+    let finalPayloadString = payloadString
+    const strippedFields: string[] = []
+
+    if (payloadString.length > MAX_WEBHOOK_PAYLOAD_SIZE) {
+      console.warn(`⚠️ handleWebhookEndpoint - Webhook payload too large (${payloadString.length} bytes), stripping fields`)
+      
+      // Try stripping raw field first
+      if (enhancedParsedData.raw) {
+        const payloadWithoutRaw = {
+          ...webhookPayload,
+          email: {
+            ...webhookPayload.email,
+            parsedData: {
+              ...enhancedParsedData,
+              raw: undefined
+            }
+          }
+        }
+        const payloadStringWithoutRaw = JSON.stringify(payloadWithoutRaw)
+        
+        if (payloadStringWithoutRaw.length <= MAX_WEBHOOK_PAYLOAD_SIZE) {
+          finalPayload = payloadWithoutRaw
+          finalPayloadString = payloadStringWithoutRaw
+          strippedFields.push('raw')
+          console.log(`✅ handleWebhookEndpoint - Stripped 'raw' field, new size: ${payloadStringWithoutRaw.length} bytes`)
+        } else {
+          // Still too large, also strip headers
+          const payloadWithoutRawAndHeaders = {
+            ...payloadWithoutRaw,
+            email: {
+              ...payloadWithoutRaw.email,
+              parsedData: {
+                ...enhancedParsedData,
+                raw: undefined,
+                headers: {}
+              }
+            }
+          }
+          const payloadStringWithoutRawAndHeaders = JSON.stringify(payloadWithoutRawAndHeaders)
+          finalPayload = payloadWithoutRawAndHeaders
+          finalPayloadString = payloadStringWithoutRawAndHeaders
+          strippedFields.push('raw', 'headers')
+          console.warn(`⚠️ handleWebhookEndpoint - Also stripped 'headers' field, final size: ${payloadStringWithoutRawAndHeaders.length} bytes`)
+        }
+      }
+      
+      if (strippedFields.length > 0) {
+        console.log(`📋 handleWebhookEndpoint - Stripped fields for ${endpoint.name}: ${strippedFields.join(', ')}`)
+      }
+    }
+
     // Send the webhook
     const startTime = Date.now()
     let deliverySuccess = false
@@ -407,7 +463,7 @@ async function handleWebhookEndpoint(emailId: string, endpoint: any, emailData: 
       const response = await fetch(webhookUrl, {
         method: 'POST',
         headers,
-        body: payloadString,
+        body: finalPayloadString, // Use finalPayloadString which might be smaller
         signal: AbortSignal.timeout(timeout * 1000)
       })
 

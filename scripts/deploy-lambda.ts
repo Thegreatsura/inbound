@@ -138,7 +138,7 @@ try {
   
   try {
     // Compile the TypeScript file
-    execSync('npx tsc email-processor.ts --target ES2020 --module commonjs --declaration --inlineSourceMap --inlineSources', {
+    execSync('npx tsc --project tsconfig.json', {
       cwd: lambdaDir,
       stdio: 'inherit'
     });
