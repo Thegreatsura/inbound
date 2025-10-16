@@ -9,11 +9,11 @@ import FeedbackEmail from '@/emails/feedback'
 import { LinearClient } from '@linear/sdk'
 
 
-// Initialize Resend client
+// Initialize clients
 const inbound = new Inbound(process.env.INBOUND_API_KEY!)
-const linear = new LinearClient({
-  apiKey: process.env.LINEAR_API_KEY!
-})
+const linear = process.env.LINEAR_API_KEY ? new LinearClient({
+  apiKey: process.env.LINEAR_API_KEY
+}) : null
 
 export interface FeedbackData {
   feedback: string
@@ -123,16 +123,25 @@ export async function sendFeedbackAction(
       }
     }
 
-    // Add request to Linear
-    await linear.createIssue({
-      title: `New Feedback from ${session.user.name || session.user.email} - inbound`,
-      description: data.feedback.trim(),
-      teamId: '6d05d4a1-1428-4420-a57c-39693f9e065c',
-      priority: 3,
-      stateId: '5f05d4a1-1428-4420-a57c-39693f9e065c'
-
-
-    })
+    // Optionally add request to Linear (if configured properly)
+    try {
+      if (linear && process.env.LINEAR_TEAM_ID && process.env.LINEAR_STATE_ID) {
+        await linear.createIssue({
+          title: `New Feedback from ${session.user.name || session.user.email} - inbound`,
+          description: data.feedback.trim(),
+          teamId: process.env.LINEAR_TEAM_ID,
+          priority: 3,
+          stateId: process.env.LINEAR_STATE_ID
+        })
+        console.log(`✅ sendFeedbackAction - Linear issue created successfully`)
+      } else {
+        console.log(`⚠️ sendFeedbackAction - Linear integration skipped (missing configuration)`)
+      }
+    } catch (linearError) {
+      // Don't fail the entire feedback submission if Linear fails
+      console.error('⚠️ sendFeedbackAction - Linear integration failed:', linearError)
+      console.log('   📧 Feedback email was still sent successfully')
+    }
 
     console.log(`✅ sendFeedbackAction - Feedback email sent successfully from ${session.user.email}`)
     console.log(`   📧 Message ID: ${response.data?.id}`)
