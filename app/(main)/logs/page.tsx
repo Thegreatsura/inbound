@@ -43,6 +43,10 @@ import type { EmailLogsOptions, EmailLogEntry, InboundEmailLogEntry, OutboundEma
 import SidebarToggleButton from '@/components/sidebar-toggle-button'
 import { Card } from '@/components/ui/card'
 
+// Configuration constants
+const DOMAINS_FETCH_LIMIT = 500 // Reasonable limit for domain dropdown - if users have more domains, 
+                                 // consider implementing search/autocomplete or pagination
+
 function getStatusColor(email: EmailLogEntry): string {
   if (email.type === 'inbound') {
     const inboundEmail = email as InboundEmailLogEntry
@@ -227,8 +231,14 @@ export default function LogsPage() {
   } = useInfiniteUnifiedEmailLogsQuery(infiniteOptions)
 
   // Fetch all available domains for the filter dropdown
-  const { data: domainsResponse } = useDomainsListV2Query({ limit: 1000 })
+  const { 
+    data: domainsResponse, 
+    isLoading: domainsLoading, 
+    error: domainsError 
+  } = useDomainsListV2Query({ limit: DOMAINS_FETCH_LIMIT })
+  
   const allAvailableDomains = domainsResponse?.data?.map(domain => domain.domain).sort() ?? []
+  const hasMoreDomains = domainsResponse?.pagination?.total && domainsResponse.pagination.total > DOMAINS_FETCH_LIMIT
 
   const firstPage = data?.pages?.[0]
   const stats = firstPage?.stats
@@ -364,19 +374,46 @@ export default function LogsPage() {
               </SelectContent>
             </Select>
 
-            <Select value={domainFilter} onValueChange={(value) => {
-              // Allow direct switching between domains without clearing first
-              setDomainFilter(value)
-            }}>
+            <Select 
+              value={domainFilter} 
+              onValueChange={(value) => {
+                // Allow direct switching between domains without clearing first
+                setDomainFilter(value)
+              }}
+              disabled={domainsLoading}
+            >
               <SelectTrigger className="w-[140px] h-9 rounded-xl">
-                <SelectValue placeholder="Domain" />
+                <SelectValue placeholder={domainsLoading ? "Loading..." : "Domain"} />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Domains</SelectItem>
-                {filtersUniqueDomains.length > 0 ? (
-                  filtersUniqueDomains.map((domain: string) => (
-                    <SelectItem key={domain} value={domain}>{domain}</SelectItem>
-                  ))
+                {domainsLoading ? (
+                  <SelectItem value="loading" disabled>
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <div className="w-3 h-3 border border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />
+                      Loading domains...
+                    </div>
+                  </SelectItem>
+                ) : domainsError ? (
+                  <SelectItem value="error" disabled>
+                    <div className="flex items-center gap-2 text-destructive">
+                      <CircleXmark width="12" height="12" />
+                      Failed to load domains
+                    </div>
+                  </SelectItem>
+                ) : filtersUniqueDomains.length > 0 ? (
+                  <>
+                    {filtersUniqueDomains.map((domain: string) => (
+                      <SelectItem key={domain} value={domain}>{domain}</SelectItem>
+                    ))}
+                    {hasMoreDomains && (
+                      <SelectItem value="more-domains" disabled>
+                        <div className="text-xs text-muted-foreground">
+                          + {(domainsResponse?.pagination?.total ?? 0) - DOMAINS_FETCH_LIMIT} more domains...
+                        </div>
+                      </SelectItem>
+                    )}
+                  </>
                 ) : (
                   <SelectItem value="no-domains" disabled>No domains available</SelectItem>
                 )}
