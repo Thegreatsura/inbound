@@ -125,13 +125,12 @@ export async function sendFeedbackAction(
 
     // Optionally add request to Linear (if configured properly)
     try {
-      if (linear && process.env.LINEAR_TEAM_ID && process.env.LINEAR_STATE_ID) {
+      if (linear && process.env.LINEAR_TEAM_ID) {
         await linear.createIssue({
           title: `New Feedback from ${session.user.name || session.user.email} - inbound`,
           description: data.feedback.trim(),
           teamId: process.env.LINEAR_TEAM_ID,
-          priority: 3,
-          stateId: process.env.LINEAR_STATE_ID
+          priority: 3
         })
         console.log(`✅ sendFeedbackAction - Linear issue created successfully`)
       } else {
