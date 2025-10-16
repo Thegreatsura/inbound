@@ -17,20 +17,12 @@ export async function GET(
   { params }: { params: Promise<{ id: string; filename: string }> }
 ) {
   try {
+    // Get and validate route parameters
     const { id: emailId, filename: attachmentFilename } = await params
-    
-    console.log(`📎 GET /api/v2/attachments/${emailId}/${attachmentFilename} - Downloading attachment`)
-
-    // Validate API key
-    const validation = await validateApiKey(request)
-    if ('error' in validation) {
-      return NextResponse.json({ error: validation.error }, { status: 401 })
-    }
-
-    const userId = validation.user?.id
-    if (!userId) {
-      return NextResponse.json({ error: 'User not found' }, { status: 401 })
-    }
+    console.log(`📥 Attachment download - Request started`)
+    console.log(`   Email ID: ${emailId}`)
+    console.log(`   Filename (raw): ${attachmentFilename}`)
+    console.log(`   Filename (decoded): ${decodeURIComponent(attachmentFilename)}`)
 
     if (!emailId || !attachmentFilename) {
       return NextResponse.json(
@@ -39,7 +31,22 @@ export async function GET(
       )
     }
 
+    // Validate API key
+    const validation = await validateApiKey(request)
+    if ('error' in validation) {
+      console.error(`❌ Attachment download - API validation failed: ${validation.error}`)
+      return NextResponse.json({ error: validation.error }, { status: 401 })
+    }
+
+    const userId = validation.user?.id
+    if (!userId) {
+      console.error(`❌ Attachment download - User ID not found after validation`)
+      return NextResponse.json({ error: 'User not found' }, { status: 401 })
+    }
+
     // Get the structured email to verify ownership and find SES event
+    console.log(`🔐 Attachment download - Authenticated userId: ${userId}`)
+    console.log(`🔎 Attachment download - Querying for structured email with: emailId=${emailId}, userId=${userId}`)
     const structuredEmail = await db
       .select({
         sesEventId: structuredEmails.sesEventId,
@@ -90,6 +97,8 @@ export async function GET(
         { status: 404 }
       )
     }
+    
+    console.log(`✅ Attachment download - Found SES event: ${sesEventId}`)
 
     const { s3BucketName, s3ObjectKey, emailContent } = sesEvent[0]
 
