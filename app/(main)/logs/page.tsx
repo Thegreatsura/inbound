@@ -376,10 +376,7 @@ export default function LogsPage() {
 
             <Select 
               value={domainFilter} 
-              onValueChange={(value) => {
-                // Allow direct switching between domains without clearing first
-                setDomainFilter(value)
-              }}
+              onValueChange={setDomainFilter}
               disabled={domainsLoading}
             >
               <SelectTrigger className="w-[140px] h-9 rounded-xl">
@@ -390,7 +387,10 @@ export default function LogsPage() {
                 {domainsLoading ? (
                   <SelectItem value="loading" disabled>
                     <div className="flex items-center gap-2 text-muted-foreground">
-                      <div className="w-3 h-3 border border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />
+                      <div 
+                        className="w-3 h-3 border border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" 
+                        aria-label="Loading domains"
+                      />
                       Loading domains...
                     </div>
                   </SelectItem>
