@@ -406,14 +406,14 @@ async function handleWebhookEndpoint(emailId: string, endpoint: any, emailData: 
     if (payloadString.length > MAX_WEBHOOK_PAYLOAD_SIZE) {
       console.warn(`⚠️ handleWebhookEndpoint - Webhook payload too large (${payloadString.length} bytes), stripping attachment bodies from raw field`)
       
-      // Try stripping attachment bodies from raw field first
-      if (enhancedParsedData.raw) {
-        // Remove base64-encoded attachment bodies while preserving MIME structure and headers
-        // This regex finds base64 content blocks in multipart attachments and removes them
-        const cleanedRaw = enhancedParsedData.raw.replace(
-          /(?<=Content-Transfer-Encoding: base64\r?\n\r?\n)(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?\r?\n(?=--|\r?\n)/g,
-          '[binary attachment data removed]'
-        )
+        // Try stripping attachment bodies from raw field first
+        if (enhancedParsedData.raw) {
+          // Remove base64-encoded attachment bodies while preserving MIME structure and headers
+          // This regex finds ALL base64 content from header until next MIME boundary
+          const cleanedRaw = enhancedParsedData.raw.replace(
+            /Content-Transfer-Encoding:\s*base64\s*[\r\n]+[\r\n]+([\s\S]+?)(?=\r?\n--|\r?\n\r?\nContent-|$)/gi,
+            'Content-Transfer-Encoding: base64\r\n\r\n[binary attachment data removed - use Attachments API]\r\n'
+          )
         
         const payloadWithCleanedRaw = {
           ...webhookPayload,
