@@ -4,6 +4,9 @@ import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 
 const s3Client = new S3Client({ region: process.env.AWS_REGION || 'us-east-2' });
 
+// Maximum payload size for webhook (3.5MB safety margin)
+const MAX_WEBHOOK_SIZE = 3_500_000;
+
 /**
  * Fetch email content from S3
  */
@@ -313,14 +316,23 @@ export const handler = async (event: any, context: any) => {
           emailContentSize: emailContent ? emailContent.length : 0
         });
 
+        // Check if email content is too large for webhook payload
+        const contentSize = emailContent ? emailContent.length : 0;
+        const contentTooLarge = contentSize > MAX_WEBHOOK_SIZE;
+        
+        if (contentTooLarge) {
+          console.log(`⚠️ ${requestId}|Lambda - Email content too large (${contentSize} bytes) for webhook payload, will use S3 fetch: ${s3Bucket}/${objectKey}`);
+        }
+
         processedRecords.push({
           ...record,
-          emailContent: emailContent,
+          emailContent: contentTooLarge ? null : emailContent,
+          contentTooLarge: contentTooLarge,
           s3Location: {
             bucket: s3Bucket,
             key: objectKey,
-            contentFetched: emailContent !== null,
-            contentSize: emailContent ? emailContent.length : 0
+            contentFetched: emailContent !== null && !contentTooLarge,
+            contentSize: contentSize
           }
         });
 

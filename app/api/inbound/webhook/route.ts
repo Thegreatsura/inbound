@@ -10,6 +10,7 @@ import { parseEmail, type ParsedEmailData } from '@/lib/email-management/email-p
 import { type SESEvent, type SESRecord } from '@/lib/aws-ses/aws-ses'
 import { isEmailBlocked } from '@/lib/email-management/email-blocking'
 import { routeEmail } from '@/lib/email-management/email-router'
+import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3'
 
 interface ProcessedSESRecord extends SESRecord {
   emailContent?: string | null
@@ -316,14 +317,12 @@ export async function POST(request: NextRequest) {
     for (const record of payload.processedRecords) {
       try {
         const sesData = record.ses
-        console.log('===============================================')
-        console.log('Record Full Data:', JSON.stringify(record, null, 2))
-        console.log('===============================================')
         const mail = sesData.mail
         const receipt = sesData.receipt
 
         console.log(`📨 Webhook - Processing email: ${mail.messageId}`);
         console.log(`👥 Webhook - Recipients: ${receipt.recipients.join(', ')}`);
+        console.log(`📧 Webhook - Subject: "${mail.commonHeaders.subject || '(no subject)'}"`);
 
         // First, store the SES event
         const sesEventId = nanoid()
@@ -389,17 +388,58 @@ export async function POST(request: NextRequest) {
             emailStatus = 'blocked'
           }
 
+          // Fetch email content from S3 if not included in payload (for large emails)
+          let emailContent = record.emailContent
+          if (!emailContent && record.s3Location?.bucket && record.s3Location?.key) {
+            console.log(`📥 Webhook - Content not in payload, fetching from S3 (${record.s3Location.bucket}/${record.s3Location.key})`)
+            try {
+              const s3Client = new S3Client({
+                region: process.env.AWS_REGION || 'us-east-1',
+              })
+              
+              const command = new GetObjectCommand({
+                Bucket: record.s3Location.bucket,
+                Key: record.s3Location.key,
+              })
+              
+              const response = await s3Client.send(command)
+              
+              if (response.Body) {
+                // Convert stream to string
+                const chunks: Uint8Array[] = []
+                const reader = response.Body.transformToWebStream().getReader()
+                
+                while (true) {
+                  const { done, value } = await reader.read()
+                  if (done) break
+                  chunks.push(value)
+                }
+                
+                const buffer = Buffer.concat(chunks)
+                emailContent = buffer.toString('utf-8')
+                console.log(`✅ Webhook - S3 fetch successful (${emailContent.length} bytes)`)
+              } else {
+                console.error(`❌ Webhook - S3 fetch failed: no response body`)
+              }
+            } catch (s3Error) {
+              console.error(`❌ Webhook - S3 fetch error: ${s3Error instanceof Error ? s3Error.message : 'Unknown error'}`)
+            }
+          } else if (emailContent) {
+            console.log(`✅ Webhook - Content in payload (${emailContent.length} bytes)`)
+          }
+
           // Parse the email content using the new parseEmail function
           let parsedEmailData: ParsedEmailData | null = null
-          console.log('Email content:', record.emailContent)
-          if (record.emailContent) {
-            console.log(`📧 Webhook - Parsing email content for ${mail.messageId}`)
+          if (emailContent) {
+            console.log(`📧 Webhook - Parsing email...`)
             try {
-              parsedEmailData = await parseEmail(record.emailContent)
-              console.log(`✅ Webhook - Successfully parsed email content for ${mail.messageId}`)
+              parsedEmailData = await parseEmail(emailContent)
+              console.log(`✅ Webhook - Parse successful`)
             } catch (parseError) {
-              console.error(`❌ Webhook - Failed to parse email content for ${mail.messageId}:`, parseError)
+              console.error(`❌ Webhook - Parse failed: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`)
             }
+          } else {
+            console.warn(`⚠️ Webhook - No content available for parsing`)
           }
 
           // Create structured email record - this is now the PRIMARY and ONLY record
