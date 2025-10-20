@@ -362,18 +362,20 @@ export async function POST(request: NextRequest) {
 
         // Then, create a receivedEmail record for each recipient
         for (const recipient of receipt.recipients) {
-          // IDEMPOTENCY CHECK: Skip if we've already processed this messageId + recipient
+          // IDEMPOTENCY CHECK: Skip if we've already processed this SES message for this recipient
+          // Join with sesEvents to check using AWS SES messageId (not email Message-ID header)
           const existingEmail = await db
             .select({ id: structuredEmails.id })
             .from(structuredEmails)
+            .innerJoin(sesEvents, eq(sesEvents.id, structuredEmails.sesEventId))
             .where(and(
-              eq(structuredEmails.messageId, mail.messageId),
+              eq(sesEvents.messageId, mail.messageId), // AWS SES messageId (e.g., "0000014f-abc123")
               eq(structuredEmails.recipient, recipient)
             ))
             .limit(1)
           
           if (existingEmail[0]) {
-            console.log(`⏭️  Webhook - SKIPPING duplicate processing: messageId=${mail.messageId}, recipient=${recipient} (already processed as ${existingEmail[0].id})`)
+            console.log(`⏭️  Webhook - SKIPPING duplicate processing: SES messageId=${mail.messageId}, recipient=${recipient} (already processed as ${existingEmail[0].id})`)
             continue // Skip this duplicate
           }
           
