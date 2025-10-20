@@ -285,6 +285,10 @@ async function getEmailWithStructuredData(emailId: string) {
       date: structuredEmails.date,
       userId: structuredEmails.userId,
       sesEventId: structuredEmails.sesEventId,
+      
+      // Threading fields
+      threadId: structuredEmails.threadId,
+      threadPosition: structuredEmails.threadPosition,
     })
     .from(structuredEmails)
     .where(eq(structuredEmails.emailId, emailId))
@@ -363,6 +367,10 @@ async function handleWebhookEndpoint(emailId: string, endpoint: any, emailData: 
         recipient: emailData.recipient,
         subject: emailData.subject,
         receivedAt: emailData.date,
+        
+        // Threading information
+        threadId: emailData.threadId || null,
+        threadPosition: emailData.threadPosition || null,
         
         // Full ParsedEmailData structure with download URLs
         parsedData: enhancedParsedData,

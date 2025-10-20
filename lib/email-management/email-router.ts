@@ -123,6 +123,10 @@ async function getEmailWithStructuredData(emailId: string) {
       priority: structuredEmails.priority,
       parseSuccess: structuredEmails.parseSuccess,
       parseError: structuredEmails.parseError,
+      
+      // Threading fields
+      threadId: structuredEmails.threadId,
+      threadPosition: structuredEmails.threadPosition,
     })
     .from(structuredEmails)
     .where(
@@ -317,6 +321,10 @@ async function handleWebhookEndpoint(emailId: string, endpoint: Endpoint): Promi
         recipient: emailData.recipient,
         subject: emailData.subject,
         receivedAt: emailData.date,
+        
+        // Threading information
+        threadId: emailData.threadId || null,
+        threadPosition: emailData.threadPosition || null,
         
         // Full ParsedEmailData structure with download URLs
         parsedData: enhancedParsedData,
