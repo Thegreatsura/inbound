@@ -362,6 +362,21 @@ export async function POST(request: NextRequest) {
 
         // Then, create a receivedEmail record for each recipient
         for (const recipient of receipt.recipients) {
+          // IDEMPOTENCY CHECK: Skip if we've already processed this messageId + recipient
+          const existingEmail = await db
+            .select({ id: structuredEmails.id })
+            .from(structuredEmails)
+            .where(and(
+              eq(structuredEmails.messageId, mail.messageId),
+              eq(structuredEmails.recipient, recipient)
+            ))
+            .limit(1)
+          
+          if (existingEmail[0]) {
+            console.log(`⏭️  Webhook - SKIPPING duplicate processing: messageId=${mail.messageId}, recipient=${recipient} (already processed as ${existingEmail[0].id})`)
+            continue // Skip this duplicate
+          }
+          
           const userId = await mapRecipientToUserId(recipient)
 
           // Check and track inbound trigger usage

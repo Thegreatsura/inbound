@@ -201,14 +201,7 @@ export async function POST(request: NextRequest) {
 
     // Check if domain exists and belongs to user
     const domainResult = await db
-      .select({
-        id: emailDomains.id,
-        domain: emailDomains.domain,
-        userId: emailDomains.userId,
-        status: emailDomains.status,
-        isCatchAllEnabled: emailDomains.isCatchAllEnabled,
-        catchAllEndpointId: emailDomains.catchAllEndpointId
-      })
+      .select()
       .from(emailDomains)
       .where(and(
         eq(emailDomains.id, data.domainId),
@@ -299,14 +292,7 @@ export async function POST(request: NextRequest) {
     let receiptRuleName = null
     let awsConfigurationWarning = null
 
-    // Skip SES configuration if domain has catch-all enabled
-    // The catch-all rule will handle email delivery to prevent duplicate deliveries
-    if (domainResult[0].isCatchAllEnabled) {
-      console.log(`🌐 POST /api/v1.1/email-addresses - Domain has catch-all enabled - skipping individual SES rule for ${data.address}`)
-      console.log(`🎯 POST /api/v1.1/email-addresses - Email will be routed via catch-all to endpoint: ${domainResult[0].catchAllEndpointId}`)
-      awsConfigurationWarning = 'Individual SES receipt rule not created because domain has catch-all enabled. Email will be delivered via catch-all configuration.'
-    } else {
-      try {
+    try {
       const sesManager = new AWSSESReceiptRuleManager()
       
       // Get AWS configuration
@@ -329,15 +315,39 @@ export async function POST(request: NextRequest) {
 
         let receiptResult: any
 
-        // Use individual email rules only
-        console.log(`📧 POST /api/v1.1/email-addresses - Using individual email rules only`)
-        
-        const receiptResult = await sesManager.configureEmailReceiving({
-          domain: domainResult[0].domain,
-          emailAddresses: [data.address],
-          lambdaFunctionArn: lambdaArn,
-          s3BucketName
-        })
+        // Check if domain has catch-all enabled - if so, use mixed mode
+        if (domainResult[0].isCatchAllEnabled && domainResult[0].catchAllEndpointId) {
+          console.log(`🔀 POST /api/v1.1/email-addresses - Domain has catch-all enabled, using mixed mode`)
+          
+          // Get all existing email addresses for this domain
+          const allDomainEmails = await db
+            .select({ address: emailAddresses.address })
+            .from(emailAddresses)
+            .where(and(
+              eq(emailAddresses.domainId, data.domainId),
+              eq(emailAddresses.isActive, true)
+            ))
+
+          const mixedResult = await sesManager.configureMixedMode({
+            domain: domainResult[0].domain,
+            emailAddresses: allDomainEmails.map(e => e.address),
+            catchAllWebhookId: domainResult[0].catchAllEndpointId,
+            lambdaFunctionArn: lambdaArn,
+            s3BucketName
+          })
+          
+          receiptResult = mixedResult.individualRule || mixedResult.catchAllRule
+        } else {
+          // Use individual email rules only (legacy behavior)
+          console.log(`📧 POST /api/v1.1/email-addresses - Using individual email rules only`)
+          
+          receiptResult = await sesManager.configureEmailReceiving({
+            domain: domainResult[0].domain,
+            emailAddresses: [data.address],
+            lambdaFunctionArn: lambdaArn,
+            s3BucketName
+          })
+        }
         
         if (receiptResult.status === 'created' || receiptResult.status === 'updated') {
           // Update email record with receipt rule information
@@ -358,10 +368,9 @@ export async function POST(request: NextRequest) {
           console.warn(`⚠️ POST /api/v1.1/email-addresses - ${awsConfigurationWarning}`)
         }
       }
-      } catch (error) {
-        awsConfigurationWarning = `SES configuration error: ${error instanceof Error ? error.message : 'Unknown error'}`
-        console.error(`❌ POST /api/v1.1/email-addresses - AWS SES configuration failed:`, error)
-      }
+    } catch (error) {
+      awsConfigurationWarning = `SES configuration error: ${error instanceof Error ? error.message : 'Unknown error'}`
+      console.error(`❌ POST /api/v1.1/email-addresses - AWS SES configuration failed:`, error)
     }
 
     // Get enhanced response with domain and routing information

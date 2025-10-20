@@ -363,14 +363,7 @@ export async function POST(request: NextRequest) {
         // Check if domain exists and belongs to user
         console.log('🔍 Checking domain ownership')
         const domainResult = await db
-            .select({
-                id: emailDomains.id,
-                domain: emailDomains.domain,
-                userId: emailDomains.userId,
-                status: emailDomains.status,
-                isCatchAllEnabled: emailDomains.isCatchAllEnabled,
-                catchAllEndpointId: emailDomains.catchAllEndpointId
-            })
+            .select()
             .from(emailDomains)
             .where(and(
                 eq(emailDomains.id, data.domainId),
@@ -490,64 +483,56 @@ export async function POST(request: NextRequest) {
         let receiptRuleName = null
         let awsConfigurationWarning = null
 
-        // Skip SES configuration if domain has catch-all enabled
-        // The catch-all rule will handle email delivery to prevent duplicate deliveries
-        if (domainResult[0].isCatchAllEnabled) {
-            console.log(`🌐 Domain has catch-all enabled - skipping individual SES rule for ${data.address}`)
-            console.log(`🎯 Email will be routed via catch-all to endpoint: ${domainResult[0].catchAllEndpointId}`)
-            awsConfigurationWarning = 'Individual SES receipt rule not created because domain has catch-all enabled. Email will be delivered via catch-all configuration.'
-        } else {
-            try {
-                console.log('🔧 Configuring AWS SES receipt rules')
-                const sesManager = new AWSSESReceiptRuleManager()
+        try {
+            console.log('🔧 Configuring AWS SES receipt rules')
+            const sesManager = new AWSSESReceiptRuleManager()
+            
+            // Get AWS configuration
+            const awsRegion = process.env.AWS_REGION || 'us-east-2'
+            const lambdaFunctionName = process.env.LAMBDA_FUNCTION_NAME || 'email-processor'
+            const s3BucketName = process.env.S3_BUCKET_NAME
+            const awsAccountId = process.env.AWS_ACCOUNT_ID
+
+            if (!s3BucketName || !awsAccountId) {
+                awsConfigurationWarning = 'AWS configuration incomplete. Missing S3_BUCKET_NAME or AWS_ACCOUNT_ID'
+                console.warn(`⚠️ ${awsConfigurationWarning}`)
+            } else {
+                const lambdaArn = AWSSESReceiptRuleManager.getLambdaFunctionArn(
+                    lambdaFunctionName,
+                    awsAccountId,
+                    awsRegion
+                )
+
+                console.log('🔧 Configuring SES receipt rule for:', data.address)
+                const receiptResult = await sesManager.configureEmailReceiving({
+                    domain: domainResult[0].domain,
+                    emailAddresses: [data.address],
+                    lambdaFunctionArn: lambdaArn,
+                    s3BucketName
+                })
                 
-                // Get AWS configuration
-                const awsRegion = process.env.AWS_REGION || 'us-east-2'
-                const lambdaFunctionName = process.env.LAMBDA_FUNCTION_NAME || 'email-processor'
-                const s3BucketName = process.env.S3_BUCKET_NAME
-                const awsAccountId = process.env.AWS_ACCOUNT_ID
+                if (receiptResult.status === 'created' || receiptResult.status === 'updated') {
+                    // Update email record with receipt rule information
+                    await db
+                        .update(emailAddresses)
+                        .set({
+                            isReceiptRuleConfigured: true,
+                            receiptRuleName: receiptResult.ruleName,
+                            updatedAt: new Date(),
+                        })
+                        .where(eq(emailAddresses.id, createdEmailAddress.id))
 
-                if (!s3BucketName || !awsAccountId) {
-                    awsConfigurationWarning = 'AWS configuration incomplete. Missing S3_BUCKET_NAME or AWS_ACCOUNT_ID'
-                    console.warn(`⚠️ ${awsConfigurationWarning}`)
+                    isReceiptRuleConfigured = true
+                    receiptRuleName = receiptResult.ruleName
+                    console.log('✅ AWS SES configured successfully')
                 } else {
-                    const lambdaArn = AWSSESReceiptRuleManager.getLambdaFunctionArn(
-                        lambdaFunctionName,
-                        awsAccountId,
-                        awsRegion
-                    )
-
-                    console.log('🔧 Configuring SES receipt rule for:', data.address)
-                    const receiptResult = await sesManager.configureEmailReceiving({
-                        domain: domainResult[0].domain,
-                        emailAddresses: [data.address],
-                        lambdaFunctionArn: lambdaArn,
-                        s3BucketName
-                    })
-                    
-                    if (receiptResult.status === 'created' || receiptResult.status === 'updated') {
-                        // Update email record with receipt rule information
-                        await db
-                            .update(emailAddresses)
-                            .set({
-                                isReceiptRuleConfigured: true,
-                                receiptRuleName: receiptResult.ruleName,
-                                updatedAt: new Date(),
-                            })
-                            .where(eq(emailAddresses.id, createdEmailAddress.id))
-
-                        isReceiptRuleConfigured = true
-                        receiptRuleName = receiptResult.ruleName
-                        console.log('✅ AWS SES configured successfully')
-                    } else {
-                        awsConfigurationWarning = `SES configuration failed: ${receiptResult.error}`
-                        console.warn(`⚠️ ${awsConfigurationWarning}`)
-                    }
+                    awsConfigurationWarning = `SES configuration failed: ${receiptResult.error}`
+                    console.warn(`⚠️ ${awsConfigurationWarning}`)
                 }
-            } catch (error) {
-                awsConfigurationWarning = `SES configuration error: ${error instanceof Error ? error.message : 'Unknown error'}`
-                console.error('❌ AWS SES configuration failed:', error)
             }
+        } catch (error) {
+            awsConfigurationWarning = `SES configuration error: ${error instanceof Error ? error.message : 'Unknown error'}`
+            console.error('❌ AWS SES configuration failed:', error)
         }
 
         // Build response
