@@ -324,6 +324,32 @@ export async function POST(request: NextRequest) {
         console.log(`👥 Webhook - Recipients: ${receipt.recipients.join(', ')}`);
         console.log(`📧 Webhook - Subject: "${mail.commonHeaders.subject || '(no subject)'}"`);
 
+        // EARLY IDEMPOTENCY CHECK: Check if we've already received this SES message
+        // This prevents race conditions when both catchall and specific rules trigger Lambda
+        const existingSesEvent = await db
+          .select({ 
+            id: sesEvents.id,
+            recipients: sesEvents.recipients
+          })
+          .from(sesEvents)
+          .where(eq(sesEvents.messageId, mail.messageId))
+          .limit(1)
+        
+        if (existingSesEvent[0]) {
+          // Parse the recipients JSON array
+          const existingRecipients = JSON.parse(existingSesEvent[0].recipients as string) as string[]
+          
+          // Check if ANY of the current recipients were already processed
+          const hasOverlap = receipt.recipients.some(r => existingRecipients.includes(r))
+          
+          if (hasOverlap) {
+            console.log(`⏭️  Webhook - DUPLICATE DETECTED: messageId=${mail.messageId} already processed for recipients ${receipt.recipients.join(', ')}. Skipping entire record.`)
+            continue // Skip this entire record
+          } else {
+            console.log(`🔍 Webhook - Same messageId but different recipients. Existing: ${existingRecipients.join(', ')}, Current: ${receipt.recipients.join(', ')}`)
+          }
+        }
+
         // First, store the SES event
         const sesEventId = nanoid()
         const sesEventRecord = {
