@@ -176,7 +176,11 @@ export async function PUT(
             awsRegion
           )
 
-          // Check if there are existing individual email addresses
+          // Always use catch-all only mode to prevent duplicate deliveries
+          // The application routing logic will handle directing emails to their specific endpoints
+          console.log(`🌐 PUT /api/v1.1/domains/${params.id}/catch-all - Configuring catch-all only mode`)
+          
+          // Check for existing email addresses (for logging purposes)
           const existingEmails = await db
             .select({
               address: emailAddresses.address
@@ -187,32 +191,17 @@ export async function PUT(
               eq(emailAddresses.isActive, true)
             ))
 
-          let receiptResult: any
-
           if (existingEmails.length > 0) {
-            // Use mixed mode: both individual emails AND catch-all
-            console.log(`🔀 PUT /api/v1.1/domains/${params.id}/catch-all - Using mixed mode with ${existingEmails.length} individual emails`)
-            
-            const mixedResult = await sesManager.configureMixedMode({
-              domain: existingDomain[0].domain,
-              emailAddresses: existingEmails.map(e => e.address),
-              catchAllWebhookId: endpointId,
-              lambdaFunctionArn: lambdaArn,
-              s3BucketName
-            })
-            
-            receiptResult = mixedResult.catchAllRule
-          } else {
-            // Use catch-all only mode (legacy behavior)
-            console.log(`🌐 PUT /api/v1.1/domains/${params.id}/catch-all - Using catch-all only mode`)
-            
-            receiptResult = await sesManager.configureCatchAllDomain({
-              domain: existingDomain[0].domain,
-              webhookId: endpointId,
-              lambdaFunctionArn: lambdaArn,
-              s3BucketName
-            })
+            console.log(`📧 PUT /api/v1.1/domains/${params.id}/catch-all - ${existingEmails.length} existing email addresses will be routed via catch-all (prevents duplicate delivery)`)
           }
+
+          const receiptResult = await sesManager.configureCatchAllDomain({
+            domain: existingDomain[0].domain,
+            webhookId: endpointId,
+            lambdaFunctionArn: lambdaArn,
+            s3BucketName
+            // preserveIndividualRules is NOT set, so it defaults to false and deletes individual rules
+          })
           
           if (receiptResult.status === 'created' || receiptResult.status === 'updated') {
             receiptRuleName = receiptResult.ruleName

@@ -694,7 +694,7 @@ export async function PUT(
                 awsConfigurationWarning = `AWS SES configuration error: ${error instanceof Error ? error.message : 'Unknown error'}`
             }
         } else {
-            // DISABLE catch-all: Remove AWS SES catch-all receipt rule
+            // DISABLE catch-all: Remove AWS SES catch-all receipt rule and restore individual rules
             try {
                 console.log('🔧 Removing AWS SES catch-all for domain:', existingDomain[0].domain)
                 const sesManager = new AWSSESReceiptRuleManager()
@@ -703,6 +703,62 @@ export async function PUT(
                 
                 if (ruleRemoved) {
                     console.log('✅ AWS SES catch-all removed successfully')
+                    
+                    // Restore individual email rules for existing email addresses
+                    console.log('🔄 Restoring individual email rules')
+                    const existingEmails = await db
+                        .select({
+                            address: emailAddresses.address
+                        })
+                        .from(emailAddresses)
+                        .where(and(
+                            eq(emailAddresses.domainId, id),
+                            eq(emailAddresses.isActive, true)
+                        ))
+                    
+                    if (existingEmails.length > 0) {
+                        // Get AWS configuration
+                        const awsRegion = process.env.AWS_REGION || 'us-east-2'
+                        const lambdaFunctionName = process.env.LAMBDA_FUNCTION_NAME || 'email-processor'
+                        const s3BucketName = process.env.S3_BUCKET_NAME
+                        const awsAccountId = process.env.AWS_ACCOUNT_ID
+                        
+                        if (s3BucketName && awsAccountId) {
+                            const lambdaArn = AWSSESReceiptRuleManager.getLambdaFunctionArn(
+                                lambdaFunctionName,
+                                awsAccountId,
+                                awsRegion
+                            )
+                            
+                            const emailAddressList = existingEmails.map(email => email.address)
+                            
+                            const restoreResult = await sesManager.restoreIndividualEmailRules(
+                                existingDomain[0].domain,
+                                emailAddressList,
+                                lambdaArn,
+                                s3BucketName
+                            )
+                            
+                            if (restoreResult.status === 'created') {
+                                console.log(`✅ Restored individual email rules for ${existingEmails.length} addresses`)
+                                
+                                // Update all individual email addresses with the new receipt rule
+                                await db
+                                    .update(emailAddresses)
+                                    .set({
+                                        isReceiptRuleConfigured: true,
+                                        receiptRuleName: restoreResult.ruleName,
+                                        updatedAt: new Date()
+                                    })
+                                    .where(and(
+                                        eq(emailAddresses.domainId, id),
+                                        eq(emailAddresses.isActive, true)
+                                    ))
+                            } else {
+                                console.warn(`⚠️ Failed to restore individual email rules: ${restoreResult.error}`)
+                            }
+                        }
+                    }
                 } else {
                     console.warn('⚠️ Failed to remove AWS SES catch-all rule')
                 }
