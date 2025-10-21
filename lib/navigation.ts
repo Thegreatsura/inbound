@@ -20,6 +20,7 @@ import Code2 from "@/components/icons/code-2"
 import StackPerspective2 from "@/components/icons/stack-perspective-2"
 import EmailFlow from "@/components/icons/email-flow"
 import UserGroup from "@/components/icons/user-group"
+import ShieldCheck from "@/components/icons/shield-check"
 
 export interface NavigationItem {
   title: string
@@ -62,6 +63,12 @@ export const navigationConfig: NavigationConfig = {
       url: "/api-keys",
       icon: Key2,
       description: "Manage API keys for programmatic access"
+    },
+    {
+      title: "Guard",
+      url: "/guard",
+      icon: ShieldCheck,
+      description: "Email security and protection settings"
     },
     {
       title: "Settings",
