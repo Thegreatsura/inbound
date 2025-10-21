@@ -63,8 +63,8 @@ export default function GuardRuleDetailPage() {
     if (rule) {
       setName(rule.name)
       setDescription(rule.description || '')
-      setPriority(rule.priority)
-      setIsActive(rule.isActive)
+      setPriority(rule.priority || 0)
+      setIsActive(rule.isActive || true)
       
       try {
         setConfig(JSON.parse(rule.config))
