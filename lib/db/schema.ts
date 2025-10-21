@@ -658,6 +658,26 @@ export const SENT_EMAIL_STATUS = {
   FAILED: 'failed'
 } as const;
 
+// Guard Rules table - stores email filtering rules
+export const guardRules = pgTable('guard_rules', {
+  id: varchar('id', { length: 255 }).primaryKey(),
+  userId: varchar('user_id', { length: 255 }).notNull(),
+  name: varchar('name', { length: 255 }).notNull(),
+  description: text('description'),
+  type: varchar('type', { length: 50 }).notNull(), // 'explicit' | 'ai_prompt'
+  config: text('config').notNull(), // JSON configuration
+  isActive: boolean('is_active').default(true),
+  priority: integer('priority').default(0), // Higher priority rules evaluated first
+  lastTriggeredAt: timestamp('last_triggered_at'),
+  triggerCount: integer('trigger_count').default(0),
+  actions: text('actions'), // JSON: block/flag/label actions
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => ({
+  userIdIdx: index('guard_rules_user_id_idx').on(table.userId),
+  priorityIdx: index('guard_rules_priority_idx').on(table.priority),
+}));
+
 // Type definitions
 export type DomainStatus = typeof DOMAIN_STATUS[keyof typeof DOMAIN_STATUS];
 export type SesVerificationStatus = typeof SES_VERIFICATION_STATUS[keyof typeof SES_VERIFICATION_STATUS];
@@ -673,3 +693,7 @@ export type WebhookFormat = typeof WEBHOOK_FORMATS[keyof typeof WEBHOOK_FORMATS]
 export type DeliveryType = typeof DELIVERY_TYPES[keyof typeof DELIVERY_TYPES];
 export type DeliveryStatus = typeof DELIVERY_STATUS[keyof typeof DELIVERY_STATUS];
 export type SentEmailStatus = typeof SENT_EMAIL_STATUS[keyof typeof SENT_EMAIL_STATUS];
+
+// Guard Rules types
+export type GuardRule = typeof guardRules.$inferSelect;
+export type NewGuardRule = typeof guardRules.$inferInsert;

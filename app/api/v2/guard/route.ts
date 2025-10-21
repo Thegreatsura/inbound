@@ -1,0 +1,165 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { db } from '@/lib/db';
+import { guardRules } from '@/lib/db/schema';
+import { eq, and, desc, like, or, count } from 'drizzle-orm';
+import { nanoid } from 'nanoid';
+import { validateRequest } from '../helper/main';
+import type { CreateGuardRuleRequest } from '@/features/guard/types';
+
+// GET /api/v2/guard - List all guard rules for the user
+export async function GET(request: NextRequest) {
+  try {
+    const { userId, error: authError } = await validateRequest(request);
+    if (authError || !userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const searchParams = request.nextUrl.searchParams;
+    const search = searchParams.get('search');
+    const type = searchParams.get('type'); // 'explicit' | 'ai_prompt'
+    const isActive = searchParams.get('isActive'); // 'true' | 'false'
+    const limit = parseInt(searchParams.get('limit') || '50');
+    const offset = parseInt(searchParams.get('offset') || '0');
+
+    // Build where conditions
+    const conditions = [eq(guardRules.userId, userId)];
+
+    if (search) {
+      conditions.push(
+        or(
+          like(guardRules.name, `%${search}%`),
+          like(guardRules.description, `%${search}%`)
+        )!
+      );
+    }
+
+    if (type) {
+      conditions.push(eq(guardRules.type, type));
+    }
+
+    if (isActive !== null && isActive !== undefined) {
+      conditions.push(eq(guardRules.isActive, isActive === 'true'));
+    }
+
+    // Fetch rules with pagination
+    const rules = await db
+      .select()
+      .from(guardRules)
+      .where(and(...conditions))
+      .orderBy(desc(guardRules.priority), desc(guardRules.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    // Get total count
+    const totalResult = await db
+      .select({ count: count() })
+      .from(guardRules)
+      .where(and(...conditions));
+    
+    const total = Number(totalResult[0]?.count) || 0;
+
+    return NextResponse.json({
+      data: rules,
+      pagination: {
+        total,
+        limit,
+        offset,
+        hasMore: offset + rules.length < total,
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching guard rules:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch guard rules' },
+      { status: 500 }
+    );
+  }
+}
+
+// POST /api/v2/guard - Create a new guard rule
+export async function POST(request: NextRequest) {
+  try {
+    const { userId, error: authError } = await validateRequest(request);
+    if (authError || !userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body: CreateGuardRuleRequest = await request.json();
+
+    // Validate required fields
+    if (!body.name || !body.type || !body.config || !body.action) {
+      return NextResponse.json(
+        { error: 'Missing required fields: name, type, config, and action are required' },
+        { status: 400 }
+      );
+    }
+
+    // Validate rule type
+    if (body.type !== 'explicit' && body.type !== 'ai_evaluated') {
+      return NextResponse.json(
+        { error: 'Invalid rule type. Must be "explicit" or "ai_evaluated"' },
+        { status: 400 }
+      );
+    }
+
+    // Validate action
+    if (!['allow', 'block', 'route'].includes(body.action.action)) {
+      return NextResponse.json(
+        { error: 'Invalid action. Must be "allow", "block", or "route"' },
+        { status: 400 }
+      );
+    }
+
+    // Validate route action has endpoint
+    if (body.action.action === 'route' && !body.action.endpointId) {
+      return NextResponse.json(
+        { error: 'Endpoint ID is required when action is "route"' },
+        { status: 400 }
+      );
+    }
+
+    // Create the rule
+    const newRule = {
+      id: nanoid(),
+      userId: userId,
+      name: body.name,
+      description: body.description || null,
+      type: body.type,
+      config: JSON.stringify(body.config),
+      isActive: true,
+      priority: body.priority || 0,
+      actions: JSON.stringify(body.action),
+      triggerCount: 0,
+      lastTriggeredAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    const [createdRule] = await db
+      .insert(guardRules)
+      .values(newRule)
+      .returning();
+
+    return NextResponse.json(createdRule, { status: 201 });
+  } catch (error) {
+    console.error('Error creating guard rule:', error);
+    return NextResponse.json(
+      { error: 'Failed to create guard rule' },
+      { status: 500 }
+    );
+  }
+}
+
+// Export types for use in hooks
+export interface GetGuardRulesResponse {
+  data: Array<typeof guardRules.$inferSelect>;
+  pagination: {
+    total: number;
+    limit: number;
+    offset: number;
+    hasMore: boolean;
+  };
+}
+
+export type CreateGuardRuleResponse = typeof guardRules.$inferSelect;
+
