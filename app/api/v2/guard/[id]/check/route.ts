@@ -6,7 +6,7 @@ import type { CheckRuleMatchRequest, CheckRuleMatchResponse } from '@/features/g
 // POST /api/v2/guard/[id]/check - Check if a rule matches a structured email
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { userId, error: authError } = await validateRequest(request);
@@ -14,7 +14,7 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const ruleId = params.id;
+    const { id: ruleId } = await params;
     const body: CheckRuleMatchRequest = await request.json();
 
     if (!body.structuredEmailId) {
