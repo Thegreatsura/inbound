@@ -70,6 +70,23 @@ export async function routeEmail(emailId: string): Promise<void> {
 
     console.log(`📍 routeEmail - Found endpoint: ${endpoint.name} (type: ${endpoint.type}) for ${emailData.recipient}`)
 
+    // Check if this email has already been delivered to this endpoint (prevent duplicate deliveries)
+    const existingDelivery = await db
+      .select({ id: endpointDeliveries.id, status: endpointDeliveries.status, attempts: endpointDeliveries.attempts })
+      .from(endpointDeliveries)
+      .where(and(
+        eq(endpointDeliveries.emailId, emailId),
+        eq(endpointDeliveries.endpointId, endpoint.id)
+      ))
+      .limit(1)
+    
+    if (existingDelivery[0]) {
+      console.log(`⏭️  routeEmail - Email ${emailId} already has delivery record for endpoint ${endpoint.id} (status: ${existingDelivery[0].status}, attempts: ${existingDelivery[0].attempts}). Skipping duplicate delivery.`)
+      // This is expected behavior when webhook is called multiple times for the same email
+      // The deterministic email ID + this check prevents duplicate deliveries
+      return
+    }
+
     // Route based on endpoint type
     switch (endpoint.type) {
       case 'webhook':

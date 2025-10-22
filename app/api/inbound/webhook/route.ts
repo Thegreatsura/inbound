@@ -2,7 +2,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { sesEvents, structuredEmails, emailDomains, emailAddresses } from '@/lib/db/schema'
+import { sesEvents, structuredEmails, emailDomains, emailAddresses, endpointDeliveries } from '@/lib/db/schema'
 import { nanoid } from 'nanoid'
 import { eq, and } from 'drizzle-orm'
 import { Autumn as autumn } from 'autumn-js'
@@ -11,6 +11,7 @@ import { type SESEvent, type SESRecord } from '@/lib/aws-ses/aws-ses'
 import { isEmailBlocked } from '@/lib/email-management/email-blocking'
 import { routeEmail } from '@/lib/email-management/email-router'
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3'
+import { createHash } from 'crypto'
 
 interface ProcessedSESRecord extends SESRecord {
   emailContent?: string | null
@@ -40,6 +41,24 @@ interface WebhookPayload {
  */
 function extractDomain(email: string): string {
   return email.split('@')[1]?.toLowerCase() || ''
+}
+
+/**
+ * Generate a deterministic, collision-resistant ID for emails
+ * Uses SHA-256 hash to ensure uniqueness while maintaining determinism
+ * @param prefix - ID prefix (e.g., 'inbnd', 'inbnd_failed', 'inbnd_minimal')
+ * @param sesEventId - The SES event ID
+ * @param recipient - The recipient email address
+ * @returns A deterministic ID like "inbnd_a1b2c3d4..."
+ */
+function generateDeterministicEmailId(prefix: string, sesEventId: string, recipient: string): string {
+  // Create hash of sesEventId + recipient for collision resistance
+  const hash = createHash('sha256')
+    .update(`${sesEventId}:${recipient}`)
+    .digest('hex')
+    .substring(0, 16) // Use first 16 chars for reasonable length
+  
+  return `${prefix}_${hash}`
 }
 
 /**
@@ -176,7 +195,9 @@ async function createStructuredEmailRecord(
   try {
     console.log(`📝 Webhook - Creating structured email record for recipient ${recipient}`)
 
-    const structuredEmailId = 'inbnd_' + nanoid()
+    // Use hash-based deterministic ID to prevent race condition duplicates AND ID collisions
+    // SHA-256 hash ensures emails like user+tag@x.com and user.tag@x.com get different IDs
+    const structuredEmailId = generateDeterministicEmailId('inbnd', sesEventId, recipient)
     const structuredEmailRecord = {
       id: structuredEmailId,
       emailId: structuredEmailId, // Self-referencing for backward compatibility
@@ -224,8 +245,20 @@ async function createStructuredEmailRecord(
       updatedAt: new Date(),
     }
 
-    await db.insert(structuredEmails).values(structuredEmailRecord)
-    console.log(`✅ Webhook - Created structured email record ${structuredEmailId}`)
+    // Try to insert with duplicate handling
+    try {
+      await db.insert(structuredEmails).values(structuredEmailRecord)
+      console.log(`✅ Webhook - Created structured email record ${structuredEmailId}`)
+    } catch (insertError: any) {
+      // Check if this is a duplicate key error (race condition)
+      if (insertError?.code === '23505' || insertError?.message?.includes('duplicate key')) {
+        console.log(`⏭️  Webhook - Structured email ${structuredEmailId} already exists (race condition), skipping duplicate`)
+        return structuredEmailId // Return the ID even though we didn't create it
+      } else {
+        // Re-throw if it's a different error
+        throw insertError
+      }
+    }
     
     return structuredEmailId
 
@@ -233,8 +266,10 @@ async function createStructuredEmailRecord(
     console.error(`❌ Webhook - Error creating structured email record for recipient ${recipient}:`, error)
     
     // Create a minimal record indicating parse failure
+    // Note: We use hash-based ID so repeated failures for the same email will hit duplicate key
+    // This is intentional - we log the error above and return the existing ID
     try {
-      const failedStructuredId = 'inbnd_' + nanoid()
+      const failedStructuredId = generateDeterministicEmailId('inbnd_failed', sesEventId, recipient)
       const failedStructuredRecord = {
         id: failedStructuredId,
         emailId: failedStructuredId, // Self-referencing
@@ -246,8 +281,17 @@ async function createStructuredEmailRecord(
         createdAt: new Date(),
         updatedAt: new Date(),
       }
-      await db.insert(structuredEmails).values(failedStructuredRecord)
-      console.log(`⚠️ Webhook - Created failed structured parse record ${failedStructuredId}`)
+      
+      try {
+        await db.insert(structuredEmails).values(failedStructuredRecord)
+        console.log(`⚠️ Webhook - Created failed structured parse record ${failedStructuredId}`)
+      } catch (failedInsertError: any) {
+        if (failedInsertError?.code === '23505' || failedInsertError?.message?.includes('duplicate key')) {
+          console.warn(`⚠️ Webhook - REPEATED FAILURE: Failed record ${failedStructuredId} already exists. This indicates the same email failed parsing multiple times. Original error: ${error instanceof Error ? error.message : 'Unknown'}`)
+        } else {
+          throw failedInsertError
+        }
+      }
       return failedStructuredId
     } catch (insertError) {
       console.error(`❌ Webhook - Failed to create failed structured parse record for recipient ${recipient}:`, insertError)
@@ -350,8 +394,9 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // First, store the SES event
-        const sesEventId = nanoid()
+        // First, store the SES event with race-condition handling
+        // Use a deterministic ID based on messageId to prevent duplicates
+        const sesEventId = `ses_${mail.messageId}`
         const sesEventRecord = {
           id: sesEventId,
           eventSource: record.eventSource,
@@ -383,8 +428,19 @@ export async function POST(request: NextRequest) {
           updatedAt: new Date(),
         }
 
-        await db.insert(sesEvents).values(sesEventRecord)
-        console.log(`✅ Webhook - Stored SES event ${sesEventId} for message ${mail.messageId}`);
+        // Try to insert, but if it already exists (race condition), just use the existing one
+        try {
+          await db.insert(sesEvents).values(sesEventRecord)
+          console.log(`✅ Webhook - Stored SES event ${sesEventId} for message ${mail.messageId}`);
+        } catch (insertError: any) {
+          // Check if this is a unique constraint violation (duplicate key)
+          if (insertError?.code === '23505' || insertError?.message?.includes('duplicate key')) {
+            console.log(`⏭️  Webhook - SES event ${sesEventId} already exists (race condition), using existing record`)
+          } else {
+            // Re-throw if it's a different error
+            throw insertError
+          }
+        }
 
         // Then, create a receivedEmail record for each recipient
         for (const recipient of receipt.recipients) {
@@ -490,9 +546,9 @@ export async function POST(request: NextRequest) {
           if (parsedEmailData) {
             structuredEmailId = await createStructuredEmailRecord(sesEventId, parsedEmailData, userId, recipient)
           } else {
-            // Create minimal record for unparseable emails
+            // Create minimal record for unparseable emails with hash-based deterministic ID
             console.warn(`⚠️ Webhook - No parsed data for ${mail.messageId}, creating minimal record`)
-            structuredEmailId = 'inbnd_' + nanoid()
+            structuredEmailId = generateDeterministicEmailId('inbnd_minimal', sesEventId, recipient)
             const minimalRecord = {
               id: structuredEmailId,
               emailId: structuredEmailId,
@@ -506,7 +562,16 @@ export async function POST(request: NextRequest) {
               createdAt: new Date(),
               updatedAt: new Date(),
             }
-            await db.insert(structuredEmails).values(minimalRecord)
+            
+            try {
+              await db.insert(structuredEmails).values(minimalRecord)
+            } catch (minimalInsertError: any) {
+              if (minimalInsertError?.code === '23505' || minimalInsertError?.message?.includes('duplicate key')) {
+                console.log(`⏭️  Webhook - Minimal record ${structuredEmailId} already exists (race condition), skipping`)
+              } else {
+                throw minimalInsertError
+              }
+            }
           }
           
           // Initialize email processing record
@@ -522,6 +587,10 @@ export async function POST(request: NextRequest) {
           console.log(`✅ Webhook - Stored email ${mail.messageId} for ${recipient} with ID ${structuredEmailId}`);
 
           // Route email using the new unified routing system (skip routing for blocked emails)
+          // Note: We removed the stale delivery status check here because:
+          // 1. It had a race condition (TOCTOU bug) where status could change after check
+          // 2. The deterministic email ID prevents duplicate email records
+          // 3. The routing layer (routeEmail) should handle duplicate delivery attempts gracefully
           if (emailStatus === 'blocked') {
             console.log(`🚫 Webhook - Skipping routing for blocked email ${structuredEmailId} from ${mail.source}`)
             
