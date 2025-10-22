@@ -38,7 +38,9 @@ export async function GET(request: NextRequest) {
     }
 
     if (isActive !== null && isActive !== undefined) {
-      conditions.push(eq(guardRules.isActive, isActive === 'true'));
+      // Handle various boolean-like string values
+      const boolValue = isActive === 'true' || isActive === '1';
+      conditions.push(eq(guardRules.isActive, boolValue));
     }
 
     // Fetch rules with pagination
@@ -95,9 +97,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate rule type
-    if (body.type !== 'explicit' && body.type !== 'ai_evaluated') {
+    if (body.type !== 'explicit' && body.type !== 'ai_prompt') {
       return NextResponse.json(
-        { error: 'Invalid rule type. Must be "explicit" or "ai_evaluated"' },
+        { error: 'Invalid rule type. Must be "explicit" or "ai_prompt"' },
         { status: 400 }
       );
     }

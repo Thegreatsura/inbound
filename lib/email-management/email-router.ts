@@ -15,6 +15,7 @@ import { nanoid } from 'nanoid'
 import type { ParsedEmailData } from './email-parser'
 import { sanitizeHtml } from './email-parser'
 import type { Endpoint } from '@/features/endpoints/types'
+import { evaluateGuardRules } from '../guard/rule-matcher'
 
 // Maximum webhook payload size (5MB safety margin)
 const MAX_WEBHOOK_PAYLOAD_SIZE = 1_000_000
@@ -51,6 +52,47 @@ export async function routeEmail(emailId: string): Promise<void> {
     if (isDmarcEmail) {
       console.log(`📊 routeEmail - DMARC email detected for ${emailData.recipient}, checking domain settings`)
       return // Email is stored but not routed based on domain configuration
+    }
+
+    // 🛡️ GUARD: Evaluate Guard rules before routing
+    const guardResult = await evaluateGuardRules(emailData.structuredId, emailData.userId)
+    
+    if (guardResult.shouldBlock) {
+      console.log(`🛡️ routeEmail - Email ${emailId} BLOCKED by Guard rule: ${guardResult.matchedRule?.name}`)
+      // Email is stored but not routed - blocked by Guard
+      return
+    }
+
+    if (guardResult.action === 'route' && guardResult.routeToEndpointId) {
+      console.log(`🛡️ routeEmail - Email ${emailId} ROUTED by Guard rule to endpoint: ${guardResult.routeToEndpointId}`)
+      
+      // Fetch the specific endpoint
+      const [guardEndpoint] = await db
+        .select()
+        .from(endpoints)
+        .where(and(
+          eq(endpoints.id, guardResult.routeToEndpointId),
+          eq(endpoints.isActive, true),
+          eq(endpoints.userId, emailData.userId)
+        ))
+        .limit(1);
+
+      if (guardEndpoint) {
+        // Route to Guard-specified endpoint
+        switch (guardEndpoint.type) {
+          case 'webhook':
+            await handleWebhookEndpoint(emailId, guardEndpoint)
+            break
+          case 'email':
+          case 'email_group':
+            await handleEmailForwardEndpoint(emailId, guardEndpoint, emailData)
+            break
+        }
+        console.log(`✅ routeEmail - Successfully routed email ${emailId} via Guard to ${guardEndpoint.type} endpoint`)
+        return
+      } else {
+        console.warn(`⚠️ routeEmail - Guard specified endpoint ${guardResult.routeToEndpointId} not found, falling back to normal routing`)
+      }
     }
     
     // Pass userId to findEndpointForEmail to ensure proper filtering

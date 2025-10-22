@@ -5,7 +5,7 @@ export type GuardRule = typeof guardRules.$inferSelect;
 export type NewGuardRule = typeof guardRules.$inferInsert;
 
 // Rule type
-export type RuleType = 'explicit' | 'ai_evaluated';
+export type RuleType = 'explicit' | 'ai_prompt';
 
 // Logic operators for explicit rules
 export type LogicOperator = 'OR' | 'AND';
@@ -40,14 +40,14 @@ export interface ExplicitRuleConfig {
   };
 }
 
-// AI evaluated rule configuration
-export interface AiEvaluatedRuleConfig {
+// AI prompt rule configuration
+export interface AiPromptRuleConfig {
   mode: 'simple' | 'advanced';
   prompt: string;
 }
 
 // Union type for all rule configurations
-export type RuleConfig = ExplicitRuleConfig | AiEvaluatedRuleConfig;
+export type RuleConfig = ExplicitRuleConfig | AiPromptRuleConfig;
 
 // API Request/Response types
 export interface CreateGuardRuleRequest {

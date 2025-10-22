@@ -11,7 +11,6 @@ import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 import { useGuardRulesQuery } from '@/features/guard/hooks/useGuardHooks'
 
 // Import Nucleo icons
-import ShieldCheck from '@/components/icons/shield-check'
 import CirclePlus from '@/components/icons/circle-plus'
 import Refresh2 from '@/components/icons/refresh-2'
 import CircleXmark from '@/components/icons/circle-xmark'
@@ -40,21 +39,15 @@ export default function GuardPage() {
     refetch: refetchRules
   } = useGuardRulesQuery({
     search: debouncedSearch || undefined,
-    type: debouncedType !== 'all' ? (debouncedType as 'explicit' | 'ai_evaluated') : undefined,
+    type: debouncedType !== 'all' ? (debouncedType as 'explicit' | 'ai_prompt') : undefined,
     isActive: debouncedStatus !== 'all' ? debouncedStatus === 'active' : undefined,
     limit: 100,
   })
 
   const rules = rulesResponse?.data || []
 
-  // Helper functions
-  const getRuleTypeIcon = (type: string) => {
-    return type === 'explicit' ? Code2 : BoltLightning
-  }
-
-  const getRuleTypeColor = (type: string) => {
-    return type === 'explicit' ? '#3b82f6' : '#8b5cf6'
-  }
+  // Helper
+  const getRuleTypeIcon = (type: string) => (type === 'explicit' ? Code2 : BoltLightning)
 
   // Error state
   if (error) {
@@ -132,7 +125,7 @@ export default function GuardPage() {
               <SelectContent>
                 <SelectItem value="all">All Types</SelectItem>
                 <SelectItem value="explicit">Explicit</SelectItem>
-                <SelectItem value="ai_evaluated">AI Evaluated</SelectItem>
+                <SelectItem value="ai_prompt">AI Prompt</SelectItem>
               </SelectContent>
             </Select>
 
@@ -159,7 +152,6 @@ export default function GuardPage() {
                 }}
                 className="h-8"
               >
-                <Filter2 width="14" height="14" className="mr-2" />
                 Clear filters
               </Button>
             </div>
@@ -177,7 +169,6 @@ export default function GuardPage() {
           <div className="max-w-5xl mx-auto">
             <div className="bg-card border-border rounded-xl p-8">
               <div className="text-center">
-                <ShieldCheck width="48" height="48" className="text-muted-foreground mx-auto mb-4" />
                 <h3 className="text-lg font-semibold mb-2 text-foreground">No rules found</h3>
                 <p className="text-sm text-muted-foreground mb-4">
                   {searchQuery || typeFilter !== 'all' || statusFilter !== 'all'
@@ -197,7 +188,6 @@ export default function GuardPage() {
           <div className="border border-border rounded-[13px] bg-card">
             {rules.map((rule) => {
               const RuleIcon = getRuleTypeIcon(rule.type)
-              const iconColor = getRuleTypeColor(rule.type)
               
               return (
                 <Link
@@ -208,9 +198,9 @@ export default function GuardPage() {
                   {/* Rule Icon with Status */}
                   <div className="flex-shrink-0">
                     <div className="relative p-[8px] rounded-md bg-muted">
-                      <RuleIcon width="23" height="23" style={{ color: iconColor }} />
+                      <RuleIcon width="23" height="23" />
                       <div className="absolute -top-1 -right-1">
-                        <div className={`w-2 h-2 rounded-full ${rule.isActive ? 'bg-green-500' : 'bg-gray-500'}`} />
+                        <div className={`w-2 h-2 rounded-full ${rule.isActive ? 'bg-green-500' : 'bg-gray-400'}`} />
                       </div>
                     </div>
                   </div>
@@ -220,7 +210,7 @@ export default function GuardPage() {
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium">{rule.name}</span>
                       <Badge variant={rule.type === 'explicit' ? 'secondary' : 'default'}>
-                        {rule.type === 'explicit' ? 'Explicit' : 'AI Evaluated'}
+                        {rule.type === 'explicit' ? 'Explicit' : 'AI'}
                       </Badge>
                       <Badge variant={rule.isActive ? 'default' : 'secondary'}>
                         {rule.isActive ? 'Active' : 'Inactive'}
@@ -250,7 +240,7 @@ export default function GuardPage() {
 
                   {/* Created Date */}
                   <div className="flex-shrink-0 text-xs text-muted-foreground w-20 text-right ml-auto">
-                    {rule.createdAt ? format(rule.createdAt, 'MMM d') : 'N/A'}
+                    {rule.createdAt ? format(rule.createdAt, 'MMM d') : '—'}
                   </div>
                 </Link>
               )

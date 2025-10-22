@@ -3,20 +3,23 @@
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+
+const Editor = dynamic(() => import('@monaco-editor/react'), { ssr: false })
 import {
   useGuardRuleQuery,
   useUpdateGuardRuleMutation,
   useDeleteGuardRuleMutation,
   useGuardRuleCheckMutation,
 } from '@/features/guard/hooks/useGuardHooks'
-import type { ExplicitRuleConfig, AiEvaluatedRuleConfig, LogicOperator, RuleActionConfig } from '@/features/guard/types'
+import type { ExplicitRuleConfig, AiPromptRuleConfig, LogicOperator, RuleActionConfig } from '@/features/guard/types'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
 
@@ -48,7 +51,9 @@ export default function GuardRuleDetailPage() {
   const [description, setDescription] = useState('')
   const [priority, setPriority] = useState(0)
   const [isActive, setIsActive] = useState(true)
-  const [config, setConfig] = useState<ExplicitRuleConfig | AiEvaluatedRuleConfig | null>(null)
+  const [config, setConfig] = useState<ExplicitRuleConfig | AiPromptRuleConfig | null>(null)
+  const [configText, setConfigText] = useState('')
+  const [configError, setConfigError] = useState('')
   const [actionConfig, setActionConfig] = useState<RuleActionConfig | null>(null)
 
   // Test state
@@ -67,9 +72,14 @@ export default function GuardRuleDetailPage() {
       setIsActive(rule.isActive || true)
       
       try {
-        setConfig(JSON.parse(rule.config))
+        const parsedConfig = JSON.parse(rule.config)
+        setConfig(parsedConfig)
+        setConfigText(JSON.stringify(parsedConfig, null, 2))
+        setConfigError('')
       } catch (e) {
         console.error('Failed to parse config:', e)
+        setConfigText(rule.config)
+        setConfigError('Invalid JSON in stored config')
       }
 
       try {
@@ -82,8 +92,24 @@ export default function GuardRuleDetailPage() {
     }
   }, [rule])
 
+  const handleConfigChange = (value: string) => {
+    setConfigText(value)
+    try {
+      const parsed = JSON.parse(value)
+      setConfig(parsed)
+      setConfigError('')
+    } catch (e) {
+      setConfigError('Invalid JSON syntax')
+    }
+  }
+
   const handleSave = async () => {
     if (!rule || !config) return
+
+    if (configError) {
+      toast.error('Please fix JSON errors before saving')
+      return
+    }
 
     try {
       await updateMutation.mutateAsync({
@@ -179,26 +205,22 @@ export default function GuardRuleDetailPage() {
         </div>
 
         {/* Header */}
-        <div className="mb-6">
-          <div className="flex items-center gap-4 mb-2">
+        <div className="mb-4">
+          <div className="flex items-center gap-3">
             <div className="p-2 rounded-md bg-muted">
-              <RuleIcon width="32" height="32" style={{ color: iconColor }} />
+              <RuleIcon width="28" height="28" style={{ color: iconColor }} />
             </div>
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-1">
-                <h2 className="text-2xl font-semibold text-foreground tracking-tight">
-                  {rule.name}
-                </h2>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <h2 className="text-xl font-semibold tracking-tight truncate">{rule.name}</h2>
                 <Badge variant={rule.type === 'explicit' ? 'secondary' : 'default'}>
-                  {rule.type === 'explicit' ? 'Explicit' : 'AI Evaluated'}
+                  {rule.type === 'explicit' ? 'Explicit' : 'AI'}
                 </Badge>
                 <Badge variant={rule.isActive ? 'default' : 'secondary'}>
                   {rule.isActive ? 'Active' : 'Inactive'}
                 </Badge>
                 {actionConfig && (
-                  <Badge variant="outline">
-                    {actionConfig.action.toUpperCase()}
-                  </Badge>
+                  <Badge variant="outline">{actionConfig.action.toUpperCase()}</Badge>
                 )}
               </div>
               <ApiIdLabel id={rule.id} size="sm" />
@@ -207,222 +229,149 @@ export default function GuardRuleDetailPage() {
         </div>
 
         {/* Metadata */}
-        <div className="grid grid-cols-3 gap-4 mb-6">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Created</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-lg font-semibold">
-                {rule.createdAt ? format(new Date(rule.createdAt), 'MMM d, yyyy') : 'N/A'}
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Triggers</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-lg font-semibold">{rule.triggerCount || 0}</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Last Triggered</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-lg font-semibold">
-                {rule.lastTriggeredAt ? format(new Date(rule.lastTriggeredAt), 'MMM d, yyyy') : 'Never'}
-              </p>
-            </CardContent>
-          </Card>
+        <div className="mb-6 grid grid-cols-3 gap-3 text-sm">
+          <div className="p-3 rounded-md border">
+            <div className="text-muted-foreground mb-1">Created</div>
+            <div className="font-medium">{rule.createdAt ? format(new Date(rule.createdAt), 'MMM d, yyyy') : 'N/A'}</div>
+          </div>
+          <div className="p-3 rounded-md border">
+            <div className="text-muted-foreground mb-1">Triggers</div>
+            <div className="font-medium">{rule.triggerCount || 0}</div>
+          </div>
+          <div className="p-3 rounded-md border">
+            <div className="text-muted-foreground mb-1">Last Triggered</div>
+            <div className="font-medium">{rule.lastTriggeredAt ? format(new Date(rule.lastTriggeredAt), 'MMM d, yyyy') : 'Never'}</div>
+          </div>
         </div>
 
         {/* Form */}
-        <div className="space-y-6">
+        <div className="space-y-8">
           {/* Basic Info */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Basic Information</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
+          <section className="space-y-4">
+            <h3 className="text-sm font-medium text-muted-foreground">Basic information</h3>
+            <div>
+              <Label htmlFor="name">Rule Name</Label>
+              <Input id="name" value={name} onChange={(e) => setName(e.target.value)} />
+            </div>
+            <div>
+              <Label htmlFor="description">Description</Label>
+              <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} rows={3} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label htmlFor="name">Rule Name</Label>
-                <Input
-                  id="name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                />
+                <Label htmlFor="priority">Priority</Label>
+                <Input id="priority" type="number" value={priority} onChange={(e) => setPriority(parseInt(e.target.value) || 0)} />
               </div>
-
               <div>
-                <Label htmlFor="description">Description</Label>
-                <Textarea
-                  id="description"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  rows={3}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="priority">Priority</Label>
-                  <Input
-                    id="priority"
-                    type="number"
-                    value={priority}
-                    onChange={(e) => setPriority(parseInt(e.target.value) || 0)}
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="status">Status</Label>
-                  <Select value={isActive ? 'active' : 'inactive'} onValueChange={(v) => setIsActive(v === 'active')}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="inactive">Inactive</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <Label>Status</Label>
+                <div className="mt-1">
+                  <ToggleGroup type="single" value={isActive ? 'active' : 'inactive'} onValueChange={(v: string) => v && setIsActive(v === 'active')} className="flex items-center gap-2 justify-start">
+                    <ToggleGroupItem value="active" className="h-8 rounded-full px-4 border data-[state=on]:bg-primary data-[state=on]:text-white">Active</ToggleGroupItem>
+                    <ToggleGroupItem value="inactive" className="h-8 rounded-full px-4 border data-[state=on]:bg-primary data-[state=on]:text-white">Inactive</ToggleGroupItem>
+                  </ToggleGroup>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </section>
 
           {/* Action Configuration */}
           {actionConfig && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Action Configuration</CardTitle>
-                <CardDescription>
-                  What happens when an email matches this rule
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">Action:</span>
-                    <Badge variant={
-                      actionConfig.action === 'allow' ? 'default' :
-                      actionConfig.action === 'block' ? 'destructive' :
-                      'secondary'
-                    }>
-                      {actionConfig.action.toUpperCase()}
-                    </Badge>
-                  </div>
-                  {actionConfig.action === 'allow' && (
-                    <p className="text-sm text-muted-foreground">
-                      Email will be routed to the original endpoint
-                    </p>
-                  )}
-                  {actionConfig.action === 'block' && (
-                    <p className="text-sm text-muted-foreground">
-                      Email will be accepted but not sent to any endpoint (logged only)
-                    </p>
-                  )}
-                  {actionConfig.action === 'route' && (
+            <section className="space-y-2">
+              <h3 className="text-sm font-medium text-muted-foreground">Action</h3>
+              <div className="flex items-center gap-2">
+                <Badge variant={
+                  actionConfig.action === 'allow' ? 'default' :
+                  actionConfig.action === 'block' ? 'destructive' :
+                  'secondary'
+                }>
+                  {actionConfig.action.toUpperCase()}
+                </Badge>
+                {actionConfig.action === 'route' && actionConfig.endpointId && (
+                  <span className="text-sm font-mono text-muted-foreground">{actionConfig.endpointId}</span>
+                )}
+              </div>
+            </section>
+          )}
+
+          {/* Rule Configuration */}
+          <section className="space-y-2">
+            <h3 className="text-sm font-medium text-muted-foreground">Rule configuration</h3>
+            <div className={`border rounded-md overflow-hidden ${configError ? 'border-destructive' : ''}`}>
+              <Editor
+                height="300px"
+                defaultLanguage="json"
+                value={configText}
+                onChange={(value) => handleConfigChange(value || '')}
+                theme="dark"
+                options={{
+                  minimap: { enabled: false },
+                  fontSize: 13,
+                  lineNumbers: 'on',
+                  automaticLayout: true,
+                  tabSize: 2,
+                  formatOnPaste: true,
+                  formatOnType: true,
+                }}
+              />
+            </div>
+            {configError && (
+              <p className="text-sm text-destructive">{configError}</p>
+            )}
+          </section>
+
+          {/* Test Section */}
+          <section className="space-y-4">
+            <h3 className="text-sm font-medium text-muted-foreground">Test rule</h3>
+            <div className="flex gap-2">
+              <Input
+                placeholder="Enter structured email ID..."
+                value={testEmailId}
+                onChange={(e) => setTestEmailId(e.target.value)}
+              />
+              <Button onClick={handleTest} disabled={checkMutation.isPending}>
+                {checkMutation.isPending ? 'Testing...' : 'Test'}
+              </Button>
+            </div>
+
+            {testResult && (
+              <div className={`p-4 rounded-md border ${
+                testResult.matched
+                  ? 'bg-green-50 border-green-200 dark:bg-green-950 dark:border-green-800'
+                  : 'bg-red-50 border-red-200 dark:bg-red-950 dark:border-red-800'
+              }`}>
+                <div className="flex items-center gap-2 mb-2">
+                  {testResult.matched ? (
                     <>
-                      <p className="text-sm text-muted-foreground">
-                        Email will be routed to a specific endpoint
-                      </p>
-                      {actionConfig.endpointId && (
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium">Endpoint ID:</span>
-                          <span className="text-sm font-mono text-muted-foreground">
-                            {actionConfig.endpointId}
-                          </span>
-                        </div>
-                      )}
+                      <CircleCheck width="20" height="20" className="text-green-600" />
+                      <span className="font-semibold text-green-600">Rule Matched!</span>
+                    </>
+                  ) : (
+                    <>
+                      <CircleXmark width="20" height="20" className="text-red-600" />
+                      <span className="font-semibold text-red-600">No Match</span>
                     </>
                   )}
                 </div>
-              </CardContent>
-            </Card>
-          )}
 
-          {/* Rule Configuration (Read-only for now) */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Rule Configuration</CardTitle>
-              <CardDescription>
-                View the configured matching criteria (editing not yet implemented)
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <pre className="p-4 bg-muted rounded-lg overflow-auto text-sm">
-                {JSON.stringify(config, null, 2)}
-              </pre>
-            </CardContent>
-          </Card>
+                {testResult.error && (
+                  <p className="text-sm text-muted-foreground">Error: {testResult.error}</p>
+                )}
 
-          {/* Test Section */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Test Rule</CardTitle>
-              <CardDescription>
-                Test if this rule matches a specific email
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Enter structured email ID..."
-                  value={testEmailId}
-                  onChange={(e) => setTestEmailId(e.target.value)}
-                />
-                <Button
-                  onClick={handleTest}
-                  disabled={checkMutation.isPending}
-                >
-                  {checkMutation.isPending ? 'Testing...' : 'Test'}
-                </Button>
-              </div>
-
-              {testResult && (
-                <div className={`p-4 rounded-lg border ${
-                  testResult.matched
-                    ? 'bg-green-50 border-green-200 dark:bg-green-950 dark:border-green-800'
-                    : 'bg-red-50 border-red-200 dark:bg-red-950 dark:border-red-800'
-                }`}>
-                  <div className="flex items-center gap-2 mb-2">
-                    {testResult.matched ? (
-                      <>
-                        <CircleCheck width="20" height="20" className="text-green-600" />
-                        <span className="font-semibold text-green-600">Rule Matched!</span>
-                      </>
-                    ) : (
-                      <>
-                        <CircleXmark width="20" height="20" className="text-red-600" />
-                        <span className="font-semibold text-red-600">No Match</span>
-                      </>
-                    )}
+                {testResult.matchDetails && testResult.matchDetails.length > 0 && (
+                  <div className="mt-2">
+                    <p className="text-sm font-medium mb-1">Match Details:</p>
+                    <ul className="list-disc list-inside text-sm space-y-1">
+                      {testResult.matchDetails.map((detail, i) => (
+                        <li key={i}>
+                          <span className="font-medium">{detail.criteria}:</span> {detail.value}
+                        </li>
+                      ))}
+                    </ul>
                   </div>
-
-                  {testResult.error && (
-                    <p className="text-sm text-muted-foreground">Error: {testResult.error}</p>
-                  )}
-
-                  {testResult.matchDetails && testResult.matchDetails.length > 0 && (
-                    <div className="mt-2">
-                      <p className="text-sm font-medium mb-1">Match Details:</p>
-                      <ul className="list-disc list-inside text-sm space-y-1">
-                        {testResult.matchDetails.map((detail, i) => (
-                          <li key={i}>
-                            <span className="font-medium">{detail.criteria}:</span> {detail.value}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                )}
+              </div>
+            )}
+          </section>
 
           {/* Actions */}
           <div className="flex items-center justify-between">

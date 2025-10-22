@@ -30,7 +30,7 @@ export const guardKeys = {
 // Query hook - List all guard rules
 export function useGuardRulesQuery(params?: {
   search?: string;
-  type?: 'explicit' | 'ai_evaluated';
+  type?: 'explicit' | 'ai_prompt';
   isActive?: boolean;
   limit?: number;
   offset?: number;

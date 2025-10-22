@@ -1,12 +1,20 @@
 import { db } from '@/lib/db';
 import { guardRules, structuredEmails } from '@/lib/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, desc } from 'drizzle-orm';
 import type { 
   CheckRuleMatchResponse, 
   ExplicitRuleConfig, 
-  AiEvaluatedRuleConfig,
-  GuardRule 
+  AiPromptRuleConfig,
+  GuardRule,
+  RuleActionConfig 
 } from '@/features/guard/types';
+
+export interface GuardEvaluationResult {
+  shouldBlock: boolean;
+  routeToEndpointId?: string;
+  matchedRule?: GuardRule;
+  action?: 'allow' | 'block' | 'route';
+}
 
 /**
  * Check if a guard rule matches a structured email
@@ -56,7 +64,7 @@ export async function checkRuleMatch(
     }
 
     // Parse the rule config
-    let config: ExplicitRuleConfig | AiEvaluatedRuleConfig;
+    let config: ExplicitRuleConfig | AiPromptRuleConfig;
     try {
       config = JSON.parse(rule.config);
     } catch (error) {
@@ -69,8 +77,8 @@ export async function checkRuleMatch(
     // Check based on rule type
     if (rule.type === 'explicit') {
       return await checkExplicitRule(config as ExplicitRuleConfig, email);
-    } else if (rule.type === 'ai_evaluated') {
-      return await checkAiEvaluatedRule(config as AiEvaluatedRuleConfig, email);
+    } else if (rule.type === 'ai_prompt') {
+      return await checkAiPromptRule(config as AiPromptRuleConfig, email);
     }
 
     return {
@@ -225,18 +233,130 @@ function checkEmailCriteria(
 }
 
 /**
- * Check if an AI evaluated rule matches an email
+ * Check if an AI prompt rule matches an email
  * TODO: Implement AI-based matching using AI gateway
  */
-async function checkAiEvaluatedRule(
-  config: AiEvaluatedRuleConfig,
+async function checkAiPromptRule(
+  config: AiPromptRuleConfig,
   email: typeof structuredEmails.$inferSelect
 ): Promise<CheckRuleMatchResponse> {
   // Stub implementation - will be implemented later with AI gateway
   return {
     matched: false,
     matchDetails: [],
-    error: 'AI evaluated matching not yet implemented',
+    error: 'AI prompt matching not yet implemented',
   };
+}
+
+/**
+ * Evaluate all active guard rules for a user against a structured email
+ * Returns the action to take based on the highest priority matching rule
+ */
+export async function evaluateGuardRules(
+  structuredEmailId: string,
+  userId: string
+): Promise<GuardEvaluationResult> {
+  try {
+    console.log(`🛡️ Guard - Evaluating rules for email ${structuredEmailId}`)
+
+    // Fetch all active guard rules for this user, ordered by priority (highest first)
+    const activeRules = await db
+      .select()
+      .from(guardRules)
+      .where(and(
+        eq(guardRules.userId, userId),
+        eq(guardRules.isActive, true)
+      ))
+      .orderBy(desc(guardRules.priority));
+
+    if (activeRules.length === 0) {
+      console.log(`🛡️ Guard - No active rules found, allowing email`)
+      return { shouldBlock: false, action: 'allow' };
+    }
+
+    console.log(`🛡️ Guard - Found ${activeRules.length} active rules to evaluate`)
+
+    // Fetch the email
+    const [email] = await db
+      .select()
+      .from(structuredEmails)
+      .where(and(
+        eq(structuredEmails.id, structuredEmailId),
+        eq(structuredEmails.userId, userId)
+      ))
+      .limit(1);
+
+    if (!email) {
+      console.error(`🛡️ Guard - Email ${structuredEmailId} not found`)
+      return { shouldBlock: false, action: 'allow' };
+    }
+
+    // Evaluate rules in priority order (highest first)
+    for (const rule of activeRules) {
+      try {
+        let config: ExplicitRuleConfig | AiPromptRuleConfig;
+        try {
+          config = JSON.parse(rule.config);
+        } catch (error) {
+          console.error(`🛡️ Guard - Invalid config for rule ${rule.id}, skipping`)
+          continue;
+        }
+
+        // Check if rule matches
+        let matchResult: CheckRuleMatchResponse;
+        if (rule.type === 'explicit') {
+          matchResult = await checkExplicitRule(config as ExplicitRuleConfig, email);
+        } else if (rule.type === 'ai_prompt') {
+          matchResult = await checkAiPromptRule(config as AiPromptRuleConfig, email);
+        } else {
+          continue;
+        }
+
+        if (matchResult.matched) {
+          console.log(`🛡️ Guard - Rule "${rule.name}" (${rule.id}) matched!`)
+
+          // Update rule trigger stats
+          await db
+            .update(guardRules)
+            .set({
+              triggerCount: (rule.triggerCount || 0) + 1,
+              lastTriggeredAt: new Date(),
+            })
+            .where(eq(guardRules.id, rule.id));
+
+          // Parse and return the action
+          let actionConfig: RuleActionConfig;
+          try {
+            actionConfig = JSON.parse(rule.actions || '{"action":"allow"}');
+          } catch (error) {
+            console.error(`🛡️ Guard - Invalid action config for rule ${rule.id}, defaulting to allow`)
+            actionConfig = { action: 'allow' };
+          }
+
+          const result: GuardEvaluationResult = {
+            shouldBlock: actionConfig.action === 'block',
+            action: actionConfig.action,
+            matchedRule: rule,
+            routeToEndpointId: actionConfig.action === 'route' ? actionConfig.endpointId : undefined,
+          };
+
+          console.log(`🛡️ Guard - Action: ${actionConfig.action}${actionConfig.action === 'route' ? ` to endpoint ${actionConfig.endpointId}` : ''}`)
+          return result;
+        }
+      } catch (error) {
+        console.error(`🛡️ Guard - Error evaluating rule ${rule.id}:`, error)
+        continue;
+      }
+    }
+
+    // No rules matched - allow by default
+    console.log(`🛡️ Guard - No rules matched, allowing email`)
+    return { shouldBlock: false, action: 'allow' };
+
+  } catch (error) {
+    console.error(`🛡️ Guard - Error evaluating guard rules:`, error)
+    // On error, fail open (allow) to prevent blocking legitimate emails
+    return { shouldBlock: false, action: 'allow' };
+  }
 }
 

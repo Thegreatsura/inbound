@@ -8,7 +8,7 @@ import type { UpdateGuardRuleRequest } from '@/features/guard/types';
 // GET /api/v2/guard/[id] - Get a single guard rule
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { userId, error: authError } = await validateRequest(request);
@@ -16,7 +16,7 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const ruleId = params.id;
+    const { id: ruleId } = await params;
 
     const [rule] = await db
       .select()
@@ -44,7 +44,7 @@ export async function GET(
 // PUT /api/v2/guard/[id] - Update a guard rule
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { userId, error: authError } = await validateRequest(request);
@@ -52,7 +52,7 @@ export async function PUT(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const ruleId = params.id;
+    const { id: ruleId } = await params;
     const body: UpdateGuardRuleRequest = await request.json();
 
     // Check if rule exists and belongs to user
@@ -104,7 +104,7 @@ export async function PUT(
 // DELETE /api/v2/guard/[id] - Delete a guard rule
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { userId, error: authError } = await validateRequest(request);
@@ -112,7 +112,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const ruleId = params.id;
+    const { id: ruleId } = await params;
 
     // Check if rule exists and belongs to user
     const [existingRule] = await db
