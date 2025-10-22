@@ -10,7 +10,6 @@ import type {
 } from '../types';
 import type {
   GetGuardRulesResponse,
-  CreateGuardRuleResponse,
 } from '@/app/api/v2/guard/route';
 import type {
   GetGuardRuleResponse,
@@ -36,7 +35,9 @@ export function useGuardRulesQuery(params?: {
   offset?: number;
 }) {
   return useQuery<GetGuardRulesResponse>({
-    queryKey: guardKeys.list(params as Record<string, string>),
+    queryKey: guardKeys.list(params ? Object.fromEntries(
+      Object.entries(params).map(([k, v]) => [k, String(v)])
+    ) : {}),
     queryFn: async () => {
       const searchParams = new URLSearchParams();
       if (params?.search) searchParams.set('search', params.search);
@@ -47,9 +48,16 @@ export function useGuardRulesQuery(params?: {
 
       const response = await fetch(`/api/v2/guard?${searchParams.toString()}`);
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to fetch guard rules');
+        let errorMessage = 'Failed to fetch guard rules';
+        try {
+          const error = await response.json();
+          errorMessage = error.error || errorMessage;
+        } catch {
+          // If response is not JSON, use default error message
+        }
+        throw new Error(errorMessage);
       }
+      // Response already matches GetGuardRulesResponse with v2 envelope
       return response.json();
     },
     staleTime: 30 * 1000, // 30 seconds
@@ -63,8 +71,14 @@ export function useGuardRuleQuery(ruleId: string) {
     queryFn: async () => {
       const response = await fetch(`/api/v2/guard/${ruleId}`);
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to fetch guard rule');
+        let errorMessage = 'Failed to fetch guard rule';
+        try {
+          const error = await response.json();
+          errorMessage = error.error || errorMessage;
+        } catch {
+          // If response is not JSON, use default error message
+        }
+        throw new Error(errorMessage);
       }
       return response.json();
     },
@@ -77,7 +91,7 @@ export function useGuardRuleQuery(ruleId: string) {
 export function useCreateGuardRuleMutation() {
   const queryClient = useQueryClient();
 
-  return useMutation<CreateGuardRuleResponse, Error, CreateGuardRuleRequest>({
+  return useMutation<GuardRule, Error, CreateGuardRuleRequest>({
     mutationFn: async (data) => {
       const response = await fetch('/api/v2/guard', {
         method: 'POST',
@@ -86,11 +100,22 @@ export function useCreateGuardRuleMutation() {
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to create guard rule');
+        let errorMessage = 'Failed to create guard rule';
+        try {
+          const error = await response.json();
+          errorMessage = error.error || errorMessage;
+        } catch {
+          // If response is not JSON, use default error message
+        }
+        throw new Error(errorMessage);
       }
 
-      return response.json();
+      const result = await response.json();
+      // Handle v2 API envelope format - extract data from envelope
+      if (result.success && result.data) {
+        return result.data;
+      }
+      return result;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: guardKeys.lists() });
@@ -119,8 +144,14 @@ export function useUpdateGuardRuleMutation() {
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to update guard rule');
+        let errorMessage = 'Failed to update guard rule';
+        try {
+          const error = await response.json();
+          errorMessage = error.error || errorMessage;
+        } catch {
+          // If response is not JSON, use default error message
+        }
+        throw new Error(errorMessage);
       }
 
       return response.json();
@@ -147,8 +178,14 @@ export function useDeleteGuardRuleMutation() {
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to delete guard rule');
+        let errorMessage = 'Failed to delete guard rule';
+        try {
+          const error = await response.json();
+          errorMessage = error.error || errorMessage;
+        } catch {
+          // If response is not JSON, use default error message
+        }
+        throw new Error(errorMessage);
       }
 
       return response.json();
@@ -179,8 +216,14 @@ export function useGuardRuleCheckMutation() {
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to check rule match');
+        let errorMessage = 'Failed to check rule match';
+        try {
+          const error = await response.json();
+          errorMessage = error.error || errorMessage;
+        } catch {
+          // If response is not JSON, use default error message
+        }
+        throw new Error(errorMessage);
       }
 
       return response.json();
@@ -205,8 +248,14 @@ export function useToggleGuardRuleActiveMutation() {
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to toggle guard rule');
+        let errorMessage = 'Failed to toggle guard rule';
+        try {
+          const error = await response.json();
+          errorMessage = error.error || errorMessage;
+        } catch {
+          // If response is not JSON, use default error message
+        }
+        throw new Error(errorMessage);
       }
 
       return response.json();
@@ -237,8 +286,14 @@ export function useGenerateRulesMutation() {
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to generate rules');
+        let errorMessage = 'Failed to generate rules';
+        try {
+          const error = await response.json();
+          errorMessage = error.error || errorMessage;
+        } catch {
+          // If response is not JSON, use default error message
+        }
+        throw new Error(errorMessage);
       }
 
       return response.json();

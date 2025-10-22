@@ -1,9 +1,21 @@
+/**
+ * Guard Rule Detail API v2
+ * 
+ * Manages individual guard rules with full CRUD operations.
+ * 
+ * Endpoints:
+ * - GET    /api/v2/guard/[id] - Retrieve a single guard rule
+ * - PUT    /api/v2/guard/[id] - Update a guard rule
+ * - DELETE /api/v2/guard/[id] - Delete a guard rule
+ * 
+ * All operations are scoped to the authenticated user's rules only.
+ */
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { guardRules } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { validateRequest } from '../../helper/main';
-import type { UpdateGuardRuleRequest } from '@/features/guard/types';
+import type { UpdateGuardRuleRequest, RuleActionConfig, RuleConfig } from '@/features/guard/types';
 
 // GET /api/v2/guard/[id] - Get a single guard rule
 export async function GET(
@@ -69,17 +81,35 @@ export async function PUT(
       return NextResponse.json({ error: 'Rule not found' }, { status: 404 });
     }
 
-    // Build update object
-    const updateData: any = {
+    // Build update object with proper typing
+    const updateData: Partial<{
+      name: string;
+      description: string | null;
+      config: string;
+      isActive: boolean;
+      priority: number;
+      actions: string;
+      updatedAt: Date;
+    }> = {
       updatedAt: new Date(),
     };
 
     if (body.name !== undefined) updateData.name = body.name;
     if (body.description !== undefined) updateData.description = body.description;
-    if (body.config !== undefined) updateData.config = JSON.stringify(body.config);
+    // Ensure config is stringified once (no double-serialization)
+    if (body.config !== undefined) {
+      updateData.config = typeof body.config === 'string' 
+        ? body.config 
+        : JSON.stringify(body.config);
+    }
     if (body.isActive !== undefined) updateData.isActive = body.isActive;
     if (body.priority !== undefined) updateData.priority = body.priority;
-    if (body.action !== undefined) updateData.actions = JSON.stringify(body.action);
+    // Ensure actions is stringified once (no double-serialization)
+    if (body.action !== undefined) {
+      updateData.actions = typeof body.action === 'string'
+        ? body.action
+        : JSON.stringify(body.action);
+    }
 
     // Update the rule
     const [updatedRule] = await db

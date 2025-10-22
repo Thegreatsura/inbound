@@ -97,18 +97,22 @@ export default function CreateGuardRulePage() {
     }
 
     if (ruleType === 'explicit') {
-      const hasAnyConfig = 
-        subjectValues.some(v => v.trim()) ||
-        fromValues.some(v => v.trim()) ||
-        hasAttachment !== undefined ||
-        wordsValues.some(v => v.trim())
+      // Check if any meaningful criteria is configured
+      // Note: hasAttachment can be true, false, or undefined
+      // We need to check explicitly for boolean values, not just truthiness
+      const hasSubject = subjectValues.some(v => v.trim());
+      const hasFrom = fromValues.some(v => v.trim());
+      const hasAttachmentCriteria = typeof hasAttachment === 'boolean';
+      const hasWords = wordsValues.some(v => v.trim());
+      
+      const hasAnyConfig = hasSubject || hasFrom || hasAttachmentCriteria || hasWords;
 
       if (!hasAnyConfig) {
-        newErrors.config = 'At least one criteria must be configured'
+        newErrors.config = 'At least one criteria must be configured';
       }
     } else {
       if (!aiPrompt.trim()) {
-        newErrors.aiPrompt = 'AI prompt is required'
+        newErrors.aiPrompt = 'AI prompt is required';
       }
     }
 
@@ -151,9 +155,14 @@ export default function CreateGuardRulePage() {
       } as AiPromptRuleConfig
     }
 
-    const actionConfig: RuleActionConfig = {
-      action,
-      ...(action === 'route' && { endpointId: routeEndpointId }),
+    // Build action config with discriminated union type
+    let actionConfig: RuleActionConfig;
+    if (action === 'allow') {
+      actionConfig = { action: 'allow' };
+    } else if (action === 'block') {
+      actionConfig = { action: 'block' };
+    } else {
+      actionConfig = { action: 'route', endpointId: routeEndpointId };
     }
 
     try {
@@ -168,7 +177,8 @@ export default function CreateGuardRulePage() {
 
       router.push(`/guard/rules/${result.id}`)
     } catch (error) {
-      // Error handled by mutation
+      // Error toast is already shown by mutation onError handler
+      console.error('Failed to create guard rule:', error);
     }
   }
 
@@ -241,7 +251,11 @@ export default function CreateGuardRulePage() {
           <section className="space-y-3">
             <div className="space-y-2">
               <h3 className="text-sm font-medium text-muted-foreground">Rule configuration</h3>
-              <ToggleGroup type="single" value={ruleType} onValueChange={(v: string) => v && setRuleType(v as 'explicit' | 'ai_prompt')} className="flex items-center gap-2 justify-start">
+              <ToggleGroup type="single" value={ruleType} onValueChange={(v) => {
+                if (v === 'explicit' || v === 'ai_prompt') {
+                  setRuleType(v);
+                }
+              }} className="flex items-center gap-2 justify-start">
                 <ToggleGroupItem value="explicit" className="h-8 rounded-full px-4 border data-[state=on]:bg-primary data-[state=on]:text-white">Explicit</ToggleGroupItem>
                 <ToggleGroupItem value="ai_prompt" className="h-8 rounded-full px-4 border data-[state=on]:bg-primary data-[state=on]:text-white">AI</ToggleGroupItem>
               </ToggleGroup>
@@ -346,10 +360,10 @@ export default function CreateGuardRulePage() {
                         <ToggleGroup 
                           type="single" 
                           value={hasAttachment === true ? 'yes' : hasAttachment === false ? 'no' : 'any'} 
-                          onValueChange={(v: string) => {
-                            if (v === 'yes') setHasAttachment(true)
-                            else if (v === 'no') setHasAttachment(false)
-                            else setHasAttachment(undefined)
+                          onValueChange={(v) => {
+                            if (v === 'yes') setHasAttachment(true);
+                            else if (v === 'no') setHasAttachment(false);
+                            else setHasAttachment(undefined);
                           }} 
                           className="flex items-center gap-2 justify-start"
                         >
@@ -427,7 +441,11 @@ export default function CreateGuardRulePage() {
           {/* Rule Action */}
           <section className="space-y-3">
             <h3 className="text-sm font-medium text-muted-foreground">Rule action</h3>
-            <ToggleGroup type="single" value={action} onValueChange={(v: string) => v && setAction(v as any)} className="flex items-center gap-2 justify-start">
+            <ToggleGroup type="single" value={action} onValueChange={(v) => {
+              if (v === 'allow' || v === 'block' || v === 'route') {
+                setAction(v);
+              }
+            }} className="flex items-center gap-2 justify-start">
               <ToggleGroupItem value="allow" className="h-8 rounded-full px-4 border data-[state=on]:bg-primary data-[state=on]:text-white">ALLOW</ToggleGroupItem>
               <ToggleGroupItem value="block" className="h-8 rounded-full px-4 border data-[state=on]:bg-primary data-[state=on]:text-white">BLOCK</ToggleGroupItem>
               <ToggleGroupItem value="route" className="h-8 rounded-full px-4 border data-[state=on]:bg-primary data-[state=on]:text-white">ROUTE</ToggleGroupItem>

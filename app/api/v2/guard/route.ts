@@ -1,3 +1,16 @@
+/**
+ * Guard Rules API v2
+ * 
+ * Manages email filtering rules that allow users to define actions (allow, block, route)
+ * based on email criteria. Supports both explicit pattern matching and AI-powered evaluation.
+ * 
+ * Endpoints:
+ * - GET    /api/v2/guard - List all guard rules with filtering and pagination
+ * - POST   /api/v2/guard - Create a new guard rule
+ * 
+ * Guard rules are evaluated by priority (highest first) before normal email routing.
+ * When a rule matches, its action is executed immediately, bypassing lower priority rules.
+ */
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { guardRules } from '@/lib/db/schema';
@@ -11,7 +24,10 @@ export async function GET(request: NextRequest) {
   try {
     const { userId, error: authError } = await validateRequest(request);
     if (authError || !userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ 
+        success: false,
+        error: 'Unauthorized' 
+      }, { status: 401 });
     }
 
     const searchParams = request.nextUrl.searchParams;
@@ -60,7 +76,9 @@ export async function GET(request: NextRequest) {
     
     const total = Number(totalResult[0]?.count) || 0;
 
+    // Return v2 API spec envelope format
     return NextResponse.json({
+      success: true,
       data: rules,
       pagination: {
         total,
@@ -72,7 +90,10 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Error fetching guard rules:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch guard rules' },
+      { 
+        success: false,
+        error: 'Failed to fetch guard rules' 
+      },
       { status: 500 }
     );
   }
@@ -91,7 +112,10 @@ export async function POST(request: NextRequest) {
     // Validate required fields
     if (!body.name || !body.type || !body.config || !body.action) {
       return NextResponse.json(
-        { error: 'Missing required fields: name, type, config, and action are required' },
+        { 
+          success: false,
+          error: 'Missing required fields: name, type, config, and action are required' 
+        },
         { status: 400 }
       );
     }
@@ -99,15 +123,21 @@ export async function POST(request: NextRequest) {
     // Validate rule type
     if (body.type !== 'explicit' && body.type !== 'ai_prompt') {
       return NextResponse.json(
-        { error: 'Invalid rule type. Must be "explicit" or "ai_prompt"' },
+        { 
+          success: false,
+          error: 'Invalid rule type. Must be "explicit" or "ai_prompt"' 
+        },
         { status: 400 }
       );
     }
 
-    // Validate action
+    // Validate action config
     if (!['allow', 'block', 'route'].includes(body.action.action)) {
       return NextResponse.json(
-        { error: 'Invalid action. Must be "allow", "block", or "route"' },
+        { 
+          success: false,
+          error: 'Invalid action. Must be "allow", "block", or "route"' 
+        },
         { status: 400 }
       );
     }
@@ -115,12 +145,15 @@ export async function POST(request: NextRequest) {
     // Validate route action has endpoint
     if (body.action.action === 'route' && !body.action.endpointId) {
       return NextResponse.json(
-        { error: 'Endpoint ID is required when action is "route"' },
+        { 
+          success: false,
+          error: 'Endpoint ID is required when action is "route"' 
+        },
         { status: 400 }
       );
     }
 
-    // Create the rule
+    // Create the rule with consistent field naming (actions -> action in storage)
     const newRule = {
       id: nanoid(),
       userId: userId,
@@ -130,7 +163,7 @@ export async function POST(request: NextRequest) {
       config: JSON.stringify(body.config),
       isActive: true,
       priority: body.priority || 0,
-      actions: JSON.stringify(body.action),
+      actions: JSON.stringify(body.action), // Note: schema uses 'actions' field
       triggerCount: 0,
       lastTriggeredAt: null,
       createdAt: new Date(),
@@ -142,18 +175,26 @@ export async function POST(request: NextRequest) {
       .values(newRule)
       .returning();
 
-    return NextResponse.json(createdRule, { status: 201 });
+    // Return v2 API spec envelope format
+    return NextResponse.json({ 
+      success: true,
+      data: createdRule 
+    }, { status: 201 });
   } catch (error) {
     console.error('Error creating guard rule:', error);
     return NextResponse.json(
-      { error: 'Failed to create guard rule' },
+      { 
+        success: false,
+        error: 'Failed to create guard rule' 
+      },
       { status: 500 }
     );
   }
 }
 
-// Export types for use in hooks
+// Export types for use in hooks (v2 API envelope format)
 export interface GetGuardRulesResponse {
+  success: true;
   data: Array<typeof guardRules.$inferSelect>;
   pagination: {
     total: number;
@@ -163,5 +204,6 @@ export interface GetGuardRulesResponse {
   };
 }
 
-export type CreateGuardRuleResponse = typeof guardRules.$inferSelect;
+// Note: CreateGuardRuleResponse is now handled directly in the hook
+// The hook extracts .data from the envelope and returns GuardRule type
 

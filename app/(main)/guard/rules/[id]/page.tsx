@@ -96,6 +96,29 @@ export default function GuardRuleDetailPage() {
     setConfigText(value)
     try {
       const parsed = JSON.parse(value)
+      
+      // Validate schema structure based on rule type
+      if (rule?.type === 'explicit') {
+        // Check for valid explicit rule config structure
+        const hasValidStructure = 
+          typeof parsed === 'object' &&
+          (parsed.subject === undefined || (typeof parsed.subject === 'object' && Array.isArray(parsed.subject.values))) &&
+          (parsed.from === undefined || (typeof parsed.from === 'object' && Array.isArray(parsed.from.values))) &&
+          (parsed.hasAttachment === undefined || typeof parsed.hasAttachment === 'boolean') &&
+          (parsed.hasWords === undefined || (typeof parsed.hasWords === 'object' && Array.isArray(parsed.hasWords.values)));
+        
+        if (!hasValidStructure) {
+          setConfigError('Invalid explicit rule configuration structure');
+          return;
+        }
+      } else if (rule?.type === 'ai_prompt') {
+        // Check for valid AI prompt rule config structure
+        if (typeof parsed !== 'object' || typeof parsed.prompt !== 'string') {
+          setConfigError('Invalid AI prompt rule configuration structure');
+          return;
+        }
+      }
+      
       setConfig(parsed)
       setConfigError('')
     } catch (e) {
@@ -120,10 +143,12 @@ export default function GuardRuleDetailPage() {
           priority,
           isActive,
           config,
+          action: actionConfig || undefined, // Include actionConfig if available
         },
       })
     } catch (error) {
-      // Error handled by mutation
+      // Error toast is already shown by mutation onError handler
+      console.error('Failed to update guard rule:', error);
     }
   }
 
@@ -265,10 +290,14 @@ export default function GuardRuleDetailPage() {
               <div>
                 <Label>Status</Label>
                 <div className="mt-1">
-                  <ToggleGroup type="single" value={isActive ? 'active' : 'inactive'} onValueChange={(v: string) => v && setIsActive(v === 'active')} className="flex items-center gap-2 justify-start">
-                    <ToggleGroupItem value="active" className="h-8 rounded-full px-4 border data-[state=on]:bg-primary data-[state=on]:text-white">Active</ToggleGroupItem>
-                    <ToggleGroupItem value="inactive" className="h-8 rounded-full px-4 border data-[state=on]:bg-primary data-[state=on]:text-white">Inactive</ToggleGroupItem>
-                  </ToggleGroup>
+                <ToggleGroup type="single" value={isActive ? 'active' : 'inactive'} onValueChange={(v) => {
+                  if (v === 'active' || v === 'inactive') {
+                    setIsActive(v === 'active');
+                  }
+                }} className="flex items-center gap-2 justify-start">
+                  <ToggleGroupItem value="active" className="h-8 rounded-full px-4 border data-[state=on]:bg-primary data-[state=on]:text-white">Active</ToggleGroupItem>
+                  <ToggleGroupItem value="inactive" className="h-8 rounded-full px-4 border data-[state=on]:bg-primary data-[state=on]:text-white">Inactive</ToggleGroupItem>
+                </ToggleGroup>
                 </div>
               </div>
             </div>

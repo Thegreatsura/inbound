@@ -200,7 +200,7 @@ export default function GuardPage() {
                     <div className="relative p-[8px] rounded-md bg-muted">
                       <RuleIcon width="23" height="23" />
                       <div className="absolute -top-1 -right-1">
-                        <div className={`w-2 h-2 rounded-full ${rule.isActive ? 'bg-green-500' : 'bg-gray-400'}`} />
+                        <div className={`w-2 h-2 rounded-full ${rule.isActive ? 'bg-green-600 dark:bg-green-500' : 'bg-muted-foreground'}`} />
                       </div>
                     </div>
                   </div>
@@ -220,17 +220,17 @@ export default function GuardPage() {
                     <ApiIdLabel id={rule.id} size="sm" />
 
                     <div className="flex items-center gap-2">
-                      <span className="text-xs opacity-60">
+                      <span className="text-xs text-muted-foreground">
                         Priority: {rule.priority}
                       </span>
-                      <span className="text-xs opacity-60">·</span>
-                      <span className="text-xs opacity-60">
+                      <span className="text-xs text-muted-foreground">·</span>
+                      <span className="text-xs text-muted-foreground">
                         Triggers: {rule.triggerCount || 0}
                       </span>
                       {rule.lastTriggeredAt && (
                         <>
-                          <span className="text-xs opacity-60">·</span>
-                          <span className="text-xs opacity-60">
+                          <span className="text-xs text-muted-foreground">·</span>
+                          <span className="text-xs text-muted-foreground">
                             Last: {format(new Date(rule.lastTriggeredAt), 'MMM d')}
                           </span>
                         </>

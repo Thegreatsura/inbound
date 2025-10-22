@@ -16,11 +16,11 @@ export type ExplicitRuleMode = 'simple' | 'advanced';
 // Rule actions
 export type RuleAction = 'allow' | 'block' | 'route';
 
-// Rule action configuration
-export interface RuleActionConfig {
-  action: RuleAction;
-  endpointId?: string; // Required when action is 'route'
-}
+// Rule action configuration with discriminated union for type safety
+export type RuleActionConfig =
+  | { action: 'allow' }
+  | { action: 'block' }
+  | { action: 'route'; endpointId: string };
 
 // Explicit rule configuration
 export interface ExplicitRuleConfig {
@@ -72,14 +72,21 @@ export interface CheckRuleMatchRequest {
   structuredEmailId: string;
 }
 
-export interface CheckRuleMatchResponse {
+// Separate success and error response types
+export interface CheckRuleMatchSuccess {
   matched: boolean;
   matchDetails?: Array<{
     criteria: string;
     value: string;
   }>;
-  error?: string;
 }
+
+export interface CheckRuleMatchError {
+  matched: false;
+  error: string;
+}
+
+export type CheckRuleMatchResponse = CheckRuleMatchSuccess | CheckRuleMatchError;
 
 export interface GuardRuleWithStats extends GuardRule {
   // Future: Add computed stats if needed
@@ -90,8 +97,15 @@ export interface GenerateExplicitRulesRequest {
   prompt: string;
 }
 
-export interface GenerateExplicitRulesResponse {
+// Separate success and error response types
+export interface GenerateExplicitRulesSuccess {
   config: ExplicitRuleConfig;
-  error?: string;
 }
+
+export interface GenerateExplicitRulesError {
+  config: Record<string, never>; // Empty object
+  error: string;
+}
+
+export type GenerateExplicitRulesResponse = GenerateExplicitRulesSuccess | GenerateExplicitRulesError;
 

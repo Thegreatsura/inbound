@@ -125,38 +125,48 @@ async function checkExplicitRule(
 
   // Check from criteria
   if (config.from) {
-    const fromData = email.fromData ? JSON.parse(email.fromData) : null;
-    const fromAddresses = fromData?.addresses?.map((addr: any) => 
-      addr.address?.toLowerCase() || ''
-    ) || [];
-    
-    const fromMatches = checkEmailCriteria(
-      fromAddresses,
-      config.from.values,
-      config.from.operator
-    );
-    
-    if (fromMatches) {
-      matchDetails.push({
-        criteria: 'from',
-        value: `Matched with ${config.from.operator} logic`,
-      });
-    } else {
+    try {
+      const fromData = email.fromData ? JSON.parse(email.fromData) : null;
+      const fromAddresses = fromData?.addresses?.map((addr: any) => 
+        addr.address?.toLowerCase() || ''
+      ) || [];
+      
+      const fromMatches = checkEmailCriteria(
+        fromAddresses,
+        config.from.values,
+        config.from.operator
+      );
+      
+      if (fromMatches) {
+        matchDetails.push({
+          criteria: 'from',
+          value: `Matched with ${config.from.operator} logic`,
+        });
+      } else {
+        allCriteriaMatch = false;
+      }
+    } catch (error) {
+      console.error('Failed to parse fromData:', error);
       allCriteriaMatch = false;
     }
   }
 
   // Check attachment criteria
   if (config.hasAttachment !== undefined) {
-    const attachments = email.attachments ? JSON.parse(email.attachments) : [];
-    const hasAttachments = Array.isArray(attachments) && attachments.length > 0;
-    
-    if (hasAttachments === config.hasAttachment) {
-      matchDetails.push({
-        criteria: 'hasAttachment',
-        value: `Email ${hasAttachments ? 'has' : 'does not have'} attachments`,
-      });
-    } else {
+    try {
+      const attachments = email.attachments ? JSON.parse(email.attachments) : [];
+      const hasAttachments = Array.isArray(attachments) && attachments.length > 0;
+      
+      if (hasAttachments === config.hasAttachment) {
+        matchDetails.push({
+          criteria: 'hasAttachment',
+          value: `Email ${hasAttachments ? 'has' : 'does not have'} attachments`,
+        });
+      } else {
+        allCriteriaMatch = false;
+      }
+    } catch (error) {
+      console.error('Failed to parse attachments:', error);
       allCriteriaMatch = false;
     }
   }
@@ -181,6 +191,21 @@ async function checkExplicitRule(
     } else {
       allCriteriaMatch = false;
     }
+  }
+
+  // Check if any criteria were configured
+  const hasCriteria = 
+    config.subject !== undefined ||
+    config.from !== undefined ||
+    config.hasAttachment !== undefined ||
+    config.hasWords !== undefined;
+
+  // If no criteria configured, rule should not match
+  if (!hasCriteria) {
+    return {
+      matched: false,
+      error: 'Rule has no criteria configured',
+    };
   }
 
   return {
@@ -315,16 +340,7 @@ export async function evaluateGuardRules(
         if (matchResult.matched) {
           console.log(`🛡️ Guard - Rule "${rule.name}" (${rule.id}) matched!`)
 
-          // Update rule trigger stats
-          await db
-            .update(guardRules)
-            .set({
-              triggerCount: (rule.triggerCount || 0) + 1,
-              lastTriggeredAt: new Date(),
-            })
-            .where(eq(guardRules.id, rule.id));
-
-          // Parse and return the action
+          // Parse action config before updating stats to ensure it's valid
           let actionConfig: RuleActionConfig;
           try {
             actionConfig = JSON.parse(rule.actions || '{"action":"allow"}');
@@ -332,6 +348,18 @@ export async function evaluateGuardRules(
             console.error(`🛡️ Guard - Invalid action config for rule ${rule.id}, defaulting to allow`)
             actionConfig = { action: 'allow' };
           }
+
+          // Update rule trigger stats (non-blocking, fire and forget to avoid race conditions)
+          // Use SQL increment to prevent race conditions
+          db.execute(`
+            UPDATE guard_rules 
+            SET trigger_count = COALESCE(trigger_count, 0) + 1,
+                last_triggered_at = NOW(),
+                updated_at = NOW()
+            WHERE id = '${rule.id}'
+          `).catch(error => {
+            console.error(`🛡️ Guard - Failed to update trigger stats for rule ${rule.id}:`, error);
+          });
 
           const result: GuardEvaluationResult = {
             shouldBlock: actionConfig.action === 'block',
