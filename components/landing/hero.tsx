@@ -299,7 +299,7 @@ export default function Hero({ content }: HeroProps) {
   };
 
   return (
-    <div className="xl:h-[calc(100dvh-89px)] min-h-[calc(100dvh-89px)] overflow-hidden py-16 max-md:py-12 items-center justify-center px-4 flex gap-24 relative max-[1074px]:flex-col max-[1074px]:items-start max-[1074px]:gap-12 max-w-4xl mx-auto">
+    <div className="xl:h-[calc(100dvh-89px)] min-h-[calc(100dvh-89px)] overflow-hidden py-16 max-md:py-12 items-center justify-center px-4 flex gap-24 relative max-[1074px]:flex-col max-[1074px]:items-start max-[1074px]:gap-12 max-w-6xl mx-auto">
       {/* left side */}
       <div className="flex flex-col gap-6 justify-center flex-1 h-full">
         {/* heading */}
