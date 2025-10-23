@@ -70,6 +70,24 @@ export async function routeEmail(emailId: string): Promise<void> {
 
     console.log(`📍 routeEmail - Found endpoint: ${endpoint.name} (type: ${endpoint.type}) for ${emailData.recipient}`)
 
+    // OPTIMIZATION: Check if this email has already been delivered to this endpoint
+    // This is a fast-path check to avoid even calling the handler functions
+    // Note: The handlers also INSERT delivery records first (with unique constraint)
+    // to prevent race conditions at the network send level
+    const existingDelivery = await db
+      .select({ id: endpointDeliveries.id, status: endpointDeliveries.status, attempts: endpointDeliveries.attempts })
+      .from(endpointDeliveries)
+      .where(and(
+        eq(endpointDeliveries.emailId, emailId),
+        eq(endpointDeliveries.endpointId, endpoint.id)
+      ))
+      .limit(1)
+    
+    if (existingDelivery[0]) {
+      console.log(`⏭️  routeEmail - Email ${emailId} already has delivery record for endpoint ${endpoint.id} (status: ${existingDelivery[0].status}, attempts: ${existingDelivery[0].attempts}). Skipping duplicate delivery.`)
+      return
+    }
+
     // Route based on endpoint type
     switch (endpoint.type) {
       case 'webhook':
@@ -269,6 +287,33 @@ async function findEndpointForEmail(recipient: string, userId: string): Promise<
  * Handle webhook endpoint routing (direct implementation for unified endpoints)
  */
 async function handleWebhookEndpoint(emailId: string, endpoint: Endpoint): Promise<void> {
+  // PRE-CREATE delivery record to prevent race condition duplicates
+  // The unique constraint on (emailId, endpointId) acts as a distributed lock
+  const deliveryId = nanoid()
+  
+  try {
+    // Insert delivery record BEFORE sending webhook to prevent race conditions
+    await db.insert(endpointDeliveries).values({
+      id: deliveryId,
+      emailId,
+      endpointId: endpoint.id,
+      deliveryType: 'webhook',
+      status: 'pending',
+      attempts: 1,
+      lastAttemptAt: new Date(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+    console.log(`🔒 handleWebhookEndpoint - Created delivery lock ${deliveryId} for ${emailId} → ${endpoint.id}`)
+  } catch (error: any) {
+    // Check if this is a unique constraint violation (another request already processing)
+    if (error?.code === '23505' || error?.message?.includes('duplicate key') || error?.message?.includes('unique constraint')) {
+      console.log(`⏭️  handleWebhookEndpoint - Delivery already in progress for emailId=${emailId}, endpointId=${endpoint.id}. Skipping duplicate.`)
+      return // Exit early - another request is handling this delivery
+    }
+    throw error // Re-throw other errors
+  }
+
   try {
     console.log(`📡 handleWebhookEndpoint - Processing webhook endpoint: ${endpoint.name}`)
 
@@ -460,21 +505,23 @@ async function handleWebhookEndpoint(emailId: string, endpoint: Endpoint): Promi
       console.error(`❌ handleWebhookEndpoint - Delivery failed for ${emailData.recipient}:`, errorMessage)
     }
 
-    // Track delivery in new endpoint deliveries table
-    await trackEndpointDelivery(
-      emailId, 
-      endpoint.id, 
-      'webhook', 
-      deliverySuccess ? 'success' : 'failed',
-      { 
+    // Update the pre-created delivery record with results
+    await db
+      .update(endpointDeliveries)
+      .set({
+        status: deliverySuccess ? 'success' : 'failed',
+        lastAttemptAt: new Date(),
+        responseData: JSON.stringify({ 
         responseCode,
-        responseBody: responseBody ? responseBody.substring(0, 2000) : null, // Limit response body size
+          responseBody: responseBody ? responseBody.substring(0, 2000) : null,
         deliveryTime,
         error: errorMessage || null,
         url: webhookUrl,
         deliveredAt: new Date().toISOString()
-      }
-    )
+        }),
+        updatedAt: new Date()
+      })
+      .where(eq(endpointDeliveries.id, deliveryId))
 
     if (!deliverySuccess) {
       throw new Error(errorMessage || 'Webhook delivery failed')
@@ -483,6 +530,24 @@ async function handleWebhookEndpoint(emailId: string, endpoint: Endpoint): Promi
     console.log(`✅ handleWebhookEndpoint - Successfully delivered email ${emailId} to webhook ${endpoint.name}`)
 
   } catch (error) {
+    // Update delivery record to failed state if any error occurred during processing
+    try {
+      await db
+        .update(endpointDeliveries)
+        .set({
+          status: 'failed',
+          lastAttemptAt: new Date(),
+          responseData: JSON.stringify({
+            error: error instanceof Error ? error.message : 'Unknown error',
+            failedAt: new Date().toISOString()
+          }),
+          updatedAt: new Date()
+        })
+        .where(eq(endpointDeliveries.id, deliveryId))
+    } catch (updateError) {
+      console.error('❌ handleWebhookEndpoint - Failed to update delivery record:', updateError)
+    }
+
     console.error(`❌ handleWebhookEndpoint - Error processing webhook endpoint:`, error)
     throw error
   }
@@ -499,6 +564,32 @@ async function handleEmailForwardEndpoint(
   endpoint: Endpoint, 
   emailData: any
 ): Promise<void> {
+  // PRE-CREATE delivery record to prevent race condition duplicates
+  const deliveryId = nanoid()
+  
+  try {
+    // Insert delivery record BEFORE forwarding to prevent race conditions
+    await db.insert(endpointDeliveries).values({
+      id: deliveryId,
+      emailId,
+      endpointId: endpoint.id,
+      deliveryType: 'email_forward',
+      status: 'pending',
+      attempts: 1,
+      lastAttemptAt: new Date(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+    console.log(`🔒 handleEmailForwardEndpoint - Created delivery lock ${deliveryId} for ${emailId} → ${endpoint.id}`)
+  } catch (error: any) {
+    // Check if this is a unique constraint violation
+    if (error?.code === '23505' || error?.message?.includes('duplicate key') || error?.message?.includes('unique constraint')) {
+      console.log(`⏭️  handleEmailForwardEndpoint - Delivery already in progress for emailId=${emailId}, endpointId=${endpoint.id}. Skipping duplicate.`)
+      return // Exit early
+    }
+    throw error
+  }
+
   try {
     console.log(`📨 handleEmailForwardEndpoint - Processing ${endpoint.type} endpoint: ${endpoint.name}`)
 
@@ -531,36 +622,43 @@ async function handleEmailForwardEndpoint(
       }
     )
     
-    // Track successful delivery
-    await trackEndpointDelivery(
-      emailId, 
-      endpoint.id, 
-      'email_forward', 
-      'success',
-      { 
+    // Update delivery record with success
+    await db
+      .update(endpointDeliveries)
+      .set({
+        status: 'success',
+        lastAttemptAt: new Date(),
+        responseData: JSON.stringify({ 
         toAddresses, 
         fromAddress,
         forwardedAt: new Date().toISOString()
-      }
-    )
+        }),
+        updatedAt: new Date()
+      })
+      .where(eq(endpointDeliveries.id, deliveryId))
 
     console.log(`✅ handleEmailForwardEndpoint - Successfully forwarded email to ${toAddresses.length} recipients`)
 
   } catch (error) {
+    // Update delivery record to failed state
+    try {
+      await db
+        .update(endpointDeliveries)
+        .set({
+          status: 'failed',
+          lastAttemptAt: new Date(),
+          responseData: JSON.stringify({ 
+            error: error instanceof Error ? error.message : 'Unknown error',
+            failedAt: new Date().toISOString()
+          }),
+          updatedAt: new Date()
+        })
+        .where(eq(endpointDeliveries.id, deliveryId))
+    } catch (updateError) {
+      console.error('❌ handleEmailForwardEndpoint - Failed to update delivery record:', updateError)
+    }
+
     console.error(`❌ handleEmailForwardEndpoint - Error forwarding email:`, error)
-    
-    // Track failed delivery
-    await trackEndpointDelivery(
-      emailId, 
-      endpoint.id, 
-      'email_forward', 
-      'failed',
-      { 
-        error: error instanceof Error ? error.message : 'Unknown error',
-        failedAt: new Date().toISOString()
-      }
-    )
-    
     throw error
   }
 }
@@ -621,39 +719,6 @@ async function getDefaultFromAddress(recipient: string): Promise<string> {
     console.error('❌ getDefaultFromAddress - Error getting default from address:', error)
     // Ultimate fallback
     return 'noreply@example.com'
-  }
-}
-
-/**
- * Track endpoint delivery in the unified deliveries table
- */
-async function trackEndpointDelivery(
-  emailId: string,
-  endpointId: string,
-  deliveryType: 'webhook' | 'email_forward',
-  status: 'pending' | 'success' | 'failed',
-  responseData?: any
-): Promise<void> {
-  try {
-    const deliveryRecord = {
-      id: nanoid(),
-      emailId,
-      endpointId,
-      deliveryType,
-      status,
-      attempts: 1,
-      lastAttemptAt: new Date(),
-      responseData: responseData ? JSON.stringify(responseData) : null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    }
-
-    await db.insert(endpointDeliveries).values(deliveryRecord)
-    console.log(`📊 trackEndpointDelivery - Tracked ${deliveryType} delivery: ${status}`)
-
-  } catch (error) {
-    console.error('❌ trackEndpointDelivery - Error tracking delivery:', error)
-    // Don't throw here as this is just tracking
   }
 }
 

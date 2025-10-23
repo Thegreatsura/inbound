@@ -1,4 +1,4 @@
-import { pgTable, varchar, text, timestamp, boolean, integer, index } from 'drizzle-orm/pg-core';
+import { pgTable, varchar, text, timestamp, boolean, integer, index, unique } from 'drizzle-orm/pg-core';
 import { user, session, account, verification, apikey } from './auth-schema';
 
 // Additional app-specific tables
@@ -398,6 +398,8 @@ export const endpointDeliveries = pgTable('endpoint_deliveries', {
 }, (table) => ({
   emailStatusIdx: index('endpoint_deliveries_email_status_idx').on(table.emailId, table.status),
   emailIdIdx: index('endpoint_deliveries_email_id_idx').on(table.emailId),
+  // Unique constraint to prevent duplicate deliveries of same email to same endpoint
+  uniqueEmailEndpoint: unique('endpoint_deliveries_email_endpoint_unique').on(table.emailId, table.endpointId),
 }));
 
 // Blocked Emails table - stores email addresses that should be blocked from processing
