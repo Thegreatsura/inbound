@@ -668,7 +668,13 @@ async function trackEndpointDelivery(
     await db.insert(endpointDeliveries).values(deliveryRecord)
     console.log(`📊 trackEndpointDelivery - Tracked ${deliveryType} delivery: ${status}`)
 
-  } catch (error) {
+  } catch (error: any) {
+    // Check if this is a unique constraint violation (duplicate delivery)
+    if (error?.code === '23505' || error?.message?.includes('duplicate key') || error?.message?.includes('unique constraint')) {
+      console.log(`⏭️  trackEndpointDelivery - Delivery already tracked for emailId=${emailId}, endpointId=${endpointId} (duplicate prevented by unique constraint)`)
+      return // This is expected - the unique constraint is working correctly
+    }
+    
     console.error('❌ trackEndpointDelivery - Error tracking delivery:', error)
     // Don't throw here as this is just tracking
   }
