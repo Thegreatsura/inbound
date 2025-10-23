@@ -3,7 +3,7 @@ import { basehub } from "basehub";
 export async function getHomepageContent() {
   try {
     const selection = {
-      homePage: {
+      homepage: {
         _title: true,
         heroPrimaryText: true,
         heroSublineText: true,
@@ -15,7 +15,7 @@ export async function getHomepageContent() {
 
     return {
       success: true,
-      data: data.homePage,
+      data: data.homepage,
     };
   } catch (error) {
     console.error("Error fetching homepage content:", error);
