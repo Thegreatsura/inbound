@@ -138,7 +138,7 @@ export function RichTextRenderer({ content }: RichTextRendererProps) {
 
         // Enhanced paragraph spacing
         p: ({ children, ...props }) => (
-          <p className="leading-7 mb-2 text-black dark:text-white" {...props}>
+          <p className="leading-7 mb-2" {...props}>
             {children}
           </p>
         ),

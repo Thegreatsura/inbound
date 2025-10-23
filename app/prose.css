@@ -28,7 +28,7 @@
 }
 
 .prose p {
-  @apply leading-7 text-base text-left text-black dark:text-white;
+  @apply leading-7 text-base text-left text-foreground;
 }
 
 .prose strong {
