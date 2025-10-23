@@ -1,6 +1,6 @@
 
 .prose {
-  @apply max-w-none leading-7 flex flex-col gap-6;
+  @apply max-w-none leading-7 flex flex-col gap-3;
 }
 
 .prose h1 {
@@ -28,7 +28,7 @@
 }
 
 .prose p {
-  @apply leading-7 text-base text-left;
+  @apply leading-7 text-base text-left text-black dark:text-white;
 }
 
 .prose strong {
