@@ -37,7 +37,7 @@ export function Solution() {
                         </div>
                         <h3 className="text-xl font-semibold text-foreground tracking-tight">Transactional Email Sending</h3>
                         <p className="text-muted-foreground text-sm leading-relaxed tracking-normal">
-                            Deliver confirmations, notifications, and alerts with a reliable sending API. Fully compatible with popular email services.
+                            Deliver confirmations, notifications, and alerts with a reliable sending API. Fully compatible with popular email services. Also called outbound email sending, <a href="https://x.com/itswilsonhou/status/1981841420534362281" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">wilson</a>.
                         </p>
                         <ul className="text-sm text-muted-foreground space-y-1 tracking-normal">
                             <li>• High deliverability rates</li>
