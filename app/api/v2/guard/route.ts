@@ -34,8 +34,17 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search');
     const type = searchParams.get('type'); // 'explicit' | 'ai_prompt'
     const isActive = searchParams.get('isActive'); // 'true' | 'false'
-    const limit = parseInt(searchParams.get('limit') || '50');
-    const offset = parseInt(searchParams.get('offset') || '0');
+    // Parse and validate pagination parameters to prevent NaN values
+    const parsePositiveInt = (value: string | null, defaultValue: number, maxValue?: number): number => {
+      const parsed = parseInt(value || String(defaultValue));
+      if (isNaN(parsed) || parsed < 0) {
+        return defaultValue;
+      }
+      return maxValue ? Math.min(parsed, maxValue) : parsed;
+    };
+    
+    const limit = parsePositiveInt(searchParams.get('limit'), 50, 100);
+    const offset = parsePositiveInt(searchParams.get('offset'), 0);
 
     // Build where conditions
     const conditions = [eq(guardRules.userId, userId)];
