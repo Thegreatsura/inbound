@@ -337,13 +337,6 @@
       "when": 1760923423195,
       "tag": "0047_thin_wind_dancer",
       "breakpoints": true
-    },
-    {
-      "idx": 48,
-      "version": "7",
-      "when": 1761079587855,
-      "tag": "0048_loose_dagger",
-      "breakpoints": true
     }
   ]
 }
