@@ -316,6 +316,13 @@ export const structuredEmails = pgTable('structured_emails', {
   isArchived: boolean('is_archived').default(false),
   archivedAt: timestamp('archived_at'), // When the email was archived
 
+  // Guard-related fields
+  guardBlocked: boolean('guard_blocked').default(false), // Whether this email was blocked by Guard rules
+  guardReason: text('guard_reason'), // Reason why the email was blocked or flagged
+  guardRuleId: varchar('guard_rule_id', { length: 255 }), // ID of the guard rule that triggered
+  guardAction: varchar('guard_action', { length: 50 }), // 'block', 'flag', 'label'
+  guardMetadata: text('guard_metadata'), // Additional Guard metadata as JSON
+
   // User and timestamps
   userId: varchar('user_id', { length: 255 }).notNull(),
   createdAt: timestamp('created_at').defaultNow(),
@@ -328,6 +335,7 @@ export const structuredEmails = pgTable('structured_emails', {
   threadIdIdx: index('structured_emails_thread_id_idx').on(table.threadId),
   userCreatedIdx: index('structured_emails_user_created_idx').on(table.userId, table.createdAt),
   userIdIdx: index('structured_emails_user_id_idx').on(table.userId),
+  guardBlockedIdx: index('structured_emails_guard_blocked_idx').on(table.guardBlocked),
 }));
 
 export const webhookDeliveries = pgTable('webhook_deliveries', {

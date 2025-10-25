@@ -1298,6 +1298,13 @@ export async function getEmailDetails(emailId: string) {
         createdAt: structuredEmails.createdAt,
         updatedAt: structuredEmails.updatedAt,
 
+        // Guard fields
+        guardBlocked: structuredEmails.guardBlocked,
+        guardReason: structuredEmails.guardReason,
+        guardAction: structuredEmails.guardAction,
+        guardRuleId: structuredEmails.guardRuleId,
+        guardMetadata: structuredEmails.guardMetadata,
+
         // SES event details
         emailContent: sesEvents.emailContent,
         spamVerdict: sesEvents.spamVerdict,
@@ -1409,6 +1416,11 @@ export async function getEmailDetails(emailId: string) {
       receivedAt: email.date,
       processedAt: email.createdAt, // Use createdAt as processedAt equivalent
       status: "processed", // Default status since structuredEmails are processed
+      guardBlocked: email.guardBlocked,
+      guardReason: email.guardReason,
+      guardAction: email.guardAction,
+      guardRuleId: email.guardRuleId,
+      guardMetadata: email.guardMetadata ? JSON.parse(email.guardMetadata) : null,
       emailContent: {
         htmlBody: sanitizedHtmlBody,
         textBody: email.textBody,
@@ -1696,6 +1708,12 @@ export async function getEmailsList(options?: {
         createdAt: structuredEmails.createdAt,
         isRead: structuredEmails.isRead,
         readAt: structuredEmails.readAt,
+        
+        // Guard fields
+        guardBlocked: structuredEmails.guardBlocked,
+        guardReason: structuredEmails.guardReason,
+        guardAction: structuredEmails.guardAction,
+        guardRuleId: structuredEmails.guardRuleId,
       })
       .from(structuredEmails)
       .where(and(...whereConditions))
@@ -1783,6 +1801,9 @@ export async function getEmailsList(options?: {
         domain: domain,
         isRead: email.isRead || false,
         readAt: email.readAt?.toISOString() || null,
+        guardBlocked: email.guardBlocked || false,
+        guardReason: email.guardReason || null,
+        guardAction: email.guardAction || null,
         parsedData: {
           fromData: parsedFromData,
           toData: parsedToData,
@@ -2752,6 +2773,7 @@ export async function getUnifiedEmailLogs(options?: {
   statusFilter?: string;
   typeFilter?: string;
   domainFilter?: string;
+  guardFilter?: string;
   timeRange?: string;
 }) {
   try {
@@ -2770,6 +2792,7 @@ export async function getUnifiedEmailLogs(options?: {
       statusFilter = "all",
       typeFilter = "all",
       domainFilter = "all",
+      guardFilter = "all",
       timeRange = "7d",
     } = options || {};
 
@@ -2841,6 +2864,21 @@ export async function getUnifiedEmailLogs(options?: {
       }
     }
 
+    // Add Guard filter for inbound emails
+    if (guardFilter !== "all") {
+      if (guardFilter === "blocked") {
+        inboundWhereConditions.push(eq(structuredEmails.guardBlocked, true));
+      } else if (guardFilter === "allowed") {
+        inboundWhereConditions.push(
+          sql`(${structuredEmails.guardBlocked} IS NULL OR ${structuredEmails.guardBlocked} = false)`
+        );
+      } else if (guardFilter === "flagged") {
+        inboundWhereConditions.push(
+          sql`(${structuredEmails.guardBlocked} = false AND ${structuredEmails.guardAction} IS NOT NULL)`
+        );
+      }
+    }
+
     // Build outbound where conditions
     let outboundWhereConditions = [eq(sentEmails.userId, userId)];
 
@@ -2895,6 +2933,11 @@ export async function getUnifiedEmailLogs(options?: {
           parseSuccess: structuredEmails.parseSuccess,
           createdAt: structuredEmails.createdAt,
           processingTimeMillis: sesEvents.processingTimeMillis,
+          
+          // Guard fields
+          guardBlocked: structuredEmails.guardBlocked,
+          guardReason: structuredEmails.guardReason,
+          guardAction: structuredEmails.guardAction,
         })
         .from(structuredEmails)
         .leftJoin(sesEvents, eq(structuredEmails.sesEventId, sesEvents.id))
@@ -2997,6 +3040,9 @@ export async function getUnifiedEmailLogs(options?: {
           processingTimeMs: row.processingTimeMillis || 0,
           createdAt: row.createdAt?.toISOString(),
           deliveries: emailDeliveries,
+          guardBlocked: row.guardBlocked || false,
+          guardReason: row.guardReason || null,
+          guardAction: row.guardAction || null,
         });
       }
     }
@@ -3186,6 +3232,141 @@ export async function getUnifiedEmailLogs(options?: {
   } catch (error) {
     console.error("Error fetching unified email logs:", error);
     return { error: "Failed to fetch unified email logs" };
+  }
+}
+
+// Get email volume chart data (optimized for time series visualization)
+export async function getEmailVolumeChartData(timeRange: '24h' | '7d' | '30d' | '90d' = '7d') {
+  try {
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
+
+    if (!session?.user?.id) {
+      return { error: "Unauthorized" };
+    }
+
+    const userId = session.user.id;
+
+    // Calculate time range and interval
+    const now = new Date();
+    let timeRangeStart: Date;
+    let intervalType: 'hour' | 'day';
+    
+    switch (timeRange) {
+      case '24h':
+        timeRangeStart = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        intervalType = 'hour';
+        break;
+      case '7d':
+        timeRangeStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        intervalType = 'hour';
+        break;
+      case '30d':
+        timeRangeStart = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        intervalType = 'day';
+        break;
+      case '90d':
+        timeRangeStart = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+        intervalType = 'day';
+        break;
+      default:
+        timeRangeStart = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        intervalType = 'hour';
+    }
+
+    // Optimized SQL query using time buckets
+    const truncFunction = intervalType === 'hour'
+      ? "DATE_TRUNC('hour', created_at)"
+      : "DATE_TRUNC('day', created_at)";
+
+    // Query inbound emails by time bucket
+    const inboundData = await db.execute(sql`
+      SELECT 
+        ${sql.raw(truncFunction)} as time_bucket,
+        COUNT(*)::int as count
+      FROM ${structuredEmails}
+      WHERE user_id = ${userId}
+        AND created_at >= ${timeRangeStart}
+      GROUP BY ${sql.raw(truncFunction)}
+      ORDER BY ${sql.raw(truncFunction)} ASC
+    `);
+
+    // Query outbound emails by time bucket
+    const outboundData = await db.execute(sql`
+      SELECT 
+        ${sql.raw(truncFunction)} as time_bucket,
+        COUNT(*)::int as count
+      FROM ${sentEmails}
+      WHERE user_id = ${userId}
+        AND created_at >= ${timeRangeStart}
+      GROUP BY ${sql.raw(truncFunction)}
+      ORDER BY ${sql.raw(truncFunction)} ASC
+    `);
+
+    // Create a map from the SQL results using normalized ISO string as key
+    const inboundMap = new Map<string, number>();
+    const outboundMap = new Map<string, number>();
+    
+    (inboundData.rows as any[]).forEach((row: any) => {
+      // time_bucket is already a truncated timestamp from DATE_TRUNC
+      // Normalize to ISO string for consistent matching
+      const timestamp = new Date(row.time_bucket);
+      const isoKey = timestamp.toISOString();
+      inboundMap.set(isoKey, Number(row.count));
+    });
+
+    (outboundData.rows as any[]).forEach((row: any) => {
+      const timestamp = new Date(row.time_bucket);
+      const isoKey = timestamp.toISOString();
+      outboundMap.set(isoKey, Number(row.count));
+    });
+
+    // Generate complete time series (client will handle timezone display)
+    const chartData: Array<{ time: string; inbound: number; outbound: number }> = [];
+    
+    // Start from the beginning of the time range, truncated to the appropriate interval
+    let currentTime = new Date(timeRangeStart);
+    if (intervalType === 'hour') {
+      currentTime.setMinutes(0, 0, 0);
+    } else {
+      currentTime.setHours(0, 0, 0, 0);
+    }
+    
+    // Include current time in the range
+    const endTime = new Date(now);
+    if (intervalType === 'hour') {
+      endTime.setMinutes(0, 0, 0);
+    } else {
+      endTime.setHours(0, 0, 0, 0);
+    }
+    
+    while (currentTime <= endTime) {
+      const isoKey = currentTime.toISOString();
+      
+      chartData.push({
+        time: isoKey,
+        inbound: inboundMap.get(isoKey) || 0,
+        outbound: outboundMap.get(isoKey) || 0,
+      });
+      
+      if (intervalType === 'hour') {
+        currentTime = new Date(currentTime.getTime() + 60 * 60 * 1000);
+      } else {
+        currentTime = new Date(currentTime.getTime() + 24 * 60 * 60 * 1000);
+      }
+    }
+
+    return {
+      success: true,
+      data: {
+        chartData,
+        intervalType,
+      },
+    };
+  } catch (error) {
+    console.error("Error fetching email volume chart data:", error);
+    return { error: "Failed to fetch chart data" };
   }
 }
 

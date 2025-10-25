@@ -59,12 +59,58 @@ export async function routeEmail(emailId: string): Promise<void> {
     
     if (guardResult.shouldBlock) {
       console.log(`🛡️ routeEmail - Email ${emailId} BLOCKED by Guard rule: ${guardResult.matchedRule?.name}`)
+      
+      // Update the structured email record with Guard information
+      await db
+        .update(structuredEmails)
+        .set({
+          guardBlocked: true,
+          guardReason: guardResult.reason || `Blocked by rule: ${guardResult.matchedRule?.name}`,
+          guardAction: 'block',
+          guardRuleId: guardResult.matchedRule?.id || null,
+          guardMetadata: guardResult.metadata ? JSON.stringify(guardResult.metadata) : null,
+        })
+        .where(eq(structuredEmails.id, emailData.structuredId))
+      
+      console.log(`✅ routeEmail - Updated email ${emailId} with Guard block information`)
+      
       // Email is stored but not routed - blocked by Guard
       return
     }
 
+    // Handle other Guard actions (flag, label) that don't block
+    if (guardResult.action && guardResult.action !== 'allow' && !guardResult.shouldBlock) {
+      console.log(`🛡️ routeEmail - Email ${emailId} flagged by Guard rule: ${guardResult.matchedRule?.name} (action: ${guardResult.action})`)
+      
+      // Update the structured email record with Guard information
+      await db
+        .update(structuredEmails)
+        .set({
+          guardBlocked: false,
+          guardReason: guardResult.reason || `Flagged by rule: ${guardResult.matchedRule?.name}`,
+          guardAction: guardResult.action,
+          guardRuleId: guardResult.matchedRule?.id || null,
+          guardMetadata: guardResult.metadata ? JSON.stringify(guardResult.metadata) : null,
+        })
+        .where(eq(structuredEmails.id, emailData.structuredId))
+      
+      console.log(`✅ routeEmail - Updated email ${emailId} with Guard flag information (${guardResult.action})`)
+    }
+
     if (guardResult.action === 'route' && guardResult.routeToEndpointId) {
       console.log(`🛡️ routeEmail - Email ${emailId} ROUTED by Guard rule to endpoint: ${guardResult.routeToEndpointId}`)
+      
+      // Update the structured email record with Guard information
+      await db
+        .update(structuredEmails)
+        .set({
+          guardBlocked: false,
+          guardReason: guardResult.reason || `Routed by rule: ${guardResult.matchedRule?.name}`,
+          guardAction: 'route',
+          guardRuleId: guardResult.matchedRule?.id || null,
+          guardMetadata: guardResult.metadata ? JSON.stringify(guardResult.metadata) : null,
+        })
+        .where(eq(structuredEmails.id, emailData.structuredId))
       
       // Fetch the specific endpoint
       const [guardEndpoint] = await db

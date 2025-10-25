@@ -20,6 +20,8 @@ import BoltLightning from '@/components/icons/bolt-lightning'
 import Code2 from '@/components/icons/code-2'
 import SidebarToggleButton from '@/components/sidebar-toggle-button'
 import { ApiIdLabel } from '@/components/api-id-label'
+import ThreeWayArrowSplit from '@/components/icons/three-way-arrow-split'
+import AddMagic from '@/components/icons/add-magic'
 
 export default function GuardPage() {
   const [searchQuery, setSearchQuery] = useState('')
@@ -47,7 +49,7 @@ export default function GuardPage() {
   const rules = rulesResponse?.data || []
 
   // Helper
-  const getRuleTypeIcon = (type: string) => (type === 'explicit' ? Code2 : BoltLightning)
+  const getRuleTypeIcon = (type: string) => (type === 'explicit' ? ThreeWayArrowSplit : AddMagic)
 
   // Error state
   if (error) {
@@ -198,7 +200,12 @@ export default function GuardPage() {
                   {/* Rule Icon with Status */}
                   <div className="flex-shrink-0">
                     <div className="relative p-[8px] rounded-md bg-muted">
-                      <RuleIcon width="23" height="23" />
+                      <RuleIcon 
+                        width="23" 
+                        height="23" 
+                        fill="var(--purple-primary)"
+                        secondaryfill="var(--purple-primary)"
+                      />
                       <div className="absolute -top-1 -right-1">
                         <div className={`w-2 h-2 rounded-full ${rule.isActive ? 'bg-green-600 dark:bg-green-500' : 'bg-muted-foreground'}`} />
                       </div>
@@ -212,9 +219,9 @@ export default function GuardPage() {
                       <Badge variant={rule.type === 'explicit' ? 'secondary' : 'default'}>
                         {rule.type === 'explicit' ? 'Explicit' : 'AI'}
                       </Badge>
-                      <Badge variant={rule.isActive ? 'default' : 'secondary'}>
+                      {/* <Badge variant={rule.isActive ? 'default' : 'secondary'}>
                         {rule.isActive ? 'Active' : 'Inactive'}
-                      </Badge>
+                      </Badge> */}
                     </div>
 
                     <ApiIdLabel id={rule.id} size="sm" />

@@ -8,12 +8,16 @@ import type {
   GuardRule,
   RuleActionConfig 
 } from '@/features/guard/types';
+import { generateObject } from 'ai';
+import { z } from 'zod';
 
 export interface GuardEvaluationResult {
   shouldBlock: boolean;
   routeToEndpointId?: string;
   matchedRule?: GuardRule;
-  action?: 'allow' | 'block' | 'route';
+  action?: 'allow' | 'block' | 'route' | 'flag' | 'label';
+  reason?: string;
+  metadata?: Record<string, any>;
 }
 
 /**
@@ -265,12 +269,100 @@ async function checkAiPromptRule(
   config: AiPromptRuleConfig,
   email: typeof structuredEmails.$inferSelect
 ): Promise<CheckRuleMatchResponse> {
-  // Stub implementation - will be implemented later with AI gateway
+  if (!config || typeof config.prompt !== 'string' || !config.prompt.trim()) {
+    return { matched: false, error: 'Invalid AI prompt configuration' };
+  }
+
+  // Prepare email context (truncate to keep token usage reasonable)
+  const subject = email.subject || '';
+  const textBody = (email.textBody || '').toString();
+  const htmlBody = (email.htmlBody || '').toString();
+  const plainHtml = htmlBody.replace(/<[^>]*>/g, ' ');
+  const combinedBody = `${textBody}\n\n${plainHtml}`.trim();
+  const bodySnippet = combinedBody.slice(0, 6000);
+
+  let fromAddresses: Array<{ name?: string | null; address?: string | null }> = [];
+  try {
+    if (email.fromData) {
+      const parsed = JSON.parse(email.fromData as string);
+      fromAddresses = Array.isArray(parsed?.addresses) ? parsed.addresses : [];
+    }
+  } catch {
+    // ignore parse errors, treat as empty
+  }
+
+  let hasAttachments = false;
+  try {
+    const attachments = email.attachments ? JSON.parse(email.attachments) : [];
+    hasAttachments = Array.isArray(attachments) && attachments.length > 0;
+  } catch {
+    // ignore
+  }
+
+  const model = process.env.GUARD_AI_MODEL || 'openai/gpt-4o';
+
+  // Ask the LLM for a structured yes/no match with rationale
+  try {
+    const matchSchema = z.object({
+      matched: z.boolean(),
+      reason: z.string().optional(),
+      matches: z
+        .array(
+          z.object({
+            criteria: z.string().describe('subject | from | body | attachments | other'),
+            value: z.string().describe('what content or pattern matched'),
+          })
+        )
+        .optional(),
+    });
+
+    const prompt = `You are an email guard. Decide if this email satisfies the following rule and return structured JSON only.
+
+Rule (user-provided):\n${config.prompt}\n
+Email:
+- Subject: ${subject}
+- From: ${fromAddresses
+        .map((a) => (a.name ? `${a.name} <${a.address || ''}>` : a.address || ''))
+        .filter(Boolean)
+        .join(', ')}
+- Has attachments: ${hasAttachments ? 'yes' : 'no'}
+- Body (snippet):\n${bodySnippet}
+
+Instructions:
+- Respond with matched=true only if the rule clearly applies.
+- If uncertain, set matched=false.
+- Provide concise reason and any matches that justify the decision.`;
+
+    const { object } = await generateObject({
+      model,
+      schema: matchSchema,
+      schemaName: 'GuardAIMatch',
+      schemaDescription: 'Determines whether an email matches a user-provided rule',
+      prompt,
+      temperature: 0,
+    });
+
+    // Log AI structured response for debugging
+    try {
+      console.log('🧠 Guard AI match response:', {
+        model,
+        matched: object.matched,
+        reason: object.reason,
+        matches: object.matches,
+      });
+    } catch (e) {
+      // ignore logging errors
+    }
+
   return {
-    matched: false,
-    matchDetails: [],
-    error: 'AI prompt matching not yet implemented',
-  };
+      matched: object.matched,
+      reason: object.reason,
+      matchDetails: object.matches?.map((m) => ({ criteria: m.criteria, value: m.value })),
+    };
+  } catch (error) {
+    console.error('AI prompt matching failed:', error);
+    return { matched: false, error: 'AI prompt evaluation failed' };
+  }
 }
 
 /**
@@ -366,6 +458,13 @@ export async function evaluateGuardRules(
             action: actionConfig.action,
             matchedRule: rule,
             routeToEndpointId: actionConfig.action === 'route' ? actionConfig.endpointId : undefined,
+            reason: ('reason' in matchResult ? matchResult.reason : undefined) || rule.description || `Matched rule: ${rule.name}`,
+            metadata: {
+              ruleName: rule.name,
+              ruleType: rule.type,
+              matchDetails: 'matchDetails' in matchResult ? matchResult.matchDetails : undefined,
+              evaluatedAt: new Date().toISOString(),
+            },
           };
 
           console.log(`🛡️ Guard - Action: ${actionConfig.action}${actionConfig.action === 'route' ? ` to endpoint ${actionConfig.endpointId}` : ''}`)

@@ -103,7 +103,7 @@ export async function PUT(
         : JSON.stringify(body.config);
     }
     if (body.isActive !== undefined) updateData.isActive = body.isActive;
-    if (body.priority !== undefined) updateData.priority = body.priority;
+    if (body.priority !== undefined) updateData.priority = Math.max(0, Number(body.priority));
     // Ensure actions is stringified once (no double-serialization)
     if (body.action !== undefined) {
       updateData.actions = typeof body.action === 'string'

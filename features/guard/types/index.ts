@@ -79,6 +79,7 @@ export interface CheckRuleMatchSuccess {
     criteria: string;
     value: string;
   }>;
+  reason?: string;
 }
 
 export interface CheckRuleMatchError {

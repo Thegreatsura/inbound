@@ -30,6 +30,9 @@ export interface InboundEmailLogEntry extends BaseEmailLogEntry {
   parseSuccess: boolean
   processingTimeMs: number
   deliveries: EmailLogDelivery[]
+  guardBlocked?: boolean
+  guardReason?: string | null
+  guardAction?: string | null
 }
 
 // Outbound email log entry (sent emails)
@@ -76,5 +79,6 @@ export interface EmailLogsOptions {
   statusFilter?: 'all' | 'delivered' | 'failed' | 'pending' | 'no_delivery' | 'parse_failed'
   typeFilter?: 'all' | 'inbound' | 'outbound' // New filter for email type
   domainFilter?: string
+  guardFilter?: 'all' | 'blocked' | 'allowed' | 'flagged' // New filter for Guard status
   timeRange?: '24h' | '7d' | '30d' | '90d'
 } 

@@ -9,8 +9,12 @@ export function useIntersectionObserver(options = {}) {
   useEffect(() => {
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting && !hasIntersected) {
+        // Emit a one-shot pulse when the element ENTERS the viewport
+        if (entry.isIntersecting) {
           setHasIntersected(true)
+          // Immediately reset to false so consumers only act once per intersection
+          // and require the element to leave and re-enter to trigger again.
+          Promise.resolve().then(() => setHasIntersected(false))
         }
       },
       {
@@ -25,11 +29,10 @@ export function useIntersectionObserver(options = {}) {
     }
 
     return () => {
-      if (ref.current) {
-        observer.unobserve(ref.current)
-      }
+      if (ref.current) observer.unobserve(ref.current)
+      observer.disconnect()
     }
-  }, [hasIntersected, options])
+  }, [options])
 
   return { ref, hasIntersected }
 }

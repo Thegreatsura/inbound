@@ -162,6 +162,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Normalize and validate priority (non-negative)
+    const normalizedPriority = Math.max(0, Number(body.priority || 0))
+
     // Create the rule with consistent field naming (actions -> action in storage)
     const newRule = {
       id: nanoid(),
@@ -171,7 +174,7 @@ export async function POST(request: NextRequest) {
       type: body.type,
       config: JSON.stringify(body.config),
       isActive: true,
-      priority: body.priority || 0,
+      priority: normalizedPriority,
       actions: JSON.stringify(body.action), // Note: schema uses 'actions' field
       triggerCount: 0,
       lastTriggeredAt: null,

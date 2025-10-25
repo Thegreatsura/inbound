@@ -61,6 +61,7 @@ export function useGuardRulesQuery(params?: {
       return response.json();
     },
     staleTime: 30 * 1000, // 30 seconds
+    refetchOnMount: 'always', // Always refetch when component mounts to ensure fresh data
   });
 }
 
@@ -84,6 +85,7 @@ export function useGuardRuleQuery(ruleId: string) {
     },
     enabled: !!ruleId,
     staleTime: 30 * 1000, // 30 seconds
+    refetchOnMount: 'always', // Always refetch when component mounts to ensure fresh data
   });
 }
 

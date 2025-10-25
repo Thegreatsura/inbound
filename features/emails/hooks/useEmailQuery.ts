@@ -14,6 +14,11 @@ export interface EmailDetails {
   receivedAt: Date | null
   processedAt: Date | null
   status: string
+  guardBlocked?: boolean
+  guardReason?: string | null
+  guardAction?: string | null
+  guardRuleId?: string | null
+  guardMetadata?: any
   emailContent: {
     htmlBody: string | null
     textBody: string | null

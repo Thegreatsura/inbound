@@ -259,7 +259,7 @@ export default function RootLayout({
             <SpeedInsights />
           </AutumnProvider>
         </QueryProvider>
-        <Toolbar />
+        {/* <Toolbar /> */}
       </body>
       <DubAnalytics domainsConfig={{
         refer: "inbd.link"

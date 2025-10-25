@@ -337,6 +337,20 @@
       "when": 1760923423195,
       "tag": "0047_thin_wind_dancer",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1761342193714,
+      "tag": "0048_clammy_tyrannus",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1761342919366,
+      "tag": "0049_simple_quentin_quire",
+      "breakpoints": true
     }
   ]
 }

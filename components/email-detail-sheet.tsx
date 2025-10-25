@@ -169,6 +169,48 @@ export function EmailDetailSheet({ emailId, isOpen, onClose }: EmailDetailSheetP
 
             <Separator />
 
+            {/* Guard Summary - show if email was blocked or flagged */}
+            {(emailDetails.guardBlocked || emailDetails.guardAction) && (
+              <>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <ShieldAlert width="18" height="18" className="text-destructive" />
+                    <h4 className="font-medium text-destructive">Guard Summary</h4>
+                  </div>
+                  <div className="bg-red-50 border border-red-200 rounded-xl p-4 space-y-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                      {emailDetails.guardBlocked && (
+                        <div>
+                          <span className="font-medium text-destructive">Status:</span>{' '}
+                          <Badge variant="destructive" className="ml-2">
+                            Blocked
+                          </Badge>
+                        </div>
+                      )}
+                      {emailDetails.guardAction && (
+                        <div>
+                          <span className="font-medium">Action:</span>{' '}
+                          <span className="text-muted-foreground capitalize">{emailDetails.guardAction}</span>
+                        </div>
+                      )}
+                    </div>
+                    {emailDetails.guardReason && (
+                      <div>
+                        <span className="font-medium">Reason:</span>
+                        <p className="text-sm text-muted-foreground mt-1">{emailDetails.guardReason}</p>
+                      </div>
+                    )}
+                    {emailDetails.guardRuleId && (
+                      <div className="text-xs text-muted-foreground">
+                        Rule ID: <code className="bg-background px-1 py-0.5 rounded">{emailDetails.guardRuleId}</code>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <Separator />
+              </>
+            )}
+
             {/* Email Content Tabs */}
             <Tabs defaultValue="html" className="w-full">
               <TabsList className="grid w-full grid-cols-4">
