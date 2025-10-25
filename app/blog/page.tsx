@@ -1,6 +1,6 @@
 import { Pump } from "basehub/react-pump";
 import { SiteHeader } from "@/components/site-header";
-import { mapBlogPosts } from "@/features/blog/utils/blog-mapper";
+import { getBlogPostsSorted } from "@/features/blog/utils/blog-mapper";
 import { BlogCard } from "@/features/blog";
 import { generateBlogPostsQuery } from "@/features/blog/utils/blog-query";
 
@@ -28,7 +28,7 @@ export default async function BlogPage() {
           {async ([{ blogPosts }]) => {
             "use server";
 
-            const blogs = mapBlogPosts(blogPosts);
+            const blogs = getBlogPostsSorted(blogPosts);
 
             if (blogs.length === 0) {
               return (
@@ -51,7 +51,7 @@ export default async function BlogPage() {
 
             return (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {blogs.reverse().map((blog) => (
+                {blogs.map((blog) => (
                   <BlogCard key={blog.id} blog={blog} />
                 ))}
               </div>

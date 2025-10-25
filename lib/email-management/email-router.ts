@@ -179,6 +179,24 @@ export async function routeEmail(emailId: string): Promise<void> {
 
     console.log(`📍 routeEmail - Found endpoint: ${endpoint.name} (type: ${endpoint.type}) for ${emailData.recipient}`)
 
+    // OPTIMIZATION: Check if this email has already been delivered to this endpoint
+    // This is a fast-path check to avoid even calling the handler functions
+    // Note: The handlers also INSERT delivery records first (with unique constraint)
+    // to prevent race conditions at the network send level
+    const existingDelivery = await db
+      .select({ id: endpointDeliveries.id, status: endpointDeliveries.status, attempts: endpointDeliveries.attempts })
+      .from(endpointDeliveries)
+      .where(and(
+        eq(endpointDeliveries.emailId, emailId),
+        eq(endpointDeliveries.endpointId, endpoint.id)
+      ))
+      .limit(1)
+    
+    if (existingDelivery[0]) {
+      console.log(`⏭️  routeEmail - Email ${emailId} already has delivery record for endpoint ${endpoint.id} (status: ${existingDelivery[0].status}, attempts: ${existingDelivery[0].attempts}). Skipping duplicate delivery.`)
+      return
+    }
+
     // Route based on endpoint type
     switch (endpoint.type) {
       case 'webhook':
