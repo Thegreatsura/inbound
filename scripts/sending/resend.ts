@@ -1,10 +1,13 @@
 import { Resend } from 'resend';
 import { config } from 'dotenv';
 import { render } from '@react-email/render';
+import { generateObject, generateText } from 'ai';
+import { openai } from '@ai-sdk/openai';
 import WelcomeEmail from './emails/welcome';
 import NewsletterEmail from './emails/newsletter';
 import NotificationEmail from './emails/notification';
 import PromotionalEmail from './emails/promotional';
+import { z } from 'zod';
 
 // Load environment variables
 config({ path: '.env' });
@@ -90,19 +93,27 @@ function shuffleArray<T>(array: T[]): T[] {
   return shuffled;
 }
 
-function parseCommandLineArgs(): { email: string; count: number; isDev: boolean } {
+function parseCommandLineArgs(): { email: string; count: number; isDev: boolean; aiPrompt?: string } {
   const args = process.argv.slice(2);
   
   if (args.length < 2) {
-    console.error('❌ Usage: bun run email <email-address> <number-of-emails> [--dev]');
+    console.error('❌ Usage: bun run email <email-address> <number-of-emails> [--dev] [--ai "prompt"]');
     console.error('   Example: bun run email user@example.com 5');
     console.error('   Example: bun run email user@example.com 5 --dev');
+    console.error('   Example: bun run email user@example.com 5 --ai "Write a welcome email for new users"');
     process.exit(1);
   }
 
   const email = args[0];
   const count = parseInt(args[1], 10);
   const isDev = args.includes('--dev');
+  
+  // Parse --ai flag
+  let aiPrompt: string | undefined;
+  const aiIndex = args.indexOf('--ai');
+  if (aiIndex !== -1 && args[aiIndex + 1]) {
+    aiPrompt = args[aiIndex + 1];
+  }
 
   if (!email || !email.includes('@')) {
     console.error('❌ Invalid email address provided');
@@ -119,7 +130,7 @@ function parseCommandLineArgs(): { email: string; count: number; isDev: boolean 
     process.exit(1);
   }
 
-  return { email, count, isDev };
+  return { email, count, isDev, aiPrompt };
 }
 
 async function getVerifiedDomains(): Promise<Domain[]> {
@@ -186,21 +197,99 @@ async function sendEmail(
   }
 }
 
+async function generateAIEmail(
+  prompt: string,
+  userFirstName: string,
+  domain: string
+): Promise<{ html: string; subject: string }> {
+  try {
+    console.log('🤖 Generating email content with AI...');
+    
+    const enhancedPrompt = `Generate a complete HTML email based on this request: "${prompt}"
+
+Context:
+- Recipient's first name: ${userFirstName}
+- Sender domain: ${domain}
+
+Requirements:
+1. Create an email to the users specifications, you are able to use HTML tags and inline styles if needed.
+2. Follow the users specifications exactly.
+`;
+
+    const { object } = await generateObject({
+      schema: z.object({
+        subject: z.string().describe('The subject line of the email'),
+        html: z.string().describe('The HTML content of the email'),
+      }),
+      model: "openai/gpt-5-nano",
+      prompt: enhancedPrompt,
+    });
+    
+    console.log('✅ AI email content generated successfully');
+    return object;
+  } catch (error) {
+    console.error('❌ Failed to generate AI email:', error);
+    throw error;
+  }
+}
+
+async function sendAIGeneratedEmail(
+  fromEmail: string,
+  toEmail: string,
+  aiContent: { html: string; subject: string },
+  isDev: boolean = false
+): Promise<void> {
+  try {
+    let subject = aiContent.subject;
+    
+    // Add dev prefix if in dev mode
+    if (isDev) {
+      subject = `[[[DEV||| ${subject}`;
+    }
+
+    const response = await resend.emails.send({
+      from: fromEmail,
+      to: toEmail,
+      subject: subject,
+      html: aiContent.html,
+    });
+
+    if (response.error) {
+      throw new Error(`Resend API error: ${response.error.message}`);
+    }
+
+    console.log(`✅ Sent AI-generated email from ${fromEmail} to ${toEmail}`);
+    console.log(`   📧 Email ID: ${response.data?.id}`);
+    console.log(`   📝 Subject: ${subject}`);
+  } catch (error) {
+    console.error(`❌ Failed to send AI-generated email from ${fromEmail} to ${toEmail}:`, error);
+    throw error;
+  }
+}
+
 async function main() {
   try {
     console.log('🚀 Starting email sending script...\n');
 
     // Parse command line arguments
-    const { email: recipientEmail, count: emailCount, isDev } = parseCommandLineArgs();
+    const { email: recipientEmail, count: emailCount, isDev, aiPrompt } = parseCommandLineArgs();
 
     // Validate API key
     if (!process.env.RESEND_API_KEY) {
       throw new Error('RESEND_API_KEY environment variable is not set');
     }
 
+    // Validate OpenAI API key if using AI mode
+    if (aiPrompt && !process.env.OPENAI_API_KEY) {
+      throw new Error('OPENAI_API_KEY environment variable is not set. Required for --ai flag.');
+    }
+
     console.log(`📬 Will send ${emailCount} emails to: ${recipientEmail}`);
     if (isDev) {
       console.log(`🧪 DEV MODE: All subjects will be prefixed with [[[DEV|||`);
+    }
+    if (aiPrompt) {
+      console.log(`🤖 AI MODE: Emails will be generated using prompt: "${aiPrompt}"`);
     }
     console.log('');
 
@@ -226,7 +315,15 @@ async function main() {
       const user = generateRandomUser();
       const fromEmail = `${user.email}@${domain.name}`;
       
-      // Pick a random email template
+      console.log(`\n📧 Sending email ${i + 1}/${emailCount} from ${domain.name}...`);
+
+      try {
+        if (aiPrompt) {
+          // AI-generated email mode
+          const aiContent = await generateAIEmail(aiPrompt, user.firstName, domain.name);
+          await sendAIGeneratedEmail(fromEmail, recipientEmail, aiContent, isDev);
+        } else {
+          // Template-based email mode
       const template = getRandomElement(emailTemplates);
       
       // Prepare template props
@@ -236,10 +333,9 @@ async function main() {
         ...template.props
       };
 
-      console.log(`\n📧 Sending email ${i + 1}/${emailCount} from ${domain.name}...`);
-
-      try {
         await sendEmail(fromEmail, recipientEmail, template, templateProps, isDev);
+        }
+
         emailsSent++;
         
         // Add a small delay between emails to avoid rate limiting
@@ -255,6 +351,9 @@ async function main() {
     console.log('\n📊 Email Sending Summary:');
     console.log(`📬 Recipient: ${recipientEmail}`);
     console.log(`🎯 Requested: ${emailCount} emails`);
+    if (aiPrompt) {
+      console.log(`🤖 AI Prompt: "${aiPrompt}"`);
+    }
     console.log(`✅ Successfully sent: ${emailsSent} emails`);
     console.log(`❌ Failed to send: ${emailsFailed} emails`);
     console.log(`📈 Success rate: ${emailsSent > 0 ? Math.round((emailsSent / (emailsSent + emailsFailed)) * 100) : 0}%`);

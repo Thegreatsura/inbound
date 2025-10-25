@@ -1,64 +1,79 @@
-import { headers } from 'next/headers'
-import { redirect } from 'next/navigation'
-import Link from 'next/link'
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
+import Link from "next/link";
 
-import { auth } from '@/lib/auth/auth'
-import { db } from '@/lib/db'
-import { structuredEmails, sentEmails, endpointDeliveries, endpoints, sesEvents } from '@/lib/db/schema'
-import { and, eq, desc } from 'drizzle-orm'
+import { auth } from "@/lib/auth/auth";
+import { db } from "@/lib/db";
+import {
+  structuredEmails,
+  sentEmails,
+  endpointDeliveries,
+  endpoints,
+  sesEvents,
+} from "@/lib/db/schema";
+import { and, eq, desc } from "drizzle-orm";
 
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { Separator } from '@/components/ui/separator'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { ScrollArea } from '@/components/ui/scroll-area'
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 // Nucleo icons
-import ArchiveDownload from '@/components/icons/archive-download'
-import ArchiveExport from '@/components/icons/archive-export'
-import ShieldCheck from '@/components/icons/shield-check'
-import Ban2 from '@/components/icons/ban-2'
-import Hashtag2 from '@/components/icons/hashtag-2'
-import ArrowBoldLeft from '@/components/icons/arrow-bold-left'
+import ArchiveDownload from "@/components/icons/archive-download";
+import ArchiveExport from "@/components/icons/archive-export";
+import ShieldCheck from "@/components/icons/shield-check";
+import ShieldAlert from "@/components/icons/shield-alert";
+import Ban2 from "@/components/icons/ban-2";
+import Hashtag2 from "@/components/icons/hashtag-2";
+import ArrowBoldLeft from "@/components/icons/arrow-bold-left";
 
-import { format } from 'date-fns'
+import { format } from "date-fns";
 
-import type { GetMailByIdResponse } from '@/app/api/v2/mail/[id]/route'
-import type { GetEmailByIdResponse } from '@/app/api/v2/emails/[id]/route'
+import type { GetMailByIdResponse } from "@/app/api/v2/mail/[id]/route";
+import type { GetEmailByIdResponse } from "@/app/api/v2/emails/[id]/route";
 
 // Import the attachment list component
-import { AttachmentList } from '@/components/logs/attachment-list'
-import { ClickableId } from '@/components/logs/clickable-id'
-import { ResendEmailDialog } from '@/components/logs/resend-email-dialog'
-import { CodeBlock } from '@/components/ui/code-block'
+import { AttachmentList } from "@/components/logs/attachment-list";
+import { ClickableId } from "@/components/logs/clickable-id";
+import { ResendEmailDialog } from "@/components/logs/resend-email-dialog";
+import { CodeBlock } from "@/components/ui/code-block";
+import ArrowBoldRight from "@/components/icons/arrow-bold-right";
+import FolderLink from "@/components/icons/folder-link";
 
-export default async function LogDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params
-  const session = await auth.api.getSession({ headers: await headers() })
+export default async function LogDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user?.id) {
-    redirect('/login')
+    redirect("/login");
   }
 
-  const userId = session.user.id
+  const userId = session.user.id;
 
   // Determine if this ID corresponds to an inbound (structuredEmails) or outbound (sentEmails) record
   const [inbound] = await db
     .select({ id: structuredEmails.id })
     .from(structuredEmails)
-    .where(and(eq(structuredEmails.id, id), eq(structuredEmails.userId, userId)))
-    .limit(1)
+    .where(
+      and(eq(structuredEmails.id, id), eq(structuredEmails.userId, userId))
+    )
+    .limit(1);
 
-  let type: 'inbound' | 'outbound' | null = null
+  let type: "inbound" | "outbound" | null = null;
   if (inbound) {
-    type = 'inbound'
+    type = "inbound";
   } else {
     const [outbound] = await db
       .select({ id: sentEmails.id })
       .from(sentEmails)
       .where(and(eq(sentEmails.id, id), eq(sentEmails.userId, userId)))
-      .limit(1)
-    if (outbound) type = 'outbound'
+      .limit(1);
+    if (outbound) type = "outbound";
   }
 
   if (!type) {
@@ -80,14 +95,30 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
           </Card>
         </div>
       </div>
-    )
+    );
   }
 
   // Fetch rich details based on type
-  let inboundDetails: (GetMailByIdResponse & { deliveries?: Array<any> }) | null = null
-  let outboundDetails: (GetEmailByIdResponse & { provider?: string; status?: string; failureReason?: string | null; providerResponse?: any }) | null = null
+  let inboundDetails:
+    | (GetMailByIdResponse & {
+        deliveries?: Array<any>;
+        guardBlocked?: boolean;
+        guardReason?: string | null;
+        guardAction?: string | null;
+        guardRuleId?: string | null;
+        guardMetadata?: any;
+      })
+    | null = null;
+  let outboundDetails:
+    | (GetEmailByIdResponse & {
+        provider?: string;
+        status?: string;
+        failureReason?: string | null;
+        providerResponse?: any;
+      })
+    | null = null;
 
-  if (type === 'inbound') {
+  if (type === "inbound") {
     // Get full inbound email details by reusing the same projection as the API
     const details = await db
       .select({
@@ -114,6 +145,13 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
         date: structuredEmails.date,
         readAt: structuredEmails.readAt,
 
+        // Guard fields
+        guardBlocked: structuredEmails.guardBlocked,
+        guardReason: structuredEmails.guardReason,
+        guardAction: structuredEmails.guardAction,
+        guardRuleId: structuredEmails.guardRuleId,
+        guardMetadata: structuredEmails.guardMetadata,
+
         // ses
         spamVerdict: sesEvents.spamVerdict,
         virusVerdict: sesEvents.virusVerdict,
@@ -127,27 +165,33 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
       })
       .from(structuredEmails)
       .leftJoin(sesEvents, eq(structuredEmails.sesEventId, sesEvents.id))
-      .where(and(eq(structuredEmails.id, id), eq(structuredEmails.userId, userId)))
-      .limit(1)
+      .where(
+        and(eq(structuredEmails.id, id), eq(structuredEmails.userId, userId))
+      )
+      .limit(1);
 
     if (details.length === 0) {
-      redirect('/logs')
+      redirect("/logs");
     }
 
-    const row = details[0]
+    const row = details[0];
     const safeParse = (s: string | null) => {
-      if (!s) return null
-      try { return JSON.parse(s) } catch { return null }
-    }
+      if (!s) return null;
+      try {
+        return JSON.parse(s);
+      } catch {
+        return null;
+      }
+    };
 
-    const fromParsed = safeParse(row.fromData)
-    const toParsed = safeParse(row.toData)
-    const ccParsed = safeParse(row.ccData)
-    const bccParsed = safeParse(row.bccData)
-    const replyToParsed = safeParse(row.replyToData)
-    const attachmentsParsed = safeParse(row.attachments) || []
-    const headersParsed = safeParse(row.headers) || {}
-    const commonHeadersParsed = safeParse(row.commonHeaders)
+    const fromParsed = safeParse(row.fromData);
+    const toParsed = safeParse(row.toData);
+    const ccParsed = safeParse(row.ccData);
+    const bccParsed = safeParse(row.bccData);
+    const replyToParsed = safeParse(row.replyToData);
+    const attachmentsParsed = safeParse(row.attachments) || [];
+    const headersParsed = safeParse(row.headers) || {};
+    const commonHeadersParsed = safeParse(row.commonHeaders);
 
     // Fetch deliveries for this inbound email (by emailId)
     const deliveriesRaw = await db
@@ -166,32 +210,42 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
       .from(endpointDeliveries)
       .leftJoin(endpoints, eq(endpointDeliveries.endpointId, endpoints.id))
       .where(eq(endpointDeliveries.emailId, row.emailId))
-      .orderBy(desc(endpointDeliveries.lastAttemptAt))
+      .orderBy(desc(endpointDeliveries.lastAttemptAt));
 
-    const deliveries = deliveriesRaw.map(d => {
-      let parsedResponse: any = null
-      let parsedConfig: any = null
-      try { parsedResponse = d.responseData ? JSON.parse(d.responseData as unknown as string) : null } catch {}
-      try { parsedConfig = d.endpointConfig ? JSON.parse(d.endpointConfig as unknown as string) : null } catch {}
+    const deliveries = deliveriesRaw.map((d) => {
+      let parsedResponse: any = null;
+      let parsedConfig: any = null;
+      try {
+        parsedResponse = d.responseData
+          ? JSON.parse(d.responseData as unknown as string)
+          : null;
+      } catch {}
+      try {
+        parsedConfig = d.endpointConfig
+          ? JSON.parse(d.endpointConfig as unknown as string)
+          : null;
+      } catch {}
       return {
         id: d.id,
-        type: d.deliveryType || 'unknown',
-        status: d.status || 'unknown',
+        type: d.deliveryType || "unknown",
+        status: d.status || "unknown",
         attempts: d.attempts || 0,
         lastAttemptAt: d.lastAttemptAt?.toISOString() || null,
         responseData: parsedResponse,
         config: {
-          name: d.endpointName || 'Unknown Endpoint',
-          type: d.endpointType || 'unknown',
+          name: d.endpointName || "Unknown Endpoint",
+          type: d.endpointType || "unknown",
           config: parsedConfig,
           endpointId: d.endpointId, // Add the endpointId for the resend dialog
-        }
-      }
-    })
+        },
+      };
+    });
 
     // Defensive check: emailId should never be null since it's NOT NULL in schema
     if (!row.emailId) {
-      console.error(`[CRITICAL] Email ID missing for structured email ${row.id}. This indicates a data integrity issue.`)
+      console.error(
+        `[CRITICAL] Email ID missing for structured email ${row.id}. This indicates a data integrity issue.`
+      );
     }
 
     inboundDetails = {
@@ -199,16 +253,21 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
       emailId: row.emailId, // receivedEmails.id reference  
       messageId: row.messageId,
       subject: row.subject,
-      from: fromParsed?.addresses?.[0]?.address || 'unknown',
+      from: fromParsed?.addresses?.[0]?.address || "unknown",
       fromName: fromParsed?.addresses?.[0]?.name || null,
-      to: toParsed?.text || '',
+      to: toParsed?.text || "",
       cc: ccParsed?.text || null,
       bcc: bccParsed?.text || null,
       replyTo: replyToParsed?.text || null,
-      recipient: toParsed?.addresses?.[0]?.address || 'unknown',
+      recipient: toParsed?.addresses?.[0]?.address || "unknown",
       receivedAt: row.date || row.createdAt,
       isRead: true,
       readAt: row.readAt || row.createdAt,
+      guardBlocked: row.guardBlocked || false,
+      guardReason: row.guardReason,
+      guardAction: row.guardAction,
+      guardRuleId: row.guardRuleId,
+      guardMetadata: row.guardMetadata ? JSON.parse(row.guardMetadata) : null,
       content: {
         textBody: row.textBody,
         htmlBody: row.htmlBody,
@@ -235,11 +294,11 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
         hasHtmlBody: !!row.htmlBody,
       },
       security: {
-        spf: row.spfVerdict || 'UNKNOWN',
-        dkim: row.dkimVerdict || 'UNKNOWN',
-        dmarc: row.dmarcVerdict || 'UNKNOWN',
-        spam: row.spamVerdict || 'UNKNOWN',
-        virus: row.virusVerdict || 'UNKNOWN',
+        spf: row.spfVerdict || "UNKNOWN",
+        dkim: row.dkimVerdict || "UNKNOWN",
+        dmarc: row.dmarcVerdict || "UNKNOWN",
+        spam: row.spamVerdict || "UNKNOWN",
+        virus: row.virusVerdict || "UNKNOWN",
       },
       processing: {
         processingTimeMs: row.processingTimeMillis,
@@ -258,7 +317,7 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
       deliveries,
-    }
+    };
   } else {
     // Outbound details from DB (richer than the API-only shape)
     const details = await db
@@ -281,48 +340,60 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
       })
       .from(sentEmails)
       .where(and(eq(sentEmails.id, id), eq(sentEmails.userId, userId)))
-      .limit(1)
+      .limit(1);
 
     if (details.length === 0) {
-      redirect('/logs')
+      redirect("/logs");
     }
 
-    const row = details[0]
+    const row = details[0];
     
     // Defensive check: id should never be null since it's the primary key
     if (!row.id) {
-      console.error(`[CRITICAL] Sent email ID missing. This indicates a data integrity issue.`)
+      console.error(
+        `[CRITICAL] Sent email ID missing. This indicates a data integrity issue.`
+      );
     }
     
-    const parseJSON = (s: string | null) => { try { return s ? JSON.parse(s) : [] } catch { return [] } }
-    const to = parseJSON(row.to)
-    const cc = parseJSON(row.cc)
-    const bcc = parseJSON(row.bcc)
-    const reply_to = parseJSON(row.replyTo)
-    let providerResponse: any = null
-    try { providerResponse = row.providerResponse ? JSON.parse(row.providerResponse) : null } catch {}
+    const parseJSON = (s: string | null) => {
+      try {
+        return s ? JSON.parse(s) : [];
+      } catch {
+        return [];
+      }
+    };
+    const to = parseJSON(row.to);
+    const cc = parseJSON(row.cc);
+    const bcc = parseJSON(row.bcc);
+    const reply_to = parseJSON(row.replyTo);
+    let providerResponse: any = null;
+    try {
+      providerResponse = row.providerResponse
+        ? JSON.parse(row.providerResponse)
+        : null;
+    } catch {}
 
     outboundDetails = {
-      object: 'email',
+      object: "email",
       id: row.id,
       to,
       from: row.from,
       created_at: row.createdAt?.toISOString() || new Date().toISOString(),
-      subject: row.subject || 'No Subject',
+      subject: row.subject || "No Subject",
       html: row.htmlBody,
       text: row.textBody,
       bcc: bcc.length ? bcc : [null],
       cc: cc.length ? cc : [null],
       reply_to: reply_to.length ? reply_to : [null],
-      last_event: row.status === 'sent' ? 'delivered' : row.status || 'created',
+      last_event: row.status === "sent" ? "delivered" : row.status || "created",
       provider: row.provider || undefined,
       status: row.status || undefined,
       failureReason: row.failureReason || null,
       providerResponse,
-    }
+    };
   }
 
-  const isInbound = type === 'inbound'
+  const isInbound = type === "inbound";
 
   return (
     <div className="p-4">
@@ -342,11 +413,23 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
               <div className="space-y-4">
                 <div className="flex items-center gap-2">
                   {isInbound ? (
-                    <ArchiveDownload width="16" height="16" className="text-purple-600" />
+                    <ArchiveDownload
+                      width="16"
+                      height="16"
+                      className="text-purple-600"
+                    />
                   ) : (
-                    <ArchiveExport width="16" height="16" className="text-blue-600" />
+                    <ArchiveExport
+                      width="16"
+                      height="16"
+                      className="text-blue-600"
+                    />
                   )}
-                  <h1 className="text-xl font-semibold tracking-tight">{(isInbound ? inboundDetails?.subject : outboundDetails?.subject) || 'No Subject'}</h1>
+                  <h1 className="text-xl font-semibold tracking-tight">
+                    {(isInbound
+                      ? inboundDetails?.subject
+                      : outboundDetails?.subject) || "No Subject"}
+                  </h1>
                 </div>
 
                 {/* Email Flow Cards */}
@@ -354,9 +437,13 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
                   {/* From Card */}
                   <div className="flex-shrink-0 relative">
                     <div className="bg-card border border-purple-200 rounded p-2 min-w-[100px]">
-                      <div className="text-xs text-purple-600 font-medium">From</div>
+                      <div className="text-xs text-purple-600 font-medium">
+                        From
+                      </div>
                       <div className="text-sm font-medium text-foreground truncate">
-                        {(isInbound ? inboundDetails?.from : outboundDetails?.from) || 'unknown'}
+                        {(isInbound
+                          ? inboundDetails?.from
+                          : outboundDetails?.from) || "unknown"}
                       </div>
                     </div>
                   </div>
@@ -365,8 +452,13 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
                   <div className="flex-shrink-0 relative flex items-center">
                     <div className="w-8 h-px bg-border"></div>
                     <div className="text-muted-foreground -ml-1">
-                      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                        <path d="M6 4l4 4-4 4V4z"/>
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 16 16"
+                        fill="currentColor"
+                      >
+                        <path d="M6 4l4 4-4 4V4z" />
                       </svg>
                     </div>
                     <div className="w-8 h-px bg-border -ml-1"></div>
@@ -375,51 +467,70 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
                   {/* To Card */}
                   <div className="flex-shrink-0 relative">
                     <div className="bg-card border border-blue-200 rounded p-2 min-w-[100px]">
-                      <div className="text-xs text-blue-600 font-medium">To</div>
+                      <div className="text-xs text-blue-600 font-medium">
+                        To
+                      </div>
                       <div className="text-sm font-medium text-foreground truncate">
-                        {isInbound ? inboundDetails?.recipient : outboundDetails?.to?.[0] || 'unknown'}
+                        {isInbound
+                          ? inboundDetails?.recipient
+                          : outboundDetails?.to?.[0] || "unknown"}
                       </div>
                     </div>
                   </div>
 
                   {/* Connecting Line, Arrow and Endpoint for inbound emails with deliveries */}
-                  {isInbound && inboundDetails?.deliveries && inboundDetails.deliveries.length > 0 && (
+                  {isInbound &&
+                    inboundDetails?.deliveries &&
+                    inboundDetails.deliveries.length > 0 && (
                     <>
                       <div className="flex-shrink-0 relative flex items-center">
                         <div className="w-8 h-px bg-border"></div>
                         <div className="text-muted-foreground -ml-1">
-                          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                            <path d="M6 4l4 4-4 4V4z"/>
+                            <svg
+                              width="16"
+                              height="16"
+                              viewBox="0 0 16 16"
+                              fill="currentColor"
+                            >
+                              <path d="M6 4l4 4-4 4V4z" />
                           </svg>
                         </div>
                         <div className="w-8 h-px bg-border -ml-1"></div>
                       </div>
 
                       <div className="flex-shrink-0 relative">
-                        <div className={`bg-card border rounded p-2 min-w-[100px] ${
-                          inboundDetails.deliveries[0]?.status === 'success' 
-                            ? 'border-green-200' 
-                            : inboundDetails.deliveries[0]?.status === 'failed'
-                            ? 'border-red-200'
-                            : 'border-yellow-200'
-                        }`}>
-                          <div className={`text-xs font-medium ${
-                            inboundDetails.deliveries[0]?.status === 'success' 
-                              ? 'text-green-600' 
-                              : inboundDetails.deliveries[0]?.status === 'failed'
-                              ? 'text-red-600'
-                              : 'text-yellow-600'
-                          }`}>
-                            {inboundDetails.deliveries[0]?.config?.name || 'Webhook'}
+                          <div
+                            className={`bg-card border rounded p-2 min-w-[100px] ${
+                              inboundDetails.deliveries[0]?.status === "success"
+                                ? "border-green-200"
+                                : inboundDetails.deliveries[0]?.status ===
+                                    "failed"
+                                  ? "border-red-200"
+                                  : "border-yellow-200"
+                            }`}
+                          >
+                            <div
+                              className={`text-xs font-medium ${
+                                inboundDetails.deliveries[0]?.status ===
+                                "success"
+                                  ? "text-green-600"
+                                  : inboundDetails.deliveries[0]?.status ===
+                                      "failed"
+                                    ? "text-red-600"
+                                    : "text-yellow-600"
+                              }`}
+                            >
+                              {inboundDetails.deliveries[0]?.config?.name ||
+                                "Webhook"}
                           </div>
                           <div className="text-sm font-medium text-foreground capitalize">
-                            {inboundDetails.deliveries[0]?.status || 'pending'}
+                              {inboundDetails.deliveries[0]?.status ||
+                                "pending"}
                           </div>
                         </div>
                       </div>
                     </>
                   )}
-
                 </div>
               </div>
             </div>
@@ -428,44 +539,112 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div className="lg:col-span-2 space-y-4">
+            {isInbound &&
+              (inboundDetails?.guardBlocked || inboundDetails?.guardAction) && (
+                <Card className="rounded-xl overflow-hidden border-red-200 bg-red-50">
+                  <CardContent className="p-4 space-y-2">
+                    <div className="flex items-center gap-2 mb-2">
+                      <ShieldAlert className="h-4 w-4 text-destructive" />
+                      <h3 className="text-sm font-semibold text-destructive">
+                        Guard Summary
+                      </h3>
+                    </div>
+
+                    <div className="flex gap-4 text-sm">
+                      {inboundDetails.guardBlocked && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-muted-foreground">
+                            Status: <b className="text-destructive">Blocked</b>
+                          </span>
+                        </div>
+                      )}
+                      {inboundDetails.guardAction !== "block" && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-muted-foreground">Action:</span>
+                          <span className="font-medium capitalize">
+                            {inboundDetails.guardAction}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    {inboundDetails.guardReason && (
+                      <Link
+                        href={`/guard/rules/${inboundDetails.guardRuleId}`}
+                        className="text-sm p-0"
+                      >
+                        <span className="text-sm text-blue-500 flex items-center gap-1 hover:underline">
+                          {inboundDetails.guardReason}
+                          <FolderLink className="h-4 w-4 text-blue-500" />
+                        </span>
+                      </Link>
+                    )}
+                    {inboundDetails.guardRuleId && (
+                      <div className="text-xs text-muted-foreground">
+                        Rule ID:{" "}
+                        <ClickableId id={inboundDetails.guardRuleId} />
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
             <Card className="rounded-xl overflow-hidden">
               <CardContent className="p-6">
                 <h3 className="text-sm font-semibold mb-3">Email Content</h3>
                 <Tabs defaultValue="html" className="w-full">
-                  <TabsList className={`grid w-full ${isInbound ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                  <TabsList
+                    className={`grid w-full ${isInbound ? "grid-cols-3" : "grid-cols-2"}`}
+                  >
                     <TabsTrigger value="html">HTML</TabsTrigger>
                     <TabsTrigger value="text">Text</TabsTrigger>
-                    {isInbound && (
-                      <TabsTrigger value="raw">Raw</TabsTrigger>
-                    )}
+                    {isInbound && <TabsTrigger value="raw">Raw</TabsTrigger>}
                   </TabsList>
                   <TabsContent value="html" className="space-y-2">
-                    {(isInbound ? inboundDetails?.content?.htmlBody : outboundDetails?.html) ? (
+                    {(
+                      isInbound
+                        ? inboundDetails?.content?.htmlBody
+                        : outboundDetails?.html
+                    ) ? (
                       <div className="border rounded-lg p-4 bg-muted/20 max-h-[640px] overflow-auto">
                         <iframe
-                          srcDoc={`<html><head><link href=\"https://fonts.googleapis.com/css2?family=Outfit:wght@100;200;300;400;500;600;700;800;900&display=swap\" rel=\"stylesheet\"><style>body{font-family:'Outfit',Arial,Helvetica,sans-serif;color:#000;background-color:transparent;margin:0;padding:16px;}*{font-family:'Outfit',Arial,Helvetica,sans-serif;font-weight:400;color:#000;}a{color:#2563eb !important;}</style></head><body>${isInbound ? inboundDetails?.content?.htmlBody || '' : outboundDetails?.html || ''}</body></html>`}
+                          srcDoc={`<html><head><link href=\"https://fonts.googleapis.com/css2?family=Outfit:wght@100;200;300;400;500;600;700;800;900&display=swap\" rel=\"stylesheet\"><style>body{font-family:'Outfit',Arial,Helvetica,sans-serif;color:#000;background-color:transparent;margin:0;padding:16px;}*{font-family:'Outfit',Arial,Helvetica,sans-serif;font-weight:400;color:#000;}a{color:#2563eb !important;}</style></head><body>${isInbound ? inboundDetails?.content?.htmlBody || "" : outboundDetails?.html || ""}</body></html>`}
                           className="w-full min-h-[300px] border-0"
                           sandbox="allow-same-origin"
                           title="Email HTML Content"
                         />
                       </div>
                     ) : (
-                      <p className="text-sm text-muted-foreground">No HTML content available</p>
+                      <p className="text-sm text-muted-foreground">
+                        No HTML content available
+                      </p>
                     )}
                   </TabsContent>
                   <TabsContent value="text" className="space-y-2">
-                    {(isInbound ? inboundDetails?.content?.textBody : outboundDetails?.text) ? (
-                      <pre className="text-sm bg-muted p-4 rounded-lg overflow-x-auto whitespace-pre-wrap max-h-[640px] overflow-y-auto">{isInbound ? inboundDetails?.content?.textBody : outboundDetails?.text}</pre>
+                    {(
+                      isInbound
+                        ? inboundDetails?.content?.textBody
+                        : outboundDetails?.text
+                    ) ? (
+                      <pre className="text-sm bg-muted p-4 rounded-lg overflow-x-auto whitespace-pre-wrap max-h-[640px] overflow-y-auto">
+                        {isInbound
+                          ? inboundDetails?.content?.textBody
+                          : outboundDetails?.text}
+                      </pre>
                     ) : (
-                      <p className="text-sm text-muted-foreground">No text content available</p>
+                      <p className="text-sm text-muted-foreground">
+                        No text content available
+                      </p>
                     )}
                   </TabsContent>
                   {isInbound && (
                     <TabsContent value="raw" className="space-y-2">
                       {inboundDetails?.content?.rawContent ? (
-                        <pre className="text-xs bg-muted p-4 rounded-lg overflow-x-auto font-mono max-h-[640px] overflow-y-auto">{inboundDetails?.content?.rawContent}</pre>
+                        <pre className="text-xs bg-muted p-4 rounded-lg overflow-x-auto font-mono max-h-[640px] overflow-y-auto">
+                          {inboundDetails?.content?.rawContent}
+                        </pre>
                       ) : (
-                        <p className="text-sm text-muted-foreground">Raw content not available</p>
+                        <p className="text-sm text-muted-foreground">
+                          Raw content not available
+                        </p>
                       )}
                     </TabsContent>
                   )}
@@ -477,30 +656,55 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
               <Card className="rounded-xl overflow-hidden">
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-semibold">Delivery Information</h3>
+                    <h3 className="text-sm font-semibold">
+                      Delivery Information
+                    </h3>
                     {inboundDetails.deliveries.length > 0 && (
                       <ResendEmailDialog 
                         emailId={inboundDetails.id}
-                        defaultEndpointId={inboundDetails.deliveries[0]?.config?.endpointId}
+                        defaultEndpointId={
+                          inboundDetails.deliveries[0]?.config?.endpointId
+                        }
                         deliveries={inboundDetails.deliveries}
                       />
                     )}
                   </div>
                   {inboundDetails.deliveries.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No delivery configured for this email</p>
+                    <p className="text-sm text-muted-foreground">
+                      No delivery configured for this email
+                    </p>
                   ) : (
                     <div className="divide-y divide-border rounded-lg border">
-                      {inboundDetails.deliveries.map((delivery: any, idx: number) => (
+                      {inboundDetails.deliveries.map(
+                        (delivery: any, idx: number) => (
                         <div key={delivery.id} className="p-4">
                           <div className="flex items-start justify-between">
                             <div>
-                              <h4 className="font-medium text-foreground">{delivery.config?.name || 'Unknown Endpoint'}</h4>
-                              <p className="text-sm text-muted-foreground">{delivery.type === 'webhook' ? 'Webhook' : 'Email Forward'}</p>
+                                <h4 className="font-medium text-foreground">
+                                  {delivery.config?.name || "Unknown Endpoint"}
+                                </h4>
+                                <p className="text-sm text-muted-foreground">
+                                  {delivery.type === "webhook"
+                                    ? "Webhook"
+                                    : "Email Forward"}
+                                </p>
                             </div>
                             <div className="flex items-center gap-2">
                               <Badge 
-                                variant={delivery.status === 'success' ? 'default' : delivery.status === 'failed' ? 'destructive' : 'secondary'}
-                                className={delivery.status === 'success' ? 'bg-green-500/10 text-green-600 border-green-500/20' : delivery.status === 'failed' ? '' : 'bg-yellow-500/10 text-yellow-600 border-yellow-500/20'}
+                                  variant={
+                                    delivery.status === "success"
+                                      ? "default"
+                                      : delivery.status === "failed"
+                                        ? "destructive"
+                                        : "secondary"
+                                  }
+                                  className={
+                                    delivery.status === "success"
+                                      ? "bg-green-500/10 text-green-600 border-green-500/20"
+                                      : delivery.status === "failed"
+                                        ? ""
+                                        : "bg-yellow-500/10 text-yellow-600 border-yellow-500/20"
+                                  }
                               >
                                 {String(delivery.status).toUpperCase()}
                               </Badge>
@@ -508,28 +712,46 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
                           </div>
                           <div className="mt-3 grid grid-cols-2 gap-4 text-sm">
                             <div>
-                              <span className="text-muted-foreground">Attempts:</span>
-                              <p className="font-medium">{delivery.attempts}</p>
+                                <span className="text-muted-foreground">
+                                  Attempts:
+                                </span>
+                                <p className="font-medium">
+                                  {delivery.attempts}
+                                </p>
                             </div>
                             {delivery.lastAttemptAt && (
                               <div>
-                                <span className="text-muted-foreground">Last Attempt:</span>
-                                <p className="font-medium">{format(new Date(delivery.lastAttemptAt), 'PPp')}</p>
+                                  <span className="text-muted-foreground">
+                                    Last Attempt:
+                                  </span>
+                                  <p className="font-medium">
+                                    {format(
+                                      new Date(delivery.lastAttemptAt),
+                                      "PPp"
+                                    )}
+                                  </p>
                               </div>
                             )}
                           </div>
                           {delivery.responseData && (
                             <div className="mt-3">
-                              <div className="text-muted-foreground text-xs mb-1">Response Data:</div>
+                                <div className="text-muted-foreground text-xs mb-1">
+                                  Response Data:
+                                </div>
                               <CodeBlock
-                                code={JSON.stringify(delivery.responseData, null, 2)}
+                                  code={JSON.stringify(
+                                    delivery.responseData,
+                                    null,
+                                    2
+                                  )}
                                 size="sm"
                                 variant="default"
                               />
                             </div>
                           )}
                         </div>
-                      ))}
+                        )
+                      )}
                     </div>
                   )}
                 </CardContent>
@@ -539,16 +761,22 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
             {!isInbound && (
               <Card className="rounded-xl overflow-hidden">
                 <CardContent className="p-6">
-                  <h3 className="text-sm font-semibold mb-3">Sending Details</h3>
+                  <h3 className="text-sm font-semibold mb-3">
+                    Sending Details
+                  </h3>
                   <div className="space-y-2 text-sm">
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <span className="text-muted-foreground">Status:</span>
-                        <p className="font-medium capitalize">{outboundDetails?.status}</p>
+                        <p className="font-medium capitalize">
+                          {outboundDetails?.status}
+                        </p>
                       </div>
                       <div>
                         <span className="text-muted-foreground">Provider:</span>
-                        <p className="font-medium uppercase">{outboundDetails?.provider}</p>
+                        <p className="font-medium uppercase">
+                          {outboundDetails?.provider}
+                        </p>
                       </div>
                     </div>
                     {outboundDetails?.failureReason && (
@@ -558,8 +786,16 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
                     )}
                     {outboundDetails?.providerResponse && (
                       <div>
-                        <div className="text-muted-foreground text-xs mb-1">Provider Response:</div>
-                        <pre className="text-xs bg-muted p-2 rounded overflow-x-auto">{JSON.stringify(outboundDetails.providerResponse, null, 2)}</pre>
+                        <div className="text-muted-foreground text-xs mb-1">
+                          Provider Response:
+                      </div>
+                        <pre className="text-xs bg-muted p-2 rounded overflow-x-auto">
+                          {JSON.stringify(
+                            outboundDetails.providerResponse,
+                            null,
+                            2
+                          )}
+                        </pre>
                       </div>
                     )}
                   </div>
@@ -571,7 +807,9 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
           <div className="space-y-4">
             <Card className="rounded-xl overflow-hidden">
               <CardContent className="p-6">
-                <h3 className="text-sm font-semibold mb-3">Email Identifiers</h3>
+                <h3 className="text-sm font-semibold mb-3">
+                  Email Identifiers
+                </h3>
                 <div className="space-y-4 text-sm">
                   <div>
                     <span className="text-muted-foreground">Record ID:</span>
@@ -580,59 +818,93 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
                         inboundDetails?.emailId ? (
                           <ClickableId id={inboundDetails.emailId} />
                         ) : (
-                          <span className="text-destructive text-xs">Data integrity error - missing emailId</span>
+                          <span className="text-destructive text-xs">
+                            Data integrity error - missing emailId
+                          </span>
                         )
-                      ) : (
-                        outboundDetails?.id ? (
+                      ) : outboundDetails?.id ? (
                           <ClickableId id={outboundDetails.id} />
                         ) : (
-                          <span className="text-destructive text-xs">Data integrity error - missing id</span>
-                        )
+                        <span className="text-destructive text-xs">
+                          Data integrity error - missing id
+                        </span>
                       )}
                     </div>
                   </div>
-                  {isInbound && inboundDetails?.emailId && inboundDetails.emailId !== id && (
+                  {isInbound &&
+                    inboundDetails?.emailId &&
+                    inboundDetails.emailId !== id && (
                     <div>
-                      <span className="text-muted-foreground">Legacy Email ID (receivedEmails.id):</span>
+                        <span className="text-muted-foreground">
+                          Legacy Email ID (receivedEmails.id):
+                        </span>
                       <div className="mt-1 text-xs text-muted-foreground font-mono">
                         {inboundDetails.emailId}
                       </div>
                     </div>
                   )}
-                  {((isInbound && inboundDetails?.messageId) || (outboundDetails && 'id' in outboundDetails)) && (
+                  {((isInbound && inboundDetails?.messageId) ||
+                    (outboundDetails && "id" in outboundDetails)) && (
                     <div>
-                      <span className="text-muted-foreground">Message ID (RFC 822):</span>
+                      <span className="text-muted-foreground">
+                        Message ID (RFC 822):
+                      </span>
                       <div className="mt-1">
-                        <ClickableId id={isInbound ? inboundDetails?.messageId || '' : outboundDetails?.id || ''} preview={true} />
+                        <ClickableId
+                          id={
+                            isInbound
+                              ? inboundDetails?.messageId || ""
+                              : outboundDetails?.id || ""
+                          }
+                          preview={true}
+                        />
                       </div>
                     </div>
                   )}
                   <div>
                     <span className="text-muted-foreground">From:</span>
-                    <p className="font-medium">{isInbound ? inboundDetails?.from : outboundDetails?.from}</p>
+                    <p className="font-medium">
+                      {isInbound ? inboundDetails?.from : outboundDetails?.from}
+                    </p>
                   </div>
                   <div>
                     <span className="text-muted-foreground">To:</span>
                     <div className="font-medium">
-                      {isInbound ? (
-                        inboundDetails?.recipient
-                      ) : (
-                        outboundDetails?.to?.map((r, i) => <div key={i}>{r}</div>)
-                      )}
+                      {isInbound
+                        ? inboundDetails?.recipient
+                        : outboundDetails?.to?.map((r, i) => (
+                            <div key={i}>{r}</div>
+                          ))}
                     </div>
                   </div>
                   <div>
                     <span className="text-muted-foreground">Subject:</span>
                     <p className="font-medium">
                       {(() => {
-                        const subject = (isInbound ? inboundDetails?.subject : outboundDetails?.subject) || 'No Subject';
-                        return subject.length > 20 ? subject.substring(0, 20) + '...' : subject;
+                        const subject =
+                          (isInbound
+                            ? inboundDetails?.subject
+                            : outboundDetails?.subject) || "No Subject";
+                        return subject.length > 20
+                          ? subject.substring(0, 20) + "..."
+                          : subject;
                       })()}
                     </p>
                   </div>
                   <div>
                     <span className="text-muted-foreground">Date:</span>
-                    <p className="font-medium">{format(new Date(isInbound ? (inboundDetails?.receivedAt || inboundDetails?.createdAt || new Date()) : (outboundDetails?.created_at || new Date())), 'PPpp')}</p>
+                    <p className="font-medium">
+                      {format(
+                        new Date(
+                          isInbound
+                            ? inboundDetails?.receivedAt ||
+                              inboundDetails?.createdAt ||
+                              new Date()
+                            : outboundDetails?.created_at || new Date()
+                        ),
+                        "PPpp"
+                      )}
+                    </p>
                   </div>
                 </div>
               </CardContent>
@@ -643,19 +915,89 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
                 <CardContent className="p-6">
                   <h3 className="text-sm font-semibold mb-3">Authentication</h3>
                   <div className="flex flex-wrap gap-2">
-                    <Badge variant={inboundDetails?.security.spf === 'PASS' ? 'default' : 'destructive'} className={inboundDetails?.security.spf === 'PASS' ? 'bg-green-500/10 text-green-600 border-green-500/20' : ''}>
-                      {inboundDetails?.security.spf === 'PASS' ? <ShieldCheck width="12" height="12" className="mr-1" /> : <Ban2 width="12" height="12" className="mr-1" />} SPF: {inboundDetails?.security.spf}
+                    <Badge
+                      variant={
+                        inboundDetails?.security.spf === "PASS"
+                          ? "default"
+                          : "destructive"
+                      }
+                      className={
+                        inboundDetails?.security.spf === "PASS"
+                          ? "bg-green-500/10 text-green-600 border-green-500/20"
+                          : ""
+                      }
+                    >
+                      {inboundDetails?.security.spf === "PASS" ? (
+                        <ShieldCheck width="12" height="12" className="mr-1" />
+                      ) : (
+                        <Ban2 width="12" height="12" className="mr-1" />
+                      )}{" "}
+                      SPF: {inboundDetails?.security.spf}
                     </Badge>
-                    <Badge variant={inboundDetails?.security.dkim === 'PASS' ? 'default' : 'destructive'} className={inboundDetails?.security.dkim === 'PASS' ? 'bg-green-500/10 text-green-600 border-green-500/20' : ''}>
-                      {inboundDetails?.security.dkim === 'PASS' ? <ShieldCheck width="12" height="12" className="mr-1" /> : <Ban2 width="12" height="12" className="mr-1" />} DKIM: {inboundDetails?.security.dkim}
+                    <Badge
+                      variant={
+                        inboundDetails?.security.dkim === "PASS"
+                          ? "default"
+                          : "destructive"
+                      }
+                      className={
+                        inboundDetails?.security.dkim === "PASS"
+                          ? "bg-green-500/10 text-green-600 border-green-500/20"
+                          : ""
+                      }
+                    >
+                      {inboundDetails?.security.dkim === "PASS" ? (
+                        <ShieldCheck width="12" height="12" className="mr-1" />
+                      ) : (
+                        <Ban2 width="12" height="12" className="mr-1" />
+                      )}{" "}
+                      DKIM: {inboundDetails?.security.dkim}
                     </Badge>
-                    <Badge variant={inboundDetails?.security.dmarc === 'PASS' ? 'default' : 'destructive'} className={inboundDetails?.security.dmarc === 'PASS' ? 'bg-green-500/10 text-green-600 border-green-500/20' : ''}>
-                      {inboundDetails?.security.dmarc === 'PASS' ? <ShieldCheck width="12" height="12" className="mr-1" /> : <Ban2 width="12" height="12" className="mr-1" />} DMARC: {inboundDetails?.security.dmarc}
+                    <Badge
+                      variant={
+                        inboundDetails?.security.dmarc === "PASS"
+                          ? "default"
+                          : "destructive"
+                      }
+                      className={
+                        inboundDetails?.security.dmarc === "PASS"
+                          ? "bg-green-500/10 text-green-600 border-green-500/20"
+                          : ""
+                      }
+                    >
+                      {inboundDetails?.security.dmarc === "PASS" ? (
+                        <ShieldCheck width="12" height="12" className="mr-1" />
+                      ) : (
+                        <Ban2 width="12" height="12" className="mr-1" />
+                      )}{" "}
+                      DMARC: {inboundDetails?.security.dmarc}
                     </Badge>
-                    <Badge variant={inboundDetails?.security.spam === 'PASS' ? 'default' : 'destructive'} className={inboundDetails?.security.spam === 'PASS' ? 'bg-green-500/10 text-green-600 border-green-500/20' : ''}>
+                    <Badge
+                      variant={
+                        inboundDetails?.security.spam === "PASS"
+                          ? "default"
+                          : "destructive"
+                      }
+                      className={
+                        inboundDetails?.security.spam === "PASS"
+                          ? "bg-green-500/10 text-green-600 border-green-500/20"
+                          : ""
+                      }
+                    >
                       Spam: {inboundDetails?.security.spam}
                     </Badge>
-                    <Badge variant={inboundDetails?.security.virus === 'PASS' ? 'default' : 'destructive'} className={inboundDetails?.security.virus === 'PASS' ? 'bg-green-500/10 text-green-600 border-green-500/20' : ''}>
+                    <Badge
+                      variant={
+                        inboundDetails?.security.virus === "PASS"
+                          ? "default"
+                          : "destructive"
+                      }
+                      className={
+                        inboundDetails?.security.virus === "PASS"
+                          ? "bg-green-500/10 text-green-600 border-green-500/20"
+                          : ""
+                      }
+                    >
                       Virus: {inboundDetails?.security.virus}
                     </Badge>
                   </div>
@@ -663,10 +1005,14 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
               </Card>
             )}
 
-            {isInbound && inboundDetails?.content?.attachments && inboundDetails.content.attachments.length > 0 && (
+            {isInbound &&
+              inboundDetails?.content?.attachments &&
+              inboundDetails.content.attachments.length > 0 && (
               <Card className="rounded-xl overflow-hidden">
                 <CardContent className="p-6">
-                  <h3 className="text-sm font-semibold mb-3">Attachments ({inboundDetails.content.attachments.length})</h3>
+                    <h3 className="text-sm font-semibold mb-3">
+                      Attachments ({inboundDetails.content.attachments.length})
+                    </h3>
                   <AttachmentList 
                     emailId={inboundDetails.id} 
                     attachments={inboundDetails.content.attachments}
@@ -678,7 +1024,5 @@ export default async function LogDetailPage({ params }: { params: Promise<{ id: 
         </div>
       </div>
     </div>
-  )
+  );
 }
-
-

@@ -42,6 +42,7 @@ import {
   CardDescription,
 } from "./ui/card";
 import { Input } from "./ui/input";
+import { useQuery } from "@tanstack/react-query";
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { data: session } = useSession();
@@ -70,11 +71,20 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     return null;
   }
 
+  // Get the user's active or trialing product to display in the sidebar
+  const activeProduct = (session.user as any)?.products?.find(
+    (p: any) => (p?.status === "active" || p?.status === "trialing") && !p?.canceled_at
+  );
+  
+  const planName = activeProduct?.name
+    ? activeProduct.name.charAt(0).toUpperCase() + activeProduct.name.slice(1)
+    : "Free";
+
   const userData = {
     name: session.user.name || "User",
     email: session.user.email,
     avatar: session.user.image || "",
-    plan: "Pro", // You can get this from subscription data later
+    plan: planName,
   };
 
   // Check if user is admin
@@ -99,6 +109,22 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     navAdmin: userIsAdmin ? navigationConfig.admin : [],
   };
 
+  // Fetch upgrade banner content from Basehub-backed API
+  const { data: bannerData } = useQuery<{ success: boolean; banner: { shown: boolean; title: string; body: string; linkText: string; link: string } }>(
+    {
+      queryKey: ["upgrade-banner"],
+      queryFn: async () => {
+        const res = await fetch("/api/ui/upgrade-banner", { cache: "no-store" })
+        if (!res.ok) throw new Error("Failed to fetch banner")
+        return res.json()
+      },
+      staleTime: 5 * 60 * 1000,
+    }
+  )
+
+  // Determine if user is on free tier (no active product)
+  const isFreeTier = !(session.user as any)?.products?.some?.((p: any) => p?.status === "active" || p?.status === "trialing")
+
   return (
     <Sidebar variant="inset" collapsible="icon" {...props}>
       <SidebarHeader className="pt-2">
@@ -106,6 +132,26 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <NavUser user={data.user} />
       </SidebarHeader>
       <SidebarContent>
+        {/* Upgrade banner (Basehub-propagated), shown above GENERAL for free tier */}
+        {isFreeTier && bannerData?.banner?.shown && (
+          <SidebarGroup>
+            <Card className="w-full rounded-xl border-sidebar-border bg-sidebar-accent">
+              <CardContent className="p-3">
+                <div className="flex flex-col gap-2">
+                  <div className="text-sm font-semibold text-sidebar-foreground">{bannerData.banner.title}</div>
+                  <div className="text-xs text-sidebar-foreground/70 leading-relaxed">
+                    {bannerData.banner.body}
+                  </div>
+                  <div>
+                    <Button asChild size="sm" variant="primary" className="mt-1 w-full">
+                      <a href={bannerData.banner.link}>{bannerData.banner.linkText}</a>
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </SidebarGroup>
+        )}
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>

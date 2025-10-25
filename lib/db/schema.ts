@@ -316,6 +316,13 @@ export const structuredEmails = pgTable('structured_emails', {
   isArchived: boolean('is_archived').default(false),
   archivedAt: timestamp('archived_at'), // When the email was archived
 
+  // Guard-related fields
+  guardBlocked: boolean('guard_blocked').default(false), // Whether this email was blocked by Guard rules
+  guardReason: text('guard_reason'), // Reason why the email was blocked or flagged
+  guardRuleId: varchar('guard_rule_id', { length: 255 }), // ID of the guard rule that triggered
+  guardAction: varchar('guard_action', { length: 50 }), // 'block', 'flag', 'label'
+  guardMetadata: text('guard_metadata'), // Additional Guard metadata as JSON
+
   // User and timestamps
   userId: varchar('user_id', { length: 255 }).notNull(),
   createdAt: timestamp('created_at').defaultNow(),
@@ -328,6 +335,7 @@ export const structuredEmails = pgTable('structured_emails', {
   threadIdIdx: index('structured_emails_thread_id_idx').on(table.threadId),
   userCreatedIdx: index('structured_emails_user_created_idx').on(table.userId, table.createdAt),
   userIdIdx: index('structured_emails_user_id_idx').on(table.userId),
+  guardBlockedIdx: index('structured_emails_guard_blocked_idx').on(table.guardBlocked),
 }));
 
 export const webhookDeliveries = pgTable('webhook_deliveries', {
@@ -660,6 +668,26 @@ export const SENT_EMAIL_STATUS = {
   FAILED: 'failed'
 } as const;
 
+// Guard Rules table - stores email filtering rules
+export const guardRules = pgTable('guard_rules', {
+  id: varchar('id', { length: 255 }).primaryKey(),
+  userId: varchar('user_id', { length: 255 }).notNull(),
+  name: varchar('name', { length: 255 }).notNull(),
+  description: text('description'),
+  type: varchar('type', { length: 50 }).notNull(), // 'explicit' | 'ai_prompt'
+  config: text('config').notNull(), // JSON configuration
+  isActive: boolean('is_active').default(true),
+  priority: integer('priority').default(0), // Higher priority rules evaluated first
+  lastTriggeredAt: timestamp('last_triggered_at'),
+  triggerCount: integer('trigger_count').default(0),
+  actions: text('actions'), // JSON: block/flag/label actions
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => ({
+  userIdIdx: index('guard_rules_user_id_idx').on(table.userId),
+  priorityIdx: index('guard_rules_priority_idx').on(table.priority),
+}));
+
 // Type definitions
 export type DomainStatus = typeof DOMAIN_STATUS[keyof typeof DOMAIN_STATUS];
 export type SesVerificationStatus = typeof SES_VERIFICATION_STATUS[keyof typeof SES_VERIFICATION_STATUS];
@@ -675,3 +703,7 @@ export type WebhookFormat = typeof WEBHOOK_FORMATS[keyof typeof WEBHOOK_FORMATS]
 export type DeliveryType = typeof DELIVERY_TYPES[keyof typeof DELIVERY_TYPES];
 export type DeliveryStatus = typeof DELIVERY_STATUS[keyof typeof DELIVERY_STATUS];
 export type SentEmailStatus = typeof SENT_EMAIL_STATUS[keyof typeof SENT_EMAIL_STATUS];
+
+// Guard Rules types
+export type GuardRule = typeof guardRules.$inferSelect;
+export type NewGuardRule = typeof guardRules.$inferInsert;

@@ -13,8 +13,8 @@ export const PricingTable = () => {
   const { attach } = useAutumn();
   const { products, isLoading, error } = usePricingTable();
   const { customer } = useCustomer();
-  // only allow the scale, pro, and free_tier product ids
-  const allowedProductIds = ["scale", "pro", "free_tier"];
+  // only allow the scale, growth, pro, and free_tier product ids
+  const allowedProductIds = ["scale", "growth", "pro", "free_tier"];
   const filteredProducts = products?.filter((product) => allowedProductIds.includes(product.id));
 
   if (isLoading) {

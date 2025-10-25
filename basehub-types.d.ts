@@ -99,7 +99,7 @@ export interface BlockColor {
     __typename: 'BlockColor'
 }
 
-export type BlockDocument = (BlogPosts | BlogPostsItem | BlogPosts_1 | Homepage | UntitledComponent | _AgentInboundBlogCreator | _AgentInboundianBlogger | blogPostsItem_AsList | untitledComponent_AsList) & { __isUnion?: true }
+export type BlockDocument = (BlogPosts | BlogPostsItem | BlogPosts_1 | Homepage | Settings | UntitledComponent | _AgentInboundBlogCreator | _AgentInboundianBlogger | blogPostsItem_AsList | untitledComponent_AsList) & { __isUnion?: true }
 
 export interface BlockDocumentSys {
     apiNamePath: Scalars['String']
@@ -339,11 +339,14 @@ export interface Query {
     _sys: RepoSys
     blogPosts: BlogPosts
     homepage: Homepage
+    settings: Settings
     __typename: 'Query'
 }
 
 export interface RepoSys {
     branches: _Branches
+    dashboardUrl: Scalars['String']
+    forkUrl: Scalars['String']
     hash: Scalars['String']
     id: Scalars['ID']
     playgroundInfo: (_PlaygroundInfo | null)
@@ -360,6 +363,24 @@ export interface SearchHighlight {
     /** HTML snippet with <mark> tags around the matched terms */
     snippet: Scalars['String']
     __typename: 'SearchHighlight'
+}
+
+export interface Settings {
+    _analyticsKey: Scalars['String']
+    _dashboardUrl: Scalars['String']
+    _id: Scalars['String']
+    _idPath: Scalars['String']
+    _slug: Scalars['String']
+    _slugPath: Scalars['String']
+    _sys: BlockDocumentSys
+    _title: Scalars['String']
+    shownToPlans: (Scalars['String'] | null)
+    upgradeBannerBody: (Scalars['String'] | null)
+    upgradeBannerLink: (Scalars['String'] | null)
+    upgradeBannerLinkText: (Scalars['String'] | null)
+    upgradeBannerShown: Scalars['Boolean']
+    upgradeBannerTitle: (Scalars['String'] | null)
+    __typename: 'Settings'
 }
 
 export interface TransactionStatus {
@@ -637,6 +658,7 @@ export interface BlockDocumentGenqlSelection{
     on_BlogPostsItem?: BlogPostsItemGenqlSelection
     on_BlogPosts_1?: BlogPosts_1GenqlSelection
     on_Homepage?: HomepageGenqlSelection
+    on_Settings?: SettingsGenqlSelection
     on_UntitledComponent?: UntitledComponentGenqlSelection
     on__AgentInboundBlogCreator?: _AgentInboundBlogCreatorGenqlSelection
     on__AgentInboundianBlogger?: _AgentInboundianBloggerGenqlSelection
@@ -1048,12 +1070,15 @@ export interface QueryGenqlSelection{
     _sys?: RepoSysGenqlSelection
     blogPosts?: BlogPostsGenqlSelection
     homepage?: HomepageGenqlSelection
+    settings?: SettingsGenqlSelection
     __typename?: boolean | number
     __fragmentOn?: "Query"
 }
 
 export interface RepoSysGenqlSelection{
     branches?: (_BranchesGenqlSelection & { __args?: {limit?: (Scalars['Int'] | null), offset?: (Scalars['Int'] | null)} })
+    dashboardUrl?: boolean | number
+    forkUrl?: boolean | number
     hash?: boolean | number
     id?: boolean | number
     playgroundInfo?: _PlaygroundInfoGenqlSelection
@@ -1082,6 +1107,31 @@ export interface SearchHighlightGenqlSelection{
 }
 
 export interface SelectFilter {excludes?: (Scalars['String'] | null),excludesAll?: (Scalars['String'][] | null),includes?: (Scalars['String'] | null),includesAll?: (Scalars['String'][] | null),includesAny?: (Scalars['String'][] | null),isEmpty?: (Scalars['Boolean'] | null)}
+
+export interface SettingsGenqlSelection{
+    _analyticsKey?: { __args: {
+    /**
+     * The scope of the analytics key. Use `send` for just ingesting data. Use `query` if you need to show an analytics data in your website.
+     * 
+     * Have in mind, if you expose your `query` analytics key in the frontend, you'll be exposing all of this block's analytics data to the public. This is generally safe, but it might not be in your case.
+     */
+    scope?: (AnalyticsKeyScope | null)} } | boolean | number
+    _dashboardUrl?: boolean | number
+    _id?: boolean | number
+    _idPath?: boolean | number
+    _slug?: boolean | number
+    _slugPath?: boolean | number
+    _sys?: BlockDocumentSysGenqlSelection
+    _title?: boolean | number
+    shownToPlans?: boolean | number
+    upgradeBannerBody?: boolean | number
+    upgradeBannerLink?: boolean | number
+    upgradeBannerLinkText?: boolean | number
+    upgradeBannerShown?: boolean | number
+    upgradeBannerTitle?: boolean | number
+    __typename?: boolean | number
+    __fragmentOn?: "Settings"
+}
 
 export interface StringFilter {contains?: (Scalars['String'] | null),endsWith?: (Scalars['String'] | null),eq?: (Scalars['String'] | null),in?: (Scalars['String'][] | null),isNull?: (Scalars['Boolean'] | null),matches?: (StringMatchesFilter | null),notEq?: (Scalars['String'] | null),notIn?: (Scalars['String'][] | null),startsWith?: (Scalars['String'] | null)}
 
@@ -1475,6 +1525,10 @@ export interface FragmentsMap {
   SearchHighlight: {
     root: SearchHighlight,
     selection: SearchHighlightGenqlSelection,
+}
+  Settings: {
+    root: Settings,
+    selection: SettingsGenqlSelection,
 }
   TransactionStatus: {
     root: TransactionStatus,

@@ -3,7 +3,9 @@
 import Link from 'next/link'
 import { formatDistanceToNow } from 'date-fns'
 import File2 from '@/components/icons/file-2'
+import ShieldAlert from '@/components/icons/shield-alert'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Badge } from '@/components/ui/badge'
 import { useUpdateEmailMutation } from '@/features/emails/hooks'
 
 interface EmailListItemProps {
@@ -13,6 +15,9 @@ interface EmailListItemProps {
     subject: string
     receivedAt: string | undefined
     isRead: boolean
+    guardBlocked?: boolean
+    guardReason?: string | null
+    guardAction?: string | null
     parsedData: {
       fromData: any
       preview: string
@@ -90,6 +95,12 @@ export function EmailListItem({ email, isSelectMode = false, isSelected = false,
                   {threadCount}
                 </span>
               )}
+              {email.guardBlocked && (
+                <Badge variant="destructive" className="flex items-center gap-1 px-1.5 py-0">
+                  <ShieldAlert width="12" height="12" />
+                  Blocked
+                </Badge>
+              )}
             </div>
             <span className="text-muted-foreground/80 truncate">
               — {preview}
@@ -112,8 +123,13 @@ export function EmailListItem({ email, isSelectMode = false, isSelected = false,
   if (isSelectMode) {
     return (
       <div
-        className={`block w-full px-6 py-3 hover:bg-accent/50 transition-colors duration-200 group cursor-pointer 
-        } ${isSelected ? 'bg-accent/30' : ''}`}
+        className={`block w-full px-6 py-3 hover:bg-accent/50 transition-colors duration-200 group cursor-pointer ${
+          email.guardBlocked 
+            ? 'bg-red-50 border-l-4 border-l-red-500' 
+            : isSelected 
+              ? 'bg-accent/30' 
+              : ''
+        }`}
         onClick={() => handleCheckboxChange(!isSelected)}
       >
         {content}
@@ -125,7 +141,11 @@ export function EmailListItem({ email, isSelectMode = false, isSelected = false,
     <Link
       href={`/mail/${email.id}`}
       className={`block w-full px-6 py-3 hover:bg-accent/50 transition-colors duration-200 group ${
-        !email.isRead ? 'bg-primary/5 border-l-4 border-l-primary' : ''
+        email.guardBlocked 
+          ? 'bg-red-50 border-l-4 border-l-red-500' 
+          : !email.isRead 
+            ? 'bg-primary/5 border-l-4 border-l-primary' 
+            : ''
       }`}
       onClick={handleEmailClick}
     >

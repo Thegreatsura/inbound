@@ -20,6 +20,8 @@ import Code2 from "@/components/icons/code-2"
 import StackPerspective2 from "@/components/icons/stack-perspective-2"
 import EmailFlow from "@/components/icons/email-flow"
 import UserGroup from "@/components/icons/user-group"
+import ShieldCheck from "@/components/icons/shield-check"
+import { guardAccessFlag } from "@/app/actions/feature-flags"
 
 export interface NavigationItem {
   title: string
@@ -62,6 +64,12 @@ export const navigationConfig: NavigationConfig = {
       url: "/api-keys",
       icon: Key2,
       description: "Manage API keys for programmatic access"
+    },
+    {
+      title: "Guard",
+      url: "/guard",
+      icon: ShieldCheck,
+      description: "Email security and protection settings"
     },
     {
       title: "Settings",
@@ -224,5 +232,31 @@ export function filterNavigationByFeatureFlags(
     
     // Check if user has the required feature flag
     return hasFeatureFlag(item.requiresFeatureFlag, featureFlags)
+  })
+}
+
+/**
+ * Check if user has access to Guard feature
+ * Server action that can be called from client components
+ */
+export async function checkGuardAccess(): Promise<boolean> {
+  const hasAccess = await guardAccessFlag()
+  return hasAccess
+}
+
+/**
+ * Filter navigation items based on Guard access
+ * Client-side helper that removes Guard if access is disabled
+ */
+export function filterGuardNavigation(
+  items: NavigationItem[],
+  hasGuardAccess: boolean
+): NavigationItem[] {
+  return items.filter(item => {
+    // Hide Guard if flag is false
+    if (item.url === "/guard" && !hasGuardAccess) {
+      return false
+    }
+    return true
   })
 } 

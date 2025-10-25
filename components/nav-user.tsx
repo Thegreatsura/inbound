@@ -67,9 +67,9 @@ export function NavUser({
         if (response.customer) {
           const customer = response.customer
 
-          // Find active product
+          // Find active or trialing product
           const activeProduct = customer.products?.find(
-            product => product.status === "active" && !product.canceled_at
+            product => (product.status === "active" || product.status === "trialing") && !product.canceled_at
           )
 
           if (activeProduct) {

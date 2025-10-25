@@ -55,7 +55,7 @@ interface Endpoint {
 
 // Fetch user endpoints
 async function fetchEndpoints(): Promise<Endpoint[]> {
-  const response = await fetch('/api/v1/endpoints')
+  const response = await fetch('/api/v2/endpoints')
   if (!response.ok) {
     throw new Error('Failed to fetch endpoints')
   }

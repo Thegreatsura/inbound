@@ -1,0 +1,97 @@
+Email templates – local rules for this directory
+
+Overview
+- Use @react-email/components with Tailwind for all styling. No exported style objects. Avoid inline style props unless absolutely necessary for email client quirks (e.g., width/height on Img).
+- Do not set a global/parent Body background color. Default to neutral/white backgrounds and a centered card container.
+- Place <Preview> outside the Tailwind wrapper; keep sensible default props so templates render standalone (no separate preview version).
+- Fonts: include Font for "Outfit" (weight ~600) and "Geist" (weight ~500) with an Arial fallback.
+- Brand: expose a Tailwind color named brand = #7C3AED. Use it for CTA buttons/links.
+
+Layout patterns
+- Container: card-style wrapper
+  - className: "mx-auto my-10 max-w-[600px] rounded border border-solid border-neutral-200 bg-white px-10 py-5"
+  - Use Heading for titles (e.g., text-2xl font-semibold text-black).
+- Avoid CSS grid/flex for multi-column content; prefer table-based structures or inline text for maximum email compatibility (especially Outlook).
+- Stats/KPIs: prefer a single-line "statline" instead of a grid.
+  - Wrap label/value pairs in: "inline-block whitespace-nowrap".
+  - Use non‑breaking spaces between words in labels (e.g., 'TOTAL\u00A0SENT').
+  - Separate items with middot separators "•" using a muted color: "mx-3 text-neutral-300".
+  - Label style: "uppercase tracking-wider text-neutral-500".
+  - Value style: "ml-2 font-semibold text-neutral-900".
+- If a multi-column layout is unavoidable, use a table with role="presentation" and simple borders. Do not use grid.
+
+CTA
+- Prefer Link styled as a button (anchor tags render better cross-client than button elements):
+  - className: "rounded-lg bg-brand px-6 py-3 text-center text-[12px] font-semibold text-white no-underline".
+
+Imagery
+- Use INBOUND_WORDMARK for brand mark at ~32px height. Provide alt text. No Rounded corners.
+
+Accessibility & typography
+- Default copy in black/near-black for legibility (text-black / text-neutral-900). Secondary text neutrals only (e.g., text-neutral-600).
+- Headings via <Heading>; body text via <Text>. Prefer text-base for body copy in transactional emails.
+
+Tailwind wrapper config
+- Tailwind component config extends:
+  - colors.brand = "#7C3AED"
+  - fontFamily.outfit = ['Outfit', 'Arial', 'sans-serif']
+  - fontFamily.geist  = ['Geist', 'Arial', 'sans-serif']
+
+Skeleton template (reference only)
+```tsx
+import { Html, Head, Preview, Tailwind, Body, Container, Section, Heading, Text, Link, Img, Font } from '@react-email/components'
+
+export default function Template() {
+  return (
+    <Html>
+      <Head>
+        <Font fontFamily="Outfit" fallbackFontFamily="Arial" fontWeight={600} fontStyle="normal" />
+        <Font fontFamily="Geist"  fallbackFontFamily="Arial" fontWeight={500} fontStyle="normal" />
+      </Head>
+      <Preview>Subject preview here…</Preview>
+      <Tailwind config={{ theme: { extend: { colors: { brand: '#7C3AED' }, fontFamily: { outfit: ['Outfit','Arial','sans-serif'], geist: ['Geist','Arial','sans-serif'] } } } }}>
+        <Body className="mx-auto my-auto font-geist text-slate-700">
+          <Container className="mx-auto my-10 max-w-[600px] rounded border border-solid border-neutral-200 bg-white px-10 py-5">
+            <Section className="mt-8">
+              {/* Brand mark */}
+              {/* <Img src={INBOUND_WORDMARK} height="32" alt="inbound" /> */}
+            </Section>
+            <Heading className="mx-0 my-7 p-0 text-2xl font-semibold text-black">Title</Heading>
+
+            {/* Inline statline example */}
+            <Section className="my-6">
+              <div className="rounded-lg border border-[#e6ebf1] bg-slate-50 px-4 py-3 text-center">
+                <Text className="m-0 text-base leading-6 text-neutral-700">
+                  <span className="inline-block whitespace-nowrap">
+                    <span className="uppercase tracking-wider text-neutral-500">{'TOTAL\u00A0SENT'}</span>
+                    <span className="ml-2 font-semibold text-neutral-900">0</span>
+                  </span>
+                  <span className="mx-3 text-neutral-300">•</span>
+                  <span className="inline-block whitespace-nowrap">
+                    <span className="uppercase tracking-wider text-neutral-500">{'TOTAL\u00A0RECEIVED'}</span>
+                    <span className="ml-2 font-semibold text-neutral-900">0</span>
+                  </span>
+                </Text>
+              </div>
+            </Section>
+
+            <Section className="my-8">
+              <Link href="#" className="rounded-lg bg-brand px-6 py-3 text-center text-[12px] font-semibold text-white no-underline">Call to action</Link>
+            </Section>
+          </Container>
+        </Body>
+      </Tailwind>
+    </Html>
+  )
+}
+```
+
+Review checklist (quick)
+- [ ] Tailwind wrapper present; no exported style objects
+- [ ] No Body background color
+- [ ] Preview set and outside Tailwind
+- [ ] Fonts included (Outfit/Geist) with fallbacks
+- [ ] Brand color #7C3AED via bg-brand (not hard-coded per element)
+- [ ] Stats use inline statline or table (no grid/flex). Non‑breaking spaces used.
+- [ ] CTA uses Link styled as a button
+
