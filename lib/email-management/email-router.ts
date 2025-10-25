@@ -16,6 +16,7 @@ import type { ParsedEmailData } from './email-parser'
 import { sanitizeHtml } from './email-parser'
 import type { Endpoint } from '@/features/endpoints/types'
 import { evaluateGuardRules } from '../guard/rule-matcher'
+import { Autumn as autumn } from 'autumn-js'
 
 // Maximum webhook payload size (5MB safety margin)
 const MAX_WEBHOOK_PAYLOAD_SIZE = 1_000_000
@@ -54,6 +55,23 @@ export async function routeEmail(emailId: string): Promise<void> {
       return // Email is stored but not routed based on domain configuration
     }
 
+  // 🛡️ GUARD: Check feature flag before evaluating Guard rules
+  let guardFeatureEnabled = false
+  try {
+    const { data: guardCheck, error: guardCheckError } = await autumn.check({
+      customer_id: emailData.userId,
+      feature_id: 'inbound_guard',
+    })
+    if (guardCheckError) {
+      console.error(`⚠️ routeEmail - Autumn inbound_guard check error for user ${emailData.userId}:`, guardCheckError)
+    } else {
+      guardFeatureEnabled = !!guardCheck?.allowed
+    }
+  } catch (featureError) {
+    console.error('⚠️ routeEmail - Failed to check inbound_guard feature:', featureError)
+  }
+
+  if (guardFeatureEnabled) {
     // 🛡️ GUARD: Evaluate Guard rules before routing
     const guardResult = await evaluateGuardRules(emailData.structuredId, emailData.userId)
     
@@ -139,6 +157,9 @@ export async function routeEmail(emailId: string): Promise<void> {
       } else {
         console.warn(`⚠️ routeEmail - Guard specified endpoint ${guardResult.routeToEndpointId} not found, falling back to normal routing`)
       }
+    }
+  } else {
+    console.log('🛡️ routeEmail - Skipping Guard evaluation (feature inbound_guard disabled for user)')
     }
     
     // Pass userId to findEndpointForEmail to ensure proper filtering

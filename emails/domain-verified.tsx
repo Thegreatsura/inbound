@@ -1,28 +1,25 @@
 import {
   Body,
-  Button,
   Container,
   Font,
   Head,
-  Hr,
   Html,
   Img,
   Link,
   Preview,
   Section,
+  Heading,
+  Tailwind,
   Text,
 } from '@react-email/components';
 import * as React from 'react';
+import { INBOUND_WORDMARK } from './utils';
 
 interface DomainVerifiedEmailProps {
   userFirstname?: string;
   domain?: string;
   verifiedAt?: string;
 }
-
-const baseUrl = process.env.VERCEL_URL
-  ? `https://${process.env.VERCEL_URL}`
-  : "https://inbound.new";
 
 export const DomainVerifiedEmail = ({
   userFirstname = 'User',
@@ -52,61 +49,59 @@ export const DomainVerifiedEmail = ({
         fontStyle="normal"
       />
     </Head>
-    <Body style={main}>
-      <Preview>🎉 {domain} is verified and ready - inbound</Preview>
-      <Container style={container}>
-        <Section style={box}>
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <Img
-              src={`${baseUrl}/images/icon-light.png`}
-              width="40"
-              height="40"
-              alt="inbound"
-              style={{ borderRadius: "12px" }}
-            />
-            <p style={{ fontSize: "24px", fontFamily: "Outfit, Arial, sans-serif", fontWeight: "600", margin: 0 }}>inbound</p>
+    <Preview>🎉 {domain} verified and ready</Preview>
+    <Tailwind
+      config={{
+        theme: {
+          extend: {
+            colors: {
+              brand: '#7C3AED',
+            },
+            fontFamily: {
+              outfit: ['Outfit', 'Arial', 'sans-serif'],
+              geist: ['Geist', 'Arial', 'sans-serif'],
+            },
+          },
+        },
+      }}
+    >
+      <Body className="mx-auto my-auto font-geist text-slate-700">
+        <Container className="mx-auto my-10 max-w-[600px] rounded border border-solid border-neutral-200 bg-white px-10 py-5">
+          <Section className="mt-8">
+            <Img src={INBOUND_WORDMARK} height="32" alt="inbound" />
+          </Section>
+          <Heading className="mx-0 my-7 p-0 text-2xl font-semibold text-black">Domain verified</Heading>
+          <Text className="text-sm leading-6 text-black">🎉 Congratulations, {userFirstname}!</Text>
+          <Text className="text-sm leading-6 text-black">Your domain <strong>{domain}</strong> is now verified and ready to receive emails through inbound.</Text>
+
+          <Section className="my-6">
+            <div className="rounded-lg border border-[#e6ebf1] bg-slate-50 p-4">
+              <Text className="text-sm leading-6 text-black">✅ Verified on {verifiedAt}</Text>
+              <Text className="text-sm leading-6 text-black">✅ Email receiving active</Text>
+              <Text className="text-sm leading-6 text-black">✅ Email sending active</Text>
           </div>
-          <Hr style={hr} />
-          <Text style={paragraph}>
-            🎉 Congratulations, {userFirstname}!
-          </Text>
-          <Text style={paragraph}>
-            Your domain <strong>{domain}</strong> is now verified and ready to receive emails through inbound.
-          </Text>
-          <div style={detailsBlock}>
-            <Text style={paragraph}>
-              ✅ Verified on {verifiedAt}<br />
-              ✅ Email receiving active<br />
-              ✅ Email sending active
-            </Text>
-          </div>
-          <Button style={button} href="https://inbound.new/dashboard">
-            Open Dashboard
-          </Button>
-          <Hr style={hr} />
-          <Text style={paragraph}>
-            Your domain is now ready to start receiving emails. Check out your{" "}
+          </Section>
+
+          <Section className="my-8">
             <Link
-              style={anchor}
+              className="rounded-lg bg-brand px-6 py-3 text-center text-[12px] font-semibold text-white no-underline"
               href="https://inbound.new/dashboard"
             >
-              dashboard
-            </Link>{" "}
-            or view our{" "}
-            <Link
-              style={anchor}
-              href="https://docs.inbound.new"
-            >
-              docs
-            </Link>{" "}
-            to get started.
+              Open Dashboard
+            </Link>
+          </Section>
+
+          <Text className="text-sm leading-6 text-black">
+            Your domain is ready. Visit your{' '}
+            <Link className="font-medium text-brand no-underline" href="https://inbound.new/dashboard">dashboard</Link>{' '}
+            or read the{' '}
+            <Link className="font-medium text-brand no-underline" href="https://docs.inbound.new">docs</Link> to get started.
           </Text>
-          <Text style={paragraph}>
-            Reply to this email if you have any questions, we read every email.
-          </Text>
-          <Text style={paragraph}>— the inbound team</Text>
-          <Hr style={hr} />
-          <Text style={footer}>
+          <Text className="text-sm leading-6 text-black">Reply to this email if you have any questions—we read every email.</Text>
+          <Text className="text-sm leading-6 text-black">— the inbound team</Text>
+
+          <Section className="mt-8">
+            <Text className="text-xs leading-4 text-neutral-500">
             inbound by exon
             <br />
             <br />
@@ -115,68 +110,8 @@ export const DomainVerifiedEmail = ({
         </Section>
       </Container>
     </Body>
+    </Tailwind>
   </Html>
 );
 
 export default DomainVerifiedEmail;
-
-const main = {
-  backgroundColor: "#f6f9fc",
-  fontFamily:
-    'Geist, -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Ubuntu,sans-serif',
-    letterSpacing: "-0.04em",
-};
-
-const container = {
-  backgroundColor: "#ffffff",
-  margin: "0 auto",
-  padding: "20px 0 48px",
-  marginBottom: "64px",
-};
-
-const box = {
-  padding: "0 48px",
-};
-
-const hr = {
-  borderColor: "#e6ebf1",
-  margin: "20px 0",
-};
-
-const paragraph = {
-  color: "#525f7f",
-  fontSize: "16px",
-  lineHeight: "24px",
-  textAlign: "left" as const,
-};
-
-const anchor = {
-  color: "#556cd6",
-};
-
-const button = {
-  backgroundColor: "#4A0198",
-  borderRadius: "5px",
-  color: "#fff",
-  fontSize: "16px",
-  fontWeight: "bold",
-  textDecoration: "none",
-  textAlign: "center" as const,
-  display: "block",
-  padding: "10px",
-  margin: "20px 0",
-};
-
-const footer = {
-  color: "#8898aa",
-  fontSize: "12px",
-  lineHeight: "16px",
-};
-
-const detailsBlock = {
-  background: "#f8fafc",
-  border: "1px solid #e6ebf1",
-  borderRadius: "8px",
-  padding: "16px",
-  margin: "16px 0",
-}; 

@@ -1,18 +1,19 @@
 import {
   Body,
-  Button,
   Container,
   Font,
   Head,
-  Hr,
   Html,
   Img,
   Link,
   Preview,
   Section,
+  Heading,
+  Tailwind,
   Text,
 } from '@react-email/components';
 import * as React from 'react';
+import { INBOUND_WORDMARK } from './utils';
 
 interface ReputationAlertEmailProps {
   userFirstname?: string;
@@ -25,10 +26,6 @@ interface ReputationAlertEmailProps {
   triggeredAt?: string;
   recommendations?: string[];
 }
-
-const baseUrl = process.env.VERCEL_URL
-  ? `https://${process.env.VERCEL_URL}`
-  : "https://inbound.new";
 
 export const ReputationAlertEmail = ({
   userFirstname = 'User',
@@ -46,7 +43,7 @@ export const ReputationAlertEmail = ({
   ],
 }: ReputationAlertEmailProps) => {
   const alertEmoji = severity === 'critical' ? '🚨' : '⚠️';
-  const alertColor = severity === 'critical' ? '#dc2626' : '#f59e0b';
+  const alertColorClass = severity === 'critical' ? 'text-red-600' : 'text-amber-500';
   const alertTitle = severity === 'critical' ? 'Critical Alert' : 'Warning Alert';
   
   const metricName = alertType === 'bounce' ? 'Bounce Rate' : 
@@ -80,76 +77,70 @@ export const ReputationAlertEmail = ({
           fontStyle="normal"
         />
       </Head>
-      <Preview>{alertEmoji} SES {alertTitle}: {metricName} reached {percentageDisplay} - inbound</Preview>
-      <Body style={main}>
-        <Container style={container}>
-          <Section style={box}>
-            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-              <Img
-                src={`${baseUrl}/images/icon-light.png`}
-                width="40"
-                height="40"
-                alt="inbound"
-                style={{ borderRadius: "12px" }}
-              />
-              <p style={{ fontSize: "24px", fontFamily: "Outfit, Arial, sans-serif", fontWeight: "600", margin: 0 }}>inbound</p>
-            </div>
-            <Hr style={hr} />
-            <Text style={paragraph}>
-              Hi {userFirstname},
+      <Preview>{alertEmoji} SES {alertTitle}: {metricName} reached {percentageDisplay}</Preview>
+      <Tailwind
+        config={{
+          theme: {
+            extend: {
+              colors: { brand: '#7C3AED' },
+              fontFamily: {
+                outfit: ['Outfit', 'Arial', 'sans-serif'],
+                geist: ['Geist', 'Arial', 'sans-serif'],
+              },
+            },
+          },
+        }}
+      >
+        <Body className="mx-auto my-auto font-geist text-slate-700">
+          <Container className="mx-auto my-10 max-w-[600px] rounded border border-solid border-neutral-200 bg-white px-10 py-5">
+            <Section className="mt-8">
+              <Img src={INBOUND_WORDMARK} height="32" alt="inbound" />
+            </Section>
+            <Heading className="mx-0 my-7 p-0 text-2xl font-semibold text-black">{alertTitle}</Heading>
+            <Text className="text-sm leading-6 text-black">Hi {userFirstname},</Text>
+            <Text className="text-sm leading-6 text-black">
+              We detected that your <strong>{tenantName}</strong> configuration set exceeded the {metricName.toLowerCase()} threshold and needs attention.
             </Text>
-            <Text style={paragraph}>
-              We detected that your <strong>{tenantName}</strong> configuration set has exceeded the {metricName.toLowerCase()} threshold and needs immediate attention.
-            </Text>
-            <div style={alertBlock}>
-              <Text style={paragraph}>
-                <strong style={{color: alertColor}}>Current {metricName}:</strong> {percentageDisplay}<br />
-                <strong>Threshold:</strong> {alertType !== 'delivery_delay' ? `${(threshold * 100).toFixed(2)}%` : `${threshold} emails`}<br />
-                <strong>Configuration Set:</strong> {configurationSet}<br />
-                <strong>Triggered:</strong> {triggeredAt}
-              </Text>
-              <Hr style={hr} />
-              <Text style={{...paragraph, fontWeight: "600"}}>
-                💡 Recommended Actions:
-              </Text>
+            <Section className="my-6">
+              <div className="rounded-lg border border-[#e6ebf1] bg-slate-50 p-4">
+                <Text className="text-sm leading-6 text-black"><span className={`font-semibold ${alertColorClass}`}>Current {metricName}:</span> {percentageDisplay}</Text>
+                <Text className="text-sm leading-6 text-black"><span className="font-semibold">Threshold:</span> {alertType !== 'delivery_delay' ? `${(threshold * 100).toFixed(2)}%` : `${threshold} emails`}</Text>
+                <Text className="text-sm leading-6 text-black"><span className="font-semibold">Configuration Set:</span> {configurationSet}</Text>
+                <Text className="text-sm leading-6 text-black"><span className="font-semibold">Triggered:</span> {triggeredAt}</Text>
+              </div>
+            </Section>
+            <Section className="my-6">
+              <div className="rounded-lg border border-[#e6ebf1] bg-slate-50 p-4">
+                <Text className="text-sm font-semibold leading-6 text-black">💡 Recommended Actions</Text>
               {recommendations.map((rec, index) => (
-                <Text key={index} style={paragraph}>
-                  • {rec}
-                </Text>
+                  <Text key={index} className="text-sm leading-6 text-black">• {rec}</Text>
               ))}
             </div>
-            <Button style={button} href="https://inbound.new/dashboard/reputation">
+            </Section>
+            <Section className="my-8">
+              <Link className="rounded-lg bg-brand px-6 py-3 text-center text-[12px] font-semibold text-white no-underline" href="https://inbound.new/dashboard/reputation">
               View Reputation Dashboard
-            </Button>
-            <div style={warningBlock}>
-              <Text style={paragraph}>
+              </Link>
+            </Section>
+            <Section className="my-6">
+              <div className="rounded-lg border border-[#e6ebf1] bg-slate-50 p-4">
+                <Text className="text-sm leading-6 text-black">
                 {severity === 'critical' ? (
-                  '🚨 Critical Alert: Email sending may be automatically paused if rates don\'t improve. Take immediate action.'
+                    '🚨 Critical: Email sending may be automatically paused if rates do not improve. Take immediate action.'
                 ) : (
                   '⚠️ Warning: Monitor your reputation closely. Continued high rates may trigger automatic restrictions.'
                 )}
               </Text>
             </div>
-            <Hr style={hr} />
-            <Text style={paragraph}>
-              Reply to this email if you need help improving your email reputation. Check out our{" "}
-              <Link
-                style={anchor}
-                href="https://inbound.new/docs/reputation"
-              >
-                reputation guide
-              </Link>{" "}
-              or contact{" "}
-              <Link
-                style={anchor}
-                href="https://inbound.new/support"
-              >
-                support
-              </Link>.
+            </Section>
+            <Text className="text-sm leading-6 text-black">
+              Need help improving reputation? Read our{' '}
+              <Link className="font-medium text-brand no-underline" href="https://inbound.new/docs/reputation">reputation guide</Link>{' '}or contact{' '}
+              <Link className="font-medium text-brand no-underline" href="https://inbound.new/support">support</Link>.
             </Text>
-            <Text style={paragraph}>— the inbound team</Text>
-            <Hr style={hr} />
-            <Text style={footer}>
+            <Text className="text-sm leading-6 text-black">— the inbound team</Text>
+            <Section className="mt-8">
+              <Text className="text-xs leading-4 text-neutral-500">
               inbound by exon
               <br />
               <br />
@@ -158,75 +149,9 @@ export const ReputationAlertEmail = ({
           </Section>
         </Container>
       </Body>
+      </Tailwind>
     </Html>
   );
 };
 
 export default ReputationAlertEmail;
-
-const main = {
-  backgroundColor: "#f6f9fc",
-  fontFamily:
-    'Geist, -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Ubuntu,sans-serif',
-    letterSpacing: "-0.04em",
-};
-
-const container = {
-  backgroundColor: "#ffffff",
-  margin: "0 auto",
-  padding: "20px 0 48px",
-  marginBottom: "64px",
-};
-
-const box = {
-  padding: "0 48px",
-};
-
-const hr = {
-  borderColor: "#e6ebf1",
-  margin: "20px 0",
-};
-
-const paragraph = {
-  color: "#525f7f",
-  fontSize: "16px",
-  lineHeight: "24px",
-  textAlign: "left" as const,
-};
-
-const anchor = {
-  color: "#556cd6",
-};
-
-const button = {
-  backgroundColor: "#4A0198",
-  borderRadius: "5px",
-  color: "#fff",
-  fontSize: "16px",
-  fontWeight: "bold",
-  textDecoration: "none",
-  textAlign: "center" as const,
-  display: "block",
-  padding: "10px",
-  margin: "20px 0",
-};
-
-const footer = {
-  color: "#8898aa",
-  fontSize: "12px",
-  lineHeight: "16px",
-};
-
-const alertBlock = {
-  background: "#f8fafc",
-  border: "1px solid #e6ebf1",
-  padding: "16px",
-  margin: "2px 0",
-};
-
-const warningBlock = {
-  background: "#fef3cd",
-  border: "1px solid #fbbf24",
-  padding: "2px 12px",
-  margin: "2px 0",
-};

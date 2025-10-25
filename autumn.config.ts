@@ -61,6 +61,12 @@ export const slackSupport = feature({
 	type: "boolean",
 });
 
+export const inboundGuard = feature({
+	id: "inbound_guard",
+	name: "Inbound Guard",
+	type: "boolean",
+});
+
 // Products
 export const freeTier = product({
 	id: "free_tier",

@@ -112,6 +112,31 @@ export async function getAutumnCustomer() {
   return { customer: customer as Customer };
 }
 
+export async function checkInboundGuardAccess() {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  if (!session?.user?.id) {
+    return { allowed: false, error: "Unauthorized" };
+  }
+
+  const { data: guardCheck, error: guardCheckError } = await autumn.check({
+    customer_id: session.user.id,
+    feature_id: "inbound_guard",
+  });
+
+  if (guardCheckError) {
+    console.error("Error checking inbound_guard access:", guardCheckError);
+    return { allowed: false, error: guardCheckError };
+  }
+
+  return { 
+    allowed: guardCheck?.allowed || false,
+    unlimited: guardCheck?.unlimited || false,
+  };
+}
+
 // ============================================================================
 // EMAIL ADDRESS MANAGEMENT
 // ============================================================================

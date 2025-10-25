@@ -690,6 +690,16 @@ export default function LogsPage() {
                     </div>
                   </div>
 
+                  {/* Timestamp Column */}
+                  <div className="flex-shrink-0 w-32 hidden sm:block">
+                    <div className="text-xs text-muted-foreground text-right">
+                      {format(new Date(log.createdAt), 'MMM d, HH:mm')}
+                    </div>
+                    <div className="text-xs text-muted-foreground/60 text-right">
+                      {formatDistanceToNow(new Date(log.createdAt), { addSuffix: true })}
+                    </div>
+                  </div>
+
                   {/* Attachments Icon (hidden on small screens) */}
                   {log.hasAttachments && (
                     <div className="flex-shrink-0 hidden lg:flex items-center gap-1 text-orange-500">

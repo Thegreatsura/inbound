@@ -7,7 +7,7 @@ import type { GenerateExplicitRulesRequest, GenerateExplicitRulesResponse } from
 // Configure the AI model - easy to swap providers by changing this string
 // Uses Vercel AI Gateway for unified provider access
 // Reference: https://ai-sdk.dev/docs/ai-sdk-core/provider-management
-const MODEL = process.env.GUARD_AI_MODEL || 'openai/gpt-4o';
+const MODEL = process.env.GUARD_AI_MODEL || 'openai/gpt-5-mini';
 
 // To use different providers, just change the MODEL string:
 // - OpenAI: 'openai/gpt-4o'

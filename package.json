@@ -137,7 +137,7 @@
     "zod": "^3.25.56"
   },
   "devDependencies": {
-    "@react-email/preview-server": "4.2.12",
+    "@react-email/preview-server": "4.3.2",
     "@tailwindcss/typography": "^0.5.16",
     "@types/mailparser": "^3.4.6",
     "@types/node": "^20",

@@ -299,7 +299,7 @@ async function checkAiPromptRule(
     // ignore
   }
 
-  const model = process.env.GUARD_AI_MODEL || 'openai/gpt-4o';
+  const model = process.env.GUARD_AI_MODEL || 'openai/gpt-5-mini';
 
   // Ask the LLM for a structured yes/no match with rationale
   try {
