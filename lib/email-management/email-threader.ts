@@ -153,17 +153,18 @@ export class EmailThreader {
       )
       .limit(1)
     
-    // Also check sent emails
-    if (!existingEmails[0]) {
+    // Also check sent emails (check both messageId and sesMessageId for threading)
+    if (!existingEmails[0] && messageIds.size > 0) {
       const existingSentEmails = await db
         .select({ threadId: sentEmails.threadId })
         .from(sentEmails)
         .where(
           and(
             eq(sentEmails.userId, userId),
-            or(...Array.from(messageIds).map(id => 
-              eq(sentEmails.messageId, id)
-            )),
+            or(
+              ...Array.from(messageIds).map(id => eq(sentEmails.messageId, id)),
+              ...Array.from(messageIds).map(id => eq(sentEmails.sesMessageId, id))
+            ),
             isNotNull(sentEmails.threadId)
           )
         )

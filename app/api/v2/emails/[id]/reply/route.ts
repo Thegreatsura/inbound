@@ -864,11 +864,12 @@ export async function POST(
 
       console.log("✅ Reply sent successfully via SES:", sesMessageId);
 
-      // Update email record with success
+      // Update email record with success and store SES Message-ID for threading
       await db
         .update(sentEmails)
         .set({
           status: SENT_EMAIL_STATUS.SENT,
+          sesMessageId: sesMessageId, // Store SES Message-ID for threading lookups
           providerResponse: JSON.stringify(sesResponse),
           sentAt: new Date(),
           updatedAt: new Date(),
