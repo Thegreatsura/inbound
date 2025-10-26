@@ -132,25 +132,58 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <NavUser user={data.user} />
       </SidebarHeader>
       <SidebarContent>
-        {/* Upgrade banner (Basehub-propagated), shown above GENERAL for free tier */}
-        {isFreeTier && bannerData?.banner?.shown && (
-          <SidebarGroup>
+        {/* Name banner - takes priority over all other banners */}
+        {!session.user.name ? (
+          <SidebarGroup className="group-data-[collapsible=icon]:hidden">
             <Card className="w-full rounded-xl border-sidebar-border bg-sidebar-accent">
               <CardContent className="p-3">
                 <div className="flex flex-col gap-2">
-                  <div className="text-sm font-semibold text-sidebar-foreground">{bannerData.banner.title}</div>
-                  <div className="text-xs text-sidebar-foreground/70 leading-relaxed">
-                    {bannerData.banner.body}
-                  </div>
-                  <div>
-                    <Button asChild size="sm" variant="primary" className="mt-1 w-full">
-                      <a href={bannerData.banner.link}>{bannerData.banner.linkText}</a>
+                  <div className="text-sm font-semibold text-sidebar-foreground">hey 👋, didn't catch your name...</div>
+                  <form action={handleUpdateProfile} className="space-y-2">
+                    <Input 
+                      name="name" 
+                      placeholder="Enter your name" 
+                      required
+                      minLength={1}
+                      maxLength={255}
+                      disabled={isUpdating}
+                      className="text-sm"
+                    />
+                    <Button 
+                      type="submit" 
+                      size="sm"
+                      variant="primary"
+                      disabled={isUpdating}
+                      className="mt-1 w-full"
+                    >
+                      {isUpdating ? "Updating..." : "Update"}
                     </Button>
-                  </div>
+                  </form>
                 </div>
               </CardContent>
             </Card>
           </SidebarGroup>
+        ) : (
+          /* Upgrade banner (Basehub-propagated), shown above GENERAL for free tier - only if name is set */
+          isFreeTier && bannerData?.banner?.shown && (
+            <SidebarGroup className="group-data-[collapsible=icon]:hidden">
+              <Card className="w-full rounded-xl border-sidebar-border bg-sidebar-accent">
+                <CardContent className="p-3">
+                  <div className="flex flex-col gap-2">
+                    <div className="text-sm font-semibold text-sidebar-foreground">{bannerData.banner.title}</div>
+                    <div className="text-xs text-sidebar-foreground/70 leading-relaxed">
+                      {bannerData.banner.body}
+                    </div>
+                    <div>
+                      <Button asChild size="sm" variant="primary" className="mt-1 w-full">
+                        <a href={bannerData.banner.link}>{bannerData.banner.linkText}</a>
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </SidebarGroup>
+          )
         )}
         <SidebarGroup>
           <SidebarGroupContent>
@@ -175,36 +208,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-
-        {/* If a user doesn't have a name set, show a small card saying, "I didn't catch your name..."  */}
-        {!session.user.name && (
-          <SidebarGroup>
-            <Card className="w-full bg-card border-border rounded-xl ">
-              <CardContent className="p-3 space-y-3">
-                <span className="text-sm font-semibold">hey 👋, didn't catch your name...</span>
-                <form action={handleUpdateProfile} className="space-y-2">
-                  <Input 
-                    name="name" 
-                    placeholder="Enter your name" 
-                    required
-                    minLength={1}
-                    maxLength={255}
-                    disabled={isUpdating}
-                    className="text-sm"
-                  />
-                  <Button 
-                    type="submit" 
-                    size="sm"
-                    disabled={isUpdating}
-                    className="w-full"
-                  >
-                    {isUpdating ? "Updating..." : "Update"}
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
-          </SidebarGroup>
-        )}
 
         {/* GENERAL section */}
 
