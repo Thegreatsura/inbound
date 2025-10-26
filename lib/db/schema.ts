@@ -524,17 +524,17 @@ export const scheduledEmails = pgTable('scheduled_emails', {
   tags: text('tags'), // JSON array of email tags (Resend-compatible)
 
   // Processing metadata
-  attempts: integer('attempts').default(0), // Number of send attempts
-  maxAttempts: integer('max_attempts').default(3), // Maximum retry attempts
-  nextRetryAt: timestamp('next_retry_at'), // When to retry if failed
+  attempts: integer('attempts').default(0), // Number of send attempts (managed by QStash retries)
+  maxAttempts: integer('max_attempts').default(3), // Maximum retry attempts (legacy, QStash handles this now)
+  nextRetryAt: timestamp('next_retry_at'), // When to retry if failed (legacy, QStash handles this now)
   lastError: text('last_error'), // Last error message if failed
 
   // Idempotency
   idempotencyKey: varchar('idempotency_key', { length: 256 }), // For preventing duplicates
 
-  // QStash integration fields
-  qstashScheduleId: varchar('qstash_schedule_id', { length: 255 }), // QStash schedule/message ID
-  qstashDlqId: varchar('qstash_dlq_id', { length: 255 }), // Dead Letter Queue ID if failed
+  // QStash integration fields (active - replaces cron-based scheduling)
+  qstashScheduleId: varchar('qstash_schedule_id', { length: 255 }), // QStash message ID for scheduled delivery
+  qstashDlqId: varchar('qstash_dlq_id', { length: 255 }), // Dead Letter Queue ID from QStash (future use)
 
   // Audit and tracking
   createdAt: timestamp('created_at').defaultNow(),
