@@ -457,6 +457,7 @@ export const sentEmails = pgTable("sent_emails", {
 	attachments: text(),
 	status: varchar({ length: 50 }).default('pending').notNull(),
 	messageId: varchar("message_id", { length: 255 }),
+	sesMessageId: varchar("ses_message_id", { length: 300 }),
 	provider: varchar({ length: 50 }).default('ses'),
 	providerResponse: text("provider_response"),
 	sentAt: timestamp("sent_at", { mode: 'string' }),
@@ -470,6 +471,7 @@ export const sentEmails = pgTable("sent_emails", {
 	threadPosition: integer("thread_position"),
 }, (table) => [
 	index("sent_emails_thread_id_idx").using("btree", table.threadId.asc().nullsLast().op("text_ops")),
+	index("sent_emails_ses_message_id_idx").using("btree", table.sesMessageId.asc().nullsLast().op("text_ops")),
 ]);
 
 export const endpoints = pgTable("endpoints", {
