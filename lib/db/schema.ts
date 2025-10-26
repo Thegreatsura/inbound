@@ -446,7 +446,8 @@ export const sentEmails = pgTable('sent_emails', {
 
   // Delivery status
   status: varchar('status', { length: 50 }).notNull().default('pending'), // 'pending', 'sent', 'failed'
-  messageId: varchar('message_id', { length: 255 }), // Provider message ID after sending
+  messageId: varchar('message_id', { length: 255 }), // Internal message ID for email headers
+  sesMessageId: varchar('ses_message_id', { length: 300 }), // AWS SES Message-ID (returned after sending, used for threading)
   provider: varchar('provider', { length: 50 }).default('ses'), // Email provider used
   providerResponse: text('provider_response'), // Full response from provider
   sentAt: timestamp('sent_at'), // When the email was actually sent
