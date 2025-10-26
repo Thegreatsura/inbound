@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { format } from 'date-fns'
 import Link from 'next/link'
+import { useQueryStates, parseAsString } from 'nuqs'
 import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 import { useGuardRulesQuery } from '@/features/guard/hooks/useGuardHooks'
 import { useQuery } from '@tanstack/react-query'
@@ -48,9 +49,21 @@ export default function GuardPage() {
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
   })
-  const [searchQuery, setSearchQuery] = useState('')
-  const [typeFilter, setTypeFilter] = useState<string>('all')
-  const [statusFilter, setStatusFilter] = useState<string>('all')
+
+  // Search and filter state with URL persistence
+  const [filters, setFilters] = useQueryStates({
+    search: parseAsString.withDefault(''),
+    type: parseAsString.withDefault('all'),
+    status: parseAsString.withDefault('all'),
+  }, { history: 'push' })
+
+  const searchQuery = filters.search
+  const typeFilter = filters.type
+  const statusFilter = filters.status
+
+  const setSearchQuery = (value: string) => setFilters({ search: value || null })
+  const setTypeFilter = (value: string) => setFilters({ type: value === 'all' ? null : value })
+  const setStatusFilter = (value: string) => setFilters({ status: value === 'all' ? null : value })
 
   // Debounce inputs
   const debouncedSearch = useDebouncedValue(searchQuery, 300)
@@ -287,9 +300,7 @@ export default function GuardPage() {
                 variant="ghost"
                 size="sm"
                 onClick={() => {
-                  setSearchQuery('')
-                  setTypeFilter('all')
-                  setStatusFilter('all')
+                  setFilters({ search: null, type: null, status: null })
                 }}
                 className="h-8"
               >

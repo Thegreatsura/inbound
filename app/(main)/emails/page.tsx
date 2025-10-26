@@ -1,12 +1,12 @@
 "use client"
 
-import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { format } from 'date-fns'
 import Link from 'next/link'
+import { useQueryStates, parseAsString } from 'nuqs'
 import { useDomainsListV2Query } from '@/features/domains/hooks/useDomainV2Hooks'
 import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 
@@ -25,9 +25,17 @@ import { ApiIdLabel } from '@/components/api-id-label'
 import SidebarToggleButton from '@/components/sidebar-toggle-button'
 
 export default function EmailsPage() {
-  const [searchQuery, setSearchQuery] = useState('')
-  const [statusFilter, setStatusFilter] = useState<string>('all')
+  // Search and filter state with URL persistence
+  const [filters, setFilters] = useQueryStates({
+    search: parseAsString.withDefault(''),
+    status: parseAsString.withDefault('all'),
+  }, { history: 'push' })
 
+  const searchQuery = filters.search
+  const statusFilter = filters.status
+
+  const setSearchQuery = (value: string) => setFilters({ search: value || null })
+  const setStatusFilter = (value: string) => setFilters({ status: value === 'all' ? null : value })
 
   // Debounce inputs to reduce API calls
   const debouncedSearch = useDebouncedValue(searchQuery, 300)
@@ -162,8 +170,7 @@ export default function EmailsPage() {
                 variant="ghost"
                 size="sm"
                 onClick={() => {
-                  setSearchQuery('')
-                  setStatusFilter('all')
+                  setFilters({ search: null, status: null })
                 }}
                 className="h-8"
               >

@@ -10,6 +10,7 @@ import { SpeedInsights } from "@vercel/speed-insights/next"
 import Script from "next/script";
 import { Databuddy } from "@databuddy/sdk"
 import { Toolbar } from "basehub/next-toolbar"
+import { NuqsAdapter } from 'nuqs/adapters/next/app'
 
 const outfit = Outfit({
   variable: "--font-outfit",
@@ -252,13 +253,15 @@ export default function RootLayout({
           }}
         />
 
-        <QueryProvider>
-          <AutumnProvider backendUrl={process.env.BETTER_AUTH_URL || ""}>
-            {children}
-            <Analytics />
-            <SpeedInsights />
-          </AutumnProvider>
-        </QueryProvider>
+        <NuqsAdapter>
+          <QueryProvider>
+            <AutumnProvider backendUrl={process.env.BETTER_AUTH_URL || ""}>
+              {children}
+              <Analytics />
+              <SpeedInsights />
+            </AutumnProvider>
+          </QueryProvider>
+        </NuqsAdapter>
         {/* <Toolbar /> */}
       </body>
       <DubAnalytics domainsConfig={{

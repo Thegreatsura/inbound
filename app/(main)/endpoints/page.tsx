@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
+import { useQueryStates, parseAsString } from 'nuqs'
 import { useEndpointsQuery, useMigrationMutation, useUpdateEndpointMutation } from '@/features/endpoints/hooks'
 import { CreateEndpointDialog, DeleteEndpointDialog, TestEndpointDialog } from '@/components/endpoints'
 import { Card, CardContent } from '@/components/ui/card'
@@ -38,11 +39,23 @@ type SortBy = 'newest' | 'oldest'
 
 export default function EndpointsPage() {
   const router = useRouter()
-  // Search and filter state
-  const [searchQuery, setSearchQuery] = useState('')
-  const [filterType, setFilterType] = useState<FilterType>('all')
-  const [filterStatus, setFilterStatus] = useState<FilterStatus>('all')
-  const [sortBy, setSortBy] = useState<SortBy>('newest')
+  // Search and filter state with URL persistence
+  const [filters, setFilters] = useQueryStates({
+    search: parseAsString.withDefault(''),
+    type: parseAsString.withDefault('all'),
+    status: parseAsString.withDefault('all'),
+    sort: parseAsString.withDefault('newest'),
+  }, { history: 'push' })
+
+  const searchQuery = filters.search
+  const filterType = filters.type as FilterType
+  const filterStatus = filters.status as FilterStatus
+  const sortBy = filters.sort as SortBy
+
+  const setSearchQuery = (value: string) => setFilters({ search: value || null })
+  const setFilterType = (value: FilterType) => setFilters({ type: value === 'all' ? null : value })
+  const setFilterStatus = (value: FilterStatus) => setFilters({ status: value === 'all' ? null : value })
+  const setSortBy = (value: SortBy) => setFilters({ sort: value === 'newest' ? null : value })
 
   const { data: endpoints = [], isLoading, error, refetch, migrationInProgress, migrationChecked } = useEndpointsQuery(sortBy)
   const migrationMutation = useMigrationMutation()
@@ -362,10 +375,7 @@ export default function EndpointsPage() {
                   variant="ghost"
                   size="sm"
                   onClick={() => {
-                    setSearchQuery('')
-                    setFilterType('all')
-                    setFilterStatus('all')
-                    setSortBy('newest')
+                    setFilters({ search: null, type: null, status: null, sort: null })
                   }}
                   className="h-9"
                 >
@@ -424,10 +434,7 @@ export default function EndpointsPage() {
                         <Button
                           variant="secondary"
                           onClick={() => {
-                            setSearchQuery('')
-                            setFilterType('all')
-                            setFilterStatus('all')
-                            setSortBy('newest')
+                            setFilters({ search: null, type: null, status: null, sort: null })
                           }}
                         >
                           Clear Filters

@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from 'sonner'
 import { format, formatDistanceToNow } from 'date-fns'
+import { useQueryStates, parseAsString } from 'nuqs'
 import {
   useApiKeysQuery,
   useCreateApiKeyMutation,
@@ -34,8 +35,17 @@ import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 import SidebarToggleButton from '@/components/sidebar-toggle-button'
 
 export default function ApiKeysPage() {
-  const [searchQuery, setSearchQuery] = useState('')
-  const [statusFilter, setStatusFilter] = useState<string>('all')
+  // Search and filter state with URL persistence
+  const [filters, setFilters] = useQueryStates({
+    search: parseAsString.withDefault(''),
+    status: parseAsString.withDefault('all'),
+  }, { history: 'push' })
+
+  const searchQuery = filters.search
+  const statusFilter = filters.status
+
+  const setSearchQuery = (value: string) => setFilters({ search: value || null })
+  const setStatusFilter = (value: string) => setFilters({ status: value === 'all' ? null : value })
 
   // Debounce inputs to reduce re-renders
   const debouncedSearch = useDebouncedValue(searchQuery, 300)
@@ -251,8 +261,7 @@ export default function ApiKeysPage() {
                   variant="ghost"
                   size="sm"
                   onClick={() => {
-                    setSearchQuery('')
-                    setStatusFilter('all')
+                    setFilters({ search: null, status: null })
                   }}
                   className="h-8"
                 >

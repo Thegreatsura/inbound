@@ -16,6 +16,7 @@ import { formatDistanceToNow, format } from 'date-fns'
 import Link from 'next/link'
 import { Skeleton } from '@/components/ui/skeleton'
 import CircleXmark from '@/components/icons/circle-xmark'
+import { useQueryStates, parseAsString } from 'nuqs'
 
 // Import Nucleo icons
 import Clock2 from '@/components/icons/clock-2'
@@ -161,16 +162,34 @@ function LogsPageSkeleton() {
 }
 
 export default function LogsPage() {
-  const [searchQuery, setSearchQuery] = useState('')
-  const [statusFilter, setStatusFilter] = useState<string>('all')
-  const [typeFilter, setTypeFilter] = useState<string>('all')
-  const [domainFilter, setDomainFilter] = useState<string>('all')
-  const [guardFilter, setGuardFilter] = useState<string>('all')
-  const [timeRange, setTimeRange] = useState<string>('24h')
+  // Search and filter state with URL persistence
+  const [filters, setFilters] = useQueryStates({
+    search: parseAsString.withDefault(''),
+    status: parseAsString.withDefault('all'),
+    type: parseAsString.withDefault('all'),
+    domain: parseAsString.withDefault('all'),
+    guard: parseAsString.withDefault('all'),
+    time: parseAsString.withDefault('24h'),
+  }, { history: 'push' })
+
+  const searchQuery = filters.search
+  const statusFilter = filters.status
+  const typeFilter = filters.type
+  const domainFilter = filters.domain
+  const guardFilter = filters.guard
+  const timeRange = filters.time
+
+  const setSearchQuery = (value: string) => setFilters({ search: value || null })
+  const setStatusFilter = (value: string) => setFilters({ status: value === 'all' ? null : value })
+  const setTypeFilter = (value: string) => setFilters({ type: value === 'all' ? null : value })
+  const setDomainFilter = (value: string) => setFilters({ domain: value === 'all' ? null : value })
+  const setGuardFilter = (value: string) => setFilters({ guard: value === 'all' ? null : value })
+  const setTimeRange = (value: string) => setFilters({ time: value === '24h' ? null : value })
+
   const [selectedLog, setSelectedLog] = useState<EmailLogEntry | null>(null)
   const [rotationDegrees, setRotationDegrees] = useState(0)
 
-  // Toggle states with localStorage persistence
+  // Toggle states with localStorage persistence (NOT in URL)
   const [showScheduled, setShowScheduled] = useState(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('email-flow-show-scheduled')
@@ -539,10 +558,14 @@ export default function LogsPage() {
                         variant="ghost"
                         size="sm"
                         onClick={() => {
-                          setTypeFilter('all')
-                          setStatusFilter('all')
-                          setGuardFilter('all')
-                          setDomainFilter('all')
+                          setFilters({ 
+                            search: null, 
+                            status: null, 
+                            type: null, 
+                            domain: null, 
+                            guard: null, 
+                            time: null 
+                          })
                         }}
                         className="w-full"
                       >
