@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Switch } from '@/components/ui/switch'
+import { Label } from '@/components/ui/label'
 // Sheet removed in favor of dedicated details page
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -36,9 +38,11 @@ import ArchiveDownload from '@/components/icons/archive-download'
 import ArchiveExport from '@/components/icons/archive-export'
 import EnvelopeArrowLeft from '@/components/icons/envelope-arrow-left'
 import EnvelopeArrowRight from '@/components/icons/envelope-arrow-right'
+import Envelope2 from '@/components/icons/envelope-2'
 
 import { useInfiniteUnifiedEmailLogsQuery } from '@/features/emails/hooks'
 import { useDomainsListV2Query } from '@/features/domains/hooks/useDomainV2Hooks'
+import { useScheduledEmailsQuery, useCancelScheduledEmailMutation } from '@/features/emails/hooks/useScheduledEmailsHooks'
 import { useIntersectionObserver } from '@/hooks/useIntersectionObserver'
 import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 import type { EmailLogsOptions, EmailLogEntry, InboundEmailLogEntry, OutboundEmailLogEntry } from '@/features/emails/types'
@@ -48,6 +52,9 @@ import Paperclip2 from '@/components/icons/paperclip-2'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { useQuery } from '@tanstack/react-query'
 import { getEmailVolumeChartData } from '@/app/actions/primary'
+import Calendar2 from '@/components/icons/calendar-2'
+import EnvelopeBan from '@/components/icons/envelope-ban'
+import CircleOpenArrowUpRight from '@/components/icons/circle-open-arrow-up-right'
 
 // Configuration constants
 const DOMAINS_FETCH_LIMIT = 500 // Reasonable limit for domain dropdown - if users have more domains, 
@@ -163,6 +170,32 @@ export default function LogsPage() {
   const [selectedLog, setSelectedLog] = useState<EmailLogEntry | null>(null)
   const [rotationDegrees, setRotationDegrees] = useState(0)
 
+  // Toggle states with localStorage persistence
+  const [showScheduled, setShowScheduled] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('email-flow-show-scheduled')
+      return saved !== null ? saved === 'true' : true // Default: show
+    }
+    return true
+  })
+
+  const [showGuardEmails, setShowGuardEmails] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('email-flow-show-guard')
+      return saved !== null ? saved === 'true' : false // Default: hide
+    }
+    return false
+  })
+
+  // Persist toggle states to localStorage
+  useEffect(() => {
+    localStorage.setItem('email-flow-show-scheduled', showScheduled.toString())
+  }, [showScheduled])
+
+  useEffect(() => {
+    localStorage.setItem('email-flow-show-guard', showGuardEmails.toString())
+  }, [showGuardEmails])
+
   // Debounce inputs to cut request volume
   const debouncedSearch = useDebouncedValue(searchQuery, 300)
   const debouncedStatus = useDebouncedValue(statusFilter, 150)
@@ -191,6 +224,18 @@ export default function LogsPage() {
     fetchNextPage,
     isFetching,
   } = useInfiniteUnifiedEmailLogsQuery(infiniteOptions)
+
+  // Fetch scheduled emails
+  const {
+    data: scheduledEmailsData,
+    isLoading: isScheduledLoading,
+    refetch: refetchScheduled
+  } = useScheduledEmailsQuery({ 
+    limit: 100, 
+    status: 'scheduled' // Only show emails that haven't been sent yet
+  })
+
+  const cancelScheduledMutation = useCancelScheduledEmailMutation()
 
   // Fetch chart data based on time range
   const { data: chartData, isLoading: isChartLoading } = useQuery({
@@ -238,7 +283,35 @@ export default function LogsPage() {
     // Spin counter-clockwise (negative rotation) like typical refresh icons
     setRotationDegrees(prev => prev - 360)
     refetch()
+    refetchScheduled()
   }
+
+  // Handle cancelling a scheduled email
+  const handleCancelScheduled = async (emailId: string) => {
+    try {
+      await cancelScheduledMutation.mutateAsync(emailId)
+    } catch (error) {
+      console.error('Failed to cancel scheduled email:', error)
+    }
+  }
+
+  // Filter regular emails based on guard toggle
+  const filteredEmails = useMemo(() => {
+    const allEmails = (data?.pages ?? []).flatMap(p => p.emails)
+    
+    if (showGuardEmails) {
+      return allEmails // Show all emails including guard blocked ones
+    }
+    
+    // Filter out guard-blocked emails
+    return allEmails.filter(email => {
+      if (email.type === 'inbound') {
+        const inboundEmail = email as InboundEmailLogEntry
+        return !inboundEmail.guardBlocked
+      }
+      return true // Show all outbound emails
+    })
+  }, [data, showGuardEmails])
 
   if (error) {
     return (
@@ -329,7 +402,37 @@ export default function LogsPage() {
               <PopoverContent className="w-80 p-4" align="end">
                 <div className="space-y-4">
                   <div>
-                    <h4 className="font-medium text-sm mb-3">Filter Email Logs</h4>
+                    <h4 className="font-medium text-sm mb-3">Filter & Display Options</h4>
+                  </div>
+
+                  {/* Display Toggles */}
+                  <div className="space-y-3 pb-3 border-b border-border">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Calendar2 width="16" height="16" className="text-muted-foreground" />
+                        <Label htmlFor="show-scheduled" className="text-sm font-normal cursor-pointer">
+                          Show Scheduled
+                        </Label>
+                      </div>
+                      <Switch
+                        id="show-scheduled"
+                        checked={showScheduled}
+                        onCheckedChange={setShowScheduled}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <EnvelopeBan width="16" height="16" className="text-muted-foreground" />
+                        <Label htmlFor="show-guard" className="text-sm font-normal cursor-pointer">
+                          Show Guard Blocked
+                        </Label>
+                      </div>
+                      <Switch
+                        id="show-guard"
+                        checked={showGuardEmails}
+                        onCheckedChange={setShowGuardEmails}
+                      />
+                    </div>
                   </div>
 
                   <div className="space-y-3">
@@ -599,7 +702,7 @@ export default function LogsPage() {
           <div className="flex items-center justify-center py-20">
             <div className="text-muted-foreground">Loading emails...</div>
           </div>
-        ) : !((data?.pages?.flatMap(p => p.emails) || []).length) ? (
+        ) : !((data?.pages?.flatMap(p => p.emails) || []).length) && !scheduledEmailsData?.data?.length ? (
           <div className="max-w-5xl mx-auto">
             <Card className=" rounded-xl p-8">
               <div className="text-center">
@@ -614,8 +717,114 @@ export default function LogsPage() {
             </Card>
           </div>
         ) : (
-          <div className="border border-border rounded-[13px] bg-card overflow-hidden">
-            {(data?.pages ?? []).flatMap(p => p.emails).map((log) => {
+          <>
+            {/* Scheduled Emails Section */}
+            {showScheduled && scheduledEmailsData?.data && scheduledEmailsData.data.length > 0 && (
+              <div className="mb-6">
+                <div className="flex items-center gap-2 px-2 py-2 mb-2">
+                  <Calendar2 width="16" height="16" className="text-muted-foreground" />
+                  <h3 className="text-sm font-semibold text-foreground">
+                    Scheduled Emails
+                  </h3>
+                  <Badge variant="default" className="ml-1">
+                    {scheduledEmailsData.data.length} emails
+                  </Badge>
+                </div>
+                <div className="border border-border rounded-[13px] bg-card overflow-hidden">
+                  {scheduledEmailsData.data.map((scheduledEmail) => (
+                    <Link
+                      key={scheduledEmail.id}
+                      href={`#`}
+                      onClick={(e) => e.preventDefault()}
+                      className="flex items-center gap-4 px-6 py-4 hover:bg-muted/50 transition-colors cursor-pointer border-b border-border last:border-b-0"
+                    >
+                      {/* From/To Email Column */}
+                      <div className="flex-shrink-0 w-40 sm:w-52">
+                        <div className="text-sm font-medium text-foreground truncate">
+                          {scheduledEmail.from}
+                        </div>
+                        <div className="text-xs text-muted-foreground truncate">
+                          {scheduledEmail.to[0]}
+                          {scheduledEmail.to.length > 1 && (
+                            <span className="ml-1 opacity-60">+{scheduledEmail.to.length - 1}</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Subject and Details Column */}
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm text-foreground truncate mb-1">
+                          {scheduledEmail.subject}
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Clock2 width="12" height="12" />
+                          <span className="hidden md:inline">
+                            {format(new Date(scheduledEmail.scheduled_at), 'MMM d, HH:mm')}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Timestamp Column */}
+                      <div className="flex-shrink-0 w-32 hidden sm:block">
+                        <div className="text-xs text-muted-foreground text-right">
+                          {format(new Date(scheduledEmail.scheduled_at), 'MMM d, HH:mm')}
+                        </div>
+                        <div className="text-xs text-muted-foreground/60 text-right">
+                          {formatDistanceToNow(new Date(scheduledEmail.scheduled_at), { addSuffix: true })}
+                        </div>
+                      </div>
+
+                      {/* Attachments Icon Placeholder (hidden on small screens) */}
+                      <div className="flex-shrink-0 hidden lg:flex items-center w-8">
+                        {/* Empty space to align with regular emails that may have attachments */}
+                      </div>
+
+                      {/* Status Badge */}
+                      <div className="flex-shrink-0 w-32 sm:w-40 text-right">
+                        <Badge variant="secondary" className="bg-blue-100 text-blue-800 border-blue-200">
+                          <Calendar2 width="12" height="12" className="mr-1" />
+                          Scheduled
+                        </Badge>
+                      </div>
+
+                      {/* Cancel Button (replaces arrow icon) */}
+                      <div className="flex-shrink-0 hidden sm:block">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            handleCancelScheduled(scheduledEmail.id)
+                          }}
+                          disabled={cancelScheduledMutation.isPending}
+                          className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                        >
+                          <CircleXmark width="12" height="12" />
+                        </Button>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Regular Emails Section */}
+            <div className="mb-6">
+              <div className="flex items-center gap-2 px-2 py-2 mb-2">
+                <Envelope2 width="16" height="16" className="text-muted-foreground" />
+                <h3 className="text-sm font-semibold text-foreground">
+                  All Emails
+                </h3>
+                {stats && (
+                  <Badge variant="default" className="ml-1">
+                    {stats.inbound + stats.outbound} emails (lifetime)
+                  </Badge>
+                )}
+              </div>
+            <div className="border border-border rounded-[13px] bg-card overflow-hidden">
+              
+            {filteredEmails.map((log) => {
               const isInbound = log.type === 'inbound'
               const inboundLog = isInbound ? log as InboundEmailLogEntry : null
               const outboundLog = !isInbound ? log as OutboundEmailLogEntry : null
@@ -679,13 +888,9 @@ export default function LogsPage() {
                       {log.subject}
                     </div>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      {/* <span className="hidden sm:inline">Endpoint:</span>
-                      <span className="text-orange-600 font-medium">
-                        {isInbound && inboundLog?.deliveries[0]?.config?.name || (isInbound ? 'None' : outboundLog?.provider?.toUpperCase())}
-                      </span> */}
-                      {/* <span className="hidden md:inline">•</span> */}
-                      <span className="hidden md:inline text-green-600">
-                        {isInbound && inboundLog ? `${inboundLog.processingTimeMs}ms` : outboundLog?.sentAt ? format(new Date(outboundLog.sentAt), 'HH:mm') : 'Pending'}
+                      <Clock2 width="12" height="12" />
+                      <span className="hidden md:inline">
+                        {format(new Date(log.createdAt), 'MMM d, HH:mm')}
                       </span>
                     </div>
                   </div>
@@ -700,21 +905,10 @@ export default function LogsPage() {
                     </div>
                   </div>
 
-                  {/* Attachments Icon (hidden on small screens) */}
-                  {log.hasAttachments && (
-                    <div className="flex-shrink-0 hidden lg:flex items-center gap-1 text-orange-500">
-                      <Paperclip2 width="16" height="16" />
-                      <span className="text-xs font-medium">
-                        {(() => {
-                          if (isInbound && inboundLog) {
-                            // Try to parse attachments from the email
-                            return '1'
-                          }
-                          return '1'
-                        })()}
-                      </span>
-                        </div>
-                    )}
+                  {/* Attachments Icon Placeholder (hidden on small screens) */}
+                  <div className="flex-shrink-0 hidden lg:flex items-center w-8">
+                    {/* Empty space to align with scheduled emails */}
+                  </div>
 
                   {/* Status Badge */}
                   <div className="flex-shrink-0 w-32 sm:w-40 text-right">
@@ -727,9 +921,18 @@ export default function LogsPage() {
                   </div>
 
                   {/* Arrow Icon (hidden on mobile) */}
+                  {/* <div className="flex-shrink-0 hidden sm:block">
+                    <CircleOpenArrowUpRight width="12" height="12" className="text-muted-foreground" />
+                  </div> */}
                   <div className="flex-shrink-0 hidden sm:block">
-                    <ArrowUpRight2 width="12" height="12" className="text-muted-foreground" />
-                  </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                        >
+                          <ArrowUpRight2 width="12" height="12" />
+                        </Button>
+                      </div>
                 </Link>
               )
             })}
@@ -740,6 +943,8 @@ export default function LogsPage() {
               )}
             </div>
           </div>
+            </div>
+          </>
         )}
       </div>
     </div>

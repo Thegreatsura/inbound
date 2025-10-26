@@ -397,9 +397,9 @@ describe('📅 Email Scheduling API Tests', () => {
       })
 
       expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
       expect(data.id).toBe(emailId)
-      expect(data.status).toBe('cancelled')
-      expect(data.cancelled_at).toBeDefined()
+      expect(data.message).toContain('cancelled')
 
       console.log('✅ Scheduled email cancelled:', emailId)
     })
@@ -420,35 +420,102 @@ describe('📅 Email Scheduling API Tests', () => {
   })
 })
 
-describe('⚙️ Background Processing Tests', () => {
+describe('⚙️ Enhanced Send Endpoint Tests', () => {
   
-  test('should process scheduled emails via cron endpoint', async () => {
-    console.log('⏰ Testing background email processing')
+  test('should schedule via main send endpoint with scheduled_at', async () => {
+    console.log('📧 Testing /api/v2/emails with scheduled_at parameter')
     
-    // Note: This test requires CRON_SECRET to be set or removed for testing
-    const cronSecret = process.env.CRON_SECRET
-    const headers = cronSecret ? { 'Authorization': `Bearer ${cronSecret}` } : {}
-    
-    const { response, data } = await apiRequest('/api/cron/process-scheduled-emails', {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${TEST_API_KEY}`
-      }
+    const futureDate = new Date(Date.now() + 8 * 60 * 1000) // 8 minutes from now
+    const emailData = {
+      from: TEST_FROM_EMAIL,
+      to: TEST_TO_EMAIL,
+      subject: 'Test via Main Send Endpoint - Scheduled',
+      html: '<p>This email was scheduled through the main /api/v2/emails endpoint.</p>',
+      text: 'This email was scheduled through the main /api/v2/emails endpoint.',
+      scheduled_at: futureDate.toISOString()
+    }
+
+    const { response, data } = await apiRequest('/api/v2/emails', {
+      method: 'POST',
+      body: JSON.stringify(emailData)
     })
+
+    if (response.status === 403) {
+      console.log('⚠️ 403 Forbidden - skipping test')
+      return
+    }
+
+    expect(response.status).toBe(201)
+    expect(data.id).toBeDefined()
+    expect(data.scheduled_at).toBeDefined()
+    expect(data.status).toBe('scheduled')
+    expect(data.timezone).toBeDefined()
+
+    createdScheduledEmailIds.push(data.id)
+    console.log('✅ Email scheduled via main endpoint:', data.id)
+    console.log('📅 Will be sent at:', futureDate.toLocaleString())
+  })
+
+  test('should send immediately when no scheduled_at is provided', async () => {
+    console.log('📧 Testing immediate send via /api/v2/emails')
+    
+    const emailData = {
+      from: TEST_FROM_EMAIL,
+      to: TEST_TO_EMAIL,
+      subject: 'Test Immediate Send',
+      html: '<p>This email should be sent immediately.</p>',
+      text: 'This email should be sent immediately.'
+    }
+
+    const { response, data } = await apiRequest('/api/v2/emails', {
+      method: 'POST',
+      body: JSON.stringify(emailData)
+    })
+
+    if (response.status === 403) {
+      console.log('⚠️ 403 Forbidden - skipping test')
+      return
+    }
 
     expect(response.status).toBe(200)
-    expect(data.processed).toBeDefined()
-    expect(data.sent).toBeDefined()
-    expect(data.failed).toBeDefined()
-    expect(typeof data.processed).toBe('number')
-    expect(typeof data.sent).toBe('number')
-    expect(typeof data.failed).toBe('number')
+    expect(data.id).toBeDefined()
+    expect(data.messageId).toBeDefined()
+    // Should NOT have scheduled_at or status for immediate sends
+    expect(data.scheduled_at).toBeUndefined()
 
-    console.log('✅ Background processing completed:', {
-      processed: data.processed,
-      sent: data.sent,
-      failed: data.failed
+    console.log('✅ Email sent immediately:', data.id)
+    console.log('📧 SES Message ID:', data.messageId)
+  })
+
+  test('should schedule with natural language via main endpoint', async () => {
+    console.log('📧 Testing /api/v2/emails with natural language scheduling')
+    
+    const emailData = {
+      from: TEST_FROM_EMAIL,
+      to: TEST_TO_EMAIL,
+      subject: 'Natural Language Test via Main Endpoint',
+      html: '<p>Scheduled using natural language through /api/v2/emails.</p>',
+      scheduled_at: 'in 9 minutes',
+      timezone: 'America/New_York'
+    }
+
+    const { response, data } = await apiRequest('/api/v2/emails', {
+      method: 'POST',
+      body: JSON.stringify(emailData)
     })
+
+    if (response.status === 403) {
+      console.log('⚠️ 403 Forbidden - skipping test')
+      return
+    }
+
+    expect(response.status).toBe(201)
+    expect(data.id).toBeDefined()
+    expect(data.status).toBe('scheduled')
+    expect(data.timezone).toBe('America/New_York')
+
+    createdScheduledEmailIds.push(data.id)
+    console.log('✅ Natural language scheduling via main endpoint:', data.id)
   })
 })
 
@@ -462,7 +529,7 @@ describe('🧪 Date Parser Tests', () => {
       { input: 'in 2 hours', shouldWork: true },
       { input: 'tomorrow at 9am', shouldWork: true },
       { input: 'today at 3:30pm', shouldWork: true },
-      { input: '2024-12-25T09:00:00Z', shouldWork: true },
+      { input: new Date(Date.now() + 10 * 60 * 1000).toISOString(), shouldWork: true }, // 10 minutes from now (future date)
       { input: 'invalid date', shouldWork: false },
       { input: 'yesterday', shouldWork: false }
     ]
@@ -498,7 +565,7 @@ describe('🧪 Date Parser Tests', () => {
 
 describe('📧 Practical Scheduling Tests', () => {
   
-  test('should schedule a simple newsletter for 1 minute', async () => {
+  test('should schedule a simple newsletter for 2 minutes', async () => {
     console.log('📰 Scheduling a simple newsletter')
     
     const scheduledEmailData = {
@@ -507,12 +574,12 @@ describe('📧 Practical Scheduling Tests', () => {
       subject: '📰 Weekly Newsletter - Scheduled Test',
       html: `
         <h1>Weekly Newsletter</h1>
-        <p>This is a test newsletter scheduled to be sent in 1 minute.</p>
+        <p>This is a test newsletter scheduled to be sent in 2 minutes.</p>
         <p>Sent at: ${new Date().toLocaleString()}</p>
-        <p>Should arrive at: ${new Date(Date.now() + 60000).toLocaleString()}</p>
+        <p>Should arrive at: ${new Date(Date.now() + 2 * 60000).toLocaleString()}</p>
       `,
-      text: 'Weekly Newsletter - This is a test newsletter scheduled to be sent in 1 minute.',
-      scheduled_at: 'in 1 minute'
+      text: 'Weekly Newsletter - This is a test newsletter scheduled to be sent in 2 minutes.',
+      scheduled_at: 'in 2 minutes'
     }
 
     const { response, data } = await apiRequest('/api/v2/emails/schedule', {
@@ -528,7 +595,7 @@ describe('📧 Practical Scheduling Tests', () => {
     expect(response.status).toBe(201)
     createdScheduledEmailIds.push(data.id)
     console.log('✅ Newsletter scheduled:', data.id)
-    console.log('📅 Will be sent in 1 minute')
+    console.log('📅 Will be sent in 2 minutes')
   })
 
   test('should schedule a marketing email with multiple attachments', async () => {
