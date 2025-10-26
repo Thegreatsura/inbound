@@ -20,6 +20,7 @@ import MagicLinkEmail from "@/emails/magic-link-email";
 
 const dub = new Dub();
 
+const RESEND_AUTUMN_AUDIENCE_ID = "515e5071-4d0e-4117-9c12-e8ddd29b807e"
 
 const stripeClient = new Stripe(process.env.STRIPE_SECRET_KEY as string);
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -146,6 +147,12 @@ export const auth = betterAuth({
                 
                 if (timeDiffSeconds < 10) {
                     console.log('New user signed up with email: ', user.email);
+                    await resend.contacts.create({
+                        audienceId: RESEND_AUTUMN_AUDIENCE_ID,
+                        email: user.email,
+                        firstName: user.name,
+                        lastName: user.name,
+                    })
                     // need to redirect to onboarding page
                     throw ctx.redirect("/onboarding-demo");
                 } else {

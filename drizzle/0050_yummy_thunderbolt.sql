@@ -1,0 +1,1 @@
+ALTER TABLE "endpoint_deliveries" ADD CONSTRAINT "endpoint_deliveries_email_endpoint_unique" UNIQUE("email_id","endpoint_id");

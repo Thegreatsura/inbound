@@ -4,11 +4,13 @@ import { processAttachments, attachmentsToStorageFormat, type AttachmentInput } 
 import { buildRawEmailMessage } from '../helper/email-builder'
 import { SESClient, SendRawEmailCommand } from '@aws-sdk/client-ses'
 import { db } from '@/lib/db'
-import { sentEmails, emailDomains, SENT_EMAIL_STATUS } from '@/lib/db/schema'
+import { sentEmails, emailDomains, scheduledEmails, SENT_EMAIL_STATUS, SCHEDULED_EMAIL_STATUS } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { Autumn as autumn } from 'autumn-js'
 import { nanoid } from 'nanoid'
 import { canUserSendFromEmail, extractEmailAddress, extractDomain } from '@/lib/email-management/agent-email-helper'
+import { parseScheduledAt, validateScheduledDate, formatScheduledDate } from '@/lib/utils/date-parser'
+import { Client as QStashClient } from '@upstash/qstash'
 
 /**
  * POST /api/v2/emails
@@ -36,6 +38,8 @@ export interface PostEmailsRequest {
         name: string
         value: string
     }>
+    scheduled_at?: string // ISO 8601 or natural language ("in 1 hour", "tomorrow at 9am")
+    timezone?: string     // User's timezone for natural language parsing (defaults to UTC)
 }
 
 export interface PostEmailsResponse {
@@ -155,6 +159,35 @@ export async function POST(request: NextRequest) {
             )
         }
 
+        // If scheduled_at is provided, handle as a scheduled email
+        if (body.scheduled_at) {
+            console.log('⏰ Scheduled email detected, redirecting to scheduling flow')
+            
+            // Parse and validate scheduled_at
+            const parsedDate = parseScheduledAt(body.scheduled_at, body.timezone || 'UTC')
+            if (!parsedDate.isValid) {
+                console.log('❌ Invalid scheduled_at:', parsedDate.error)
+                return NextResponse.json(
+                    { error: parsedDate.error },
+                    { status: 400 }
+                )
+            }
+
+            // Validate that the date is in the future
+            const dateValidation = validateScheduledDate(parsedDate.date)
+            if (!dateValidation.isValid) {
+                console.log('❌ Invalid schedule time:', dateValidation.error)
+                return NextResponse.json(
+                    { error: dateValidation.error },
+                    { status: 400 }
+                )
+            }
+
+            console.log('✅ Parsed scheduled_at:', formatScheduledDate(parsedDate.date))
+            
+            // Continue with scheduling flow below (will be handled in the existing logic)
+        }
+
         // Extract sender information
         const fromAddress = extractEmailAddress(body.from)
         const fromDomain = extractDomain(body.from)
@@ -254,7 +287,110 @@ export async function POST(request: NextRequest) {
             )
         }
 
-        // Create sent email record
+        // If scheduled_at is provided, create scheduled email instead of sending immediately
+        if (body.scheduled_at) {
+            const parsedDate = parseScheduledAt(body.scheduled_at, body.timezone || 'UTC')
+            const scheduledEmailId = nanoid()
+            console.log('💾 Creating scheduled email record:', scheduledEmailId)
+
+            const scheduledEmailData = {
+                id: scheduledEmailId,
+                userId,
+                scheduledAt: parsedDate.date,
+                timezone: parsedDate.timezone,
+                status: SCHEDULED_EMAIL_STATUS.SCHEDULED,
+                fromAddress: body.from,
+                fromDomain,
+                toAddresses: JSON.stringify(toAddresses),
+                ccAddresses: ccAddresses.length > 0 ? JSON.stringify(ccAddresses) : null,
+                bccAddresses: bccAddresses.length > 0 ? JSON.stringify(bccAddresses) : null,
+                replyToAddresses: replyToAddresses.length > 0 ? JSON.stringify(replyToAddresses) : null,
+                subject: body.subject,
+                textBody: body.text || null,
+                htmlBody: body.html || null,
+                headers: body.headers ? JSON.stringify(body.headers) : null,
+                attachments: processedAttachments.length > 0 ? JSON.stringify(attachmentsToStorageFormat(processedAttachments)) : null,
+                tags: body.tags ? JSON.stringify(body.tags) : null,
+                idempotencyKey,
+                createdAt: new Date(),
+                updatedAt: new Date()
+            }
+
+            // Insert into database
+            const [createdScheduledEmail] = await db
+                .insert(scheduledEmails)
+                .values(scheduledEmailData)
+                .returning()
+
+            console.log('✅ Scheduled email created in database:', scheduledEmailId)
+
+            // Schedule with QStash
+            try {
+                const qstashClient = new QStashClient({ 
+                    token: process.env.QSTASH_TOKEN! 
+                })
+
+                const webhookUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/send-email`
+                const notBefore = Math.floor(parsedDate.date.getTime() / 1000)
+
+                console.log('📅 Scheduling with QStash:', {
+                    url: webhookUrl,
+                    notBefore: new Date(notBefore * 1000).toISOString(),
+                    scheduledEmailId
+                })
+
+                const scheduleResponse = await qstashClient.publishJSON({
+                    url: webhookUrl,
+                    body: { 
+                        type: 'scheduled',
+                        scheduledEmailId: scheduledEmailId 
+                    },
+                    notBefore: notBefore,
+                    retries: 3
+                })
+
+                // Update with QStash schedule ID
+                await db
+                    .update(scheduledEmails)
+                    .set({
+                        qstashScheduleId: scheduleResponse.messageId,
+                        updatedAt: new Date()
+                    })
+                    .where(eq(scheduledEmails.id, scheduledEmailId))
+
+                console.log('✅ Scheduled with QStash, messageId:', scheduleResponse.messageId)
+
+                return NextResponse.json({
+                    id: scheduledEmailId,
+                    scheduled_at: formatScheduledDate(createdScheduledEmail.scheduledAt),
+                    status: 'scheduled',
+                    timezone: createdScheduledEmail.timezone || 'UTC'
+                }, { status: 201 })
+
+            } catch (qstashError) {
+                console.error('❌ Failed to schedule with QStash:', qstashError)
+                
+                // Clean up the database record
+                await db
+                    .update(scheduledEmails)
+                    .set({
+                        status: SCHEDULED_EMAIL_STATUS.FAILED,
+                        lastError: qstashError instanceof Error ? qstashError.message : 'Failed to schedule with QStash',
+                        updatedAt: new Date()
+                    })
+                    .where(eq(scheduledEmails.id, scheduledEmailId))
+
+                return NextResponse.json(
+                    { 
+                        error: 'Failed to schedule email with QStash', 
+                        details: qstashError instanceof Error ? qstashError.message : 'Unknown error' 
+                    },
+                    { status: 500 }
+                )
+            }
+        }
+
+        // Create sent email record (for immediate sending)
         const emailId = nanoid()
         console.log('💾 Creating sent email record:', emailId)
         

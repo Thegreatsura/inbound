@@ -7,6 +7,7 @@ import { eq, and, desc, count, lte } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { canUserSendFromEmail, extractEmailAddress, extractDomain } from '@/lib/email-management/agent-email-helper'
 import { parseScheduledAt, validateScheduledDate, formatScheduledDate } from '@/lib/utils/date-parser'
+import { Client as QStashClient } from '@upstash/qstash'
 
 /**
  * POST /api/v2/emails/schedule
@@ -265,12 +266,71 @@ export async function POST(request: NextRequest) {
             updatedAt: new Date()
         }
 
+        // First, insert into database
         const [createdScheduledEmail] = await db
             .insert(scheduledEmails)
             .values(scheduledEmailData)
             .returning()
 
-        console.log('✅ Scheduled email created successfully:', scheduledEmailId)
+        console.log('✅ Scheduled email created in database:', scheduledEmailId)
+
+        // Now schedule with QStash
+        try {
+            const qstashClient = new QStashClient({ 
+                token: process.env.QSTASH_TOKEN! 
+            })
+
+            const webhookUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/send-email`
+            const notBefore = Math.floor(parsedDate.date.getTime() / 1000) // Unix timestamp in seconds
+
+            console.log('📅 Scheduling with QStash:', {
+                url: webhookUrl,
+                notBefore: new Date(notBefore * 1000).toISOString(),
+                scheduledEmailId
+            })
+
+            const scheduleResponse = await qstashClient.publishJSON({
+                url: webhookUrl,
+                body: { 
+                    type: 'scheduled',
+                    scheduledEmailId: scheduledEmailId 
+                },
+                notBefore: notBefore,
+                retries: 3 // QStash will retry failed deliveries automatically
+            })
+
+            // Update the database record with QStash schedule ID
+            await db
+                .update(scheduledEmails)
+                .set({
+                    qstashScheduleId: scheduleResponse.messageId,
+                    updatedAt: new Date()
+                })
+                .where(eq(scheduledEmails.id, scheduledEmailId))
+
+            console.log('✅ Scheduled with QStash, messageId:', scheduleResponse.messageId)
+
+        } catch (qstashError) {
+            console.error('❌ Failed to schedule with QStash:', qstashError)
+            
+            // Clean up the database record since QStash scheduling failed
+            await db
+                .update(scheduledEmails)
+                .set({
+                    status: SCHEDULED_EMAIL_STATUS.FAILED,
+                    lastError: qstashError instanceof Error ? qstashError.message : 'Failed to schedule with QStash',
+                    updatedAt: new Date()
+                })
+                .where(eq(scheduledEmails.id, scheduledEmailId))
+
+            return NextResponse.json(
+                { 
+                    error: 'Failed to schedule email with QStash', 
+                    details: qstashError instanceof Error ? qstashError.message : 'Unknown error' 
+                },
+                { status: 500 }
+            )
+        }
 
         const response: PostScheduleEmailResponse = {
             id: createdScheduledEmail.id,
