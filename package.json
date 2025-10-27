@@ -22,7 +22,8 @@
     "email-verified": "bun run scripts/test-domain-verification.ts",
     "preview-email": "bun run scripts/preview-domain-email.ts",
     "test-qstash-webhook": "curl -X POST \"http://localhost:3000/api/webhooks/send-email\" -H \"Content-Type: application/json\" -d '{\"type\":\"scheduled\",\"scheduledEmailId\":\"test-id\"}' || echo 'Make sure your dev server is running'",
-    "check": "tsc --noEmit && prettier --check . --ignore-path .gitignore || true"
+    "check": "tsc --noEmit && prettier --check . --ignore-path .gitignore || true",
+    "registry:build": "shadcn build"
   },
   "dependencies": {
     "@ai-sdk/openai": "1.0.2",
@@ -150,6 +151,7 @@
     "drizzle-kit": "^0.31.1",
     "esbuild": "^0.25.5",
     "postcss": "^8",
+    "shadcn": "^2.9.3-canary.0",
     "tailwindcss": "^3.4.1",
     "typescript": "^5"
   }

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "webhook-verification",
+  "type": "registry:example",
+  "title": "Webhook Signature Verification",
+  "description": "Example showing how to verify webhook signatures from Inbound",
+  "dependencies": [],
+  "devDependencies": [],
+  "registryDependencies": [],
+  "files": [
+    {
+      "path": "registry/new-york/examples/webhook-verification.tsx",
+      "content": "/**\n * @name webhook-verification\n * @type registry:example\n * @title Webhook Signature Verification\n * @description Example showing how to verify webhook signatures from Inbound\n * @dependencies [\"crypto\"]\n */\n\nimport { NextRequest, NextResponse } from \"next/server\"\nimport crypto from \"crypto\"\n\n/**\n * Verifies the webhook signature to ensure the request is from Inbound\n */\nfunction verifyWebhookSignature(\n  payload: string,\n  signature: string,\n  secret: string\n): boolean {\n  const hmac = crypto.createHmac(\"sha256\", secret)\n  const digest = hmac.update(payload).digest(\"hex\")\n  return crypto.timingSafeEqual(\n    Buffer.from(signature),\n    Buffer.from(digest)\n  )\n}\n\nexport async function POST(request: NextRequest) {\n  try {\n    // Get the webhook secret from environment\n    const webhookSecret = process.env.INBOUND_WEBHOOK_SECRET\n    if (!webhookSecret) {\n      throw new Error(\"INBOUND_WEBHOOK_SECRET not configured\")\n    }\n\n    // Get the signature from headers\n    const signature = request.headers.get(\"x-inbound-signature\")\n    if (!signature) {\n      return NextResponse.json(\n        { error: \"Missing signature\" },\n        { status: 401 }\n      )\n    }\n\n    // Get the raw body\n    const body = await request.text()\n\n    // Verify the signature\n    const isValid = verifyWebhookSignature(body, signature, webhookSecret)\n    if (!isValid) {\n      return NextResponse.json(\n        { error: \"Invalid signature\" },\n        { status: 401 }\n      )\n    }\n\n    // Parse and process the verified payload\n    const data = JSON.parse(body)\n    console.log(\"Verified webhook data:\", data)\n\n    // Process your email here\n    // ...\n\n    return NextResponse.json({ success: true })\n  } catch (error) {\n    console.error(\"Webhook verification error:\", error)\n    return NextResponse.json(\n      { error: \"Internal server error\" },\n      { status: 500 }\n    )\n  }\n}\n",
+      "type": "registry:example"
+    }
+  ]
+}

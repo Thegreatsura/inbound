@@ -1,0 +1,20 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "nextjs-handler",
+  "type": "registry:example",
+  "title": "Next.js Inbound Email Handler",
+  "description": "A complete example showing how to handle inbound emails in Next.js using the Inbound API",
+  "dependencies": [],
+  "devDependencies": [],
+  "registryDependencies": [
+    "button",
+    "card"
+  ],
+  "files": [
+    {
+      "path": "registry/new-york/examples/nextjs-handler.tsx",
+      "content": "/**\n * @name nextjs-handler\n * @type registry:example\n * @title Next.js Inbound Email Handler\n * @description A complete example showing how to handle inbound emails in Next.js using the Inbound API\n * @registryDependencies [\"button\", \"card\"]\n */\n\nimport { NextRequest, NextResponse } from \"next/server\"\n\nexport async function POST(request: NextRequest) {\n  try {\n    const body = await request.json()\n\n    // Log the incoming email data\n    console.log(\"Received email:\", {\n      from: body.from,\n      to: body.to,\n      subject: body.subject,\n      timestamp: new Date().toISOString(),\n    })\n\n    // Extract email details\n    const { from, to, subject, html, text, headers } = body\n\n    // Process the email based on your business logic\n    // Example: Route based on recipient\n    if (to.includes(\"support@\")) {\n      // Handle support emails\n      await handleSupportEmail({ from, subject, text })\n    } else if (to.includes(\"sales@\")) {\n      // Handle sales emails\n      await handleSalesEmail({ from, subject, text })\n    }\n\n    // Return success response\n    return NextResponse.json(\n      {\n        success: true,\n        message: \"Email processed successfully\",\n        receivedAt: new Date().toISOString(),\n      },\n      { status: 200 }\n    )\n  } catch (error) {\n    console.error(\"Error processing email:\", error)\n    return NextResponse.json(\n      {\n        success: false,\n        error: \"Failed to process email\",\n      },\n      { status: 500 }\n    )\n  }\n}\n\nasync function handleSupportEmail(email: {\n  from: string\n  subject: string\n  text: string\n}) {\n  // Your support email logic here\n  console.log(\"Processing support email from:\", email.from)\n}\n\nasync function handleSalesEmail(email: {\n  from: string\n  subject: string\n  text: string\n}) {\n  // Your sales email logic here\n  console.log(\"Processing sales email from:\", email.from)\n}\n",
+      "type": "registry:example"
+    }
+  ]
+}

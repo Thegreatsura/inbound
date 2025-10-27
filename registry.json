@@ -1,0 +1,37 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry.json",
+  "name": "inbound",
+  "homepage": "https://inbound.new",
+  "items": [
+    {
+      "name": "nextjs-handler",
+      "type": "registry:example",
+      "title": "Next.js Inbound Email Handler",
+      "description": "A complete example showing how to handle inbound emails in Next.js using the Inbound API",
+      "registryDependencies": ["button", "card"],
+      "dependencies": [],
+      "devDependencies": [],
+      "files": [
+        {
+          "path": "registry/new-york/examples/nextjs-handler.tsx",
+          "type": "registry:example"
+        }
+      ]
+    },
+    {
+      "name": "webhook-verification",
+      "type": "registry:example",
+      "title": "Webhook Signature Verification",
+      "description": "Example showing how to verify webhook signatures from Inbound",
+      "registryDependencies": [],
+      "dependencies": [],
+      "devDependencies": [],
+      "files": [
+        {
+          "path": "registry/new-york/examples/webhook-verification.tsx",
+          "type": "registry:example"
+        }
+      ]
+    }
+  ]
+}
