@@ -5,10 +5,14 @@ export const runtime = "edge";
 /**
  * GET /api/avatar
  * 
- * Fetches user avatar from Gravatar first, falls back to useravatar.vercel.app
+ * Smart avatar fetching with multiple fallbacks:
+ * 1. BIMI (company logos from email domain)
+ * 2. Gravatar (personal avatars)
+ * 3. unavatar.io (aggregated sources)
+ * 4. useravatar.vercel.app (generated initials)
  * 
  * Query params:
- * - email: User's email address (for Gravatar lookup)
+ * - email: User's email address (for all lookups)
  * - name: User's name (for initials fallback)
  * 
  * @example
@@ -27,32 +31,43 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Try Gravatar first if email is provided
+    // Try each service in order if email is provided
     if (email) {
-      const gravatarUrl = await getGravatarUrl(email);
-      
-      try {
-        const gravatarResponse = await fetch(gravatarUrl, {
-          method: "HEAD",
-          signal: AbortSignal.timeout(3000), // 3 second timeout
+      // 1. Try BIMI (company logos)
+      const bimiUrl = await tryBimi(email);
+      if (bimiUrl) {
+        return NextResponse.redirect(bimiUrl, {
+          status: 302,
+          headers: {
+            "Cache-Control": "public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800",
+          },
         });
+      }
 
-        if (gravatarResponse.ok) {
-          // Redirect to Gravatar image with caching
-          return NextResponse.redirect(gravatarUrl, {
-            status: 302,
-            headers: {
-              "Cache-Control": "public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800",
-            },
-          });
-        }
-      } catch (error) {
-        console.warn("Gravatar fetch failed:", error);
-        // Continue to fallback
+      // 2. Try Gravatar
+      const gravatarUrl = await tryGravatar(email);
+      if (gravatarUrl) {
+        return NextResponse.redirect(gravatarUrl, {
+          status: 302,
+          headers: {
+            "Cache-Control": "public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800",
+          },
+        });
+      }
+
+      // 3. Try unavatar (aggregates multiple sources)
+      const unavatarUrl = await tryUnavatar(email);
+      if (unavatarUrl) {
+        return NextResponse.redirect(unavatarUrl, {
+          status: 302,
+          headers: {
+            "Cache-Control": "public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800",
+          },
+        });
       }
     }
 
-    // Fallback to useravatar.vercel.app
+    // 4. Final fallback to useravatar.vercel.app (generated initials)
     const initials = getInitials(name || email || "?");
     const avatarUrl = `https://useravatar.vercel.app/api/logo?text=${encodeURIComponent(
       initials
@@ -74,25 +89,105 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * Generates Gravatar URL for given email
- * Uses SHA-256 hash of email address (via Web Crypto API for edge runtime)
- * Note: Gravatar supports both MD5 and SHA-256 hashes
+ * Try to fetch BIMI logo from email domain
+ * BIMI (Brand Indicators for Message Identification) provides company logos
  */
-async function getGravatarUrl(email: string): Promise<string> {
-  const normalizedEmail = email.trim().toLowerCase();
-  
-  // Use Web Crypto API with SHA-256 (edge runtime compatible)
-  const encoder = new TextEncoder();
-  const data = encoder.encode(normalizedEmail);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-  
-  // Convert buffer to hex string
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  const hash = hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
-  
-  // d=404 returns 404 if no gravatar exists (allows us to detect and fallback)
-  // s=500 sets size to 500px
-  return `https://www.gravatar.com/avatar/${hash}?s=500&d=404`;
+async function tryBimi(email: string): Promise<string | null> {
+  try {
+    const domain = email.split("@")[1];
+    if (!domain) return null;
+
+    // BIMI logos are typically accessed via a well-known URL pattern
+    // Try common BIMI logo locations
+    const bimiUrls = [
+      `https://${domain}/.well-known/bimi/logo.svg`,
+      `https://bimi.${domain}/logo.svg`,
+    ];
+
+    for (const url of bimiUrls) {
+      try {
+        const response = await fetch(url, {
+          method: "HEAD",
+          signal: AbortSignal.timeout(2000),
+        });
+
+        if (response.ok) {
+          return url;
+        }
+      } catch {
+        continue;
+      }
+    }
+
+    return null;
+  } catch (error) {
+    console.warn("BIMI fetch failed:", error);
+    return null;
+  }
+}
+
+/**
+ * Try to fetch Gravatar
+ * Uses SHA-256 hash of email address (Web Crypto API for edge runtime)
+ */
+async function tryGravatar(email: string): Promise<string | null> {
+  try {
+    const normalizedEmail = email.trim().toLowerCase();
+    
+    // Use Web Crypto API with SHA-256 (edge runtime compatible)
+    const encoder = new TextEncoder();
+    const data = encoder.encode(normalizedEmail);
+    const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+    
+    // Convert buffer to hex string
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hash = hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+    
+    // d=404 returns 404 if no gravatar exists
+    const gravatarUrl = `https://www.gravatar.com/avatar/${hash}?s=500&d=404`;
+    
+    const response = await fetch(gravatarUrl, {
+      method: "HEAD",
+      signal: AbortSignal.timeout(3000),
+    });
+
+    if (response.ok) {
+      return gravatarUrl;
+    }
+
+    return null;
+  } catch (error) {
+    console.warn("Gravatar fetch failed:", error);
+    return null;
+  }
+}
+
+/**
+ * Try unavatar.io (aggregates multiple avatar sources)
+ * unavatar checks GitHub, Twitter, Google, and more
+ */
+async function tryUnavatar(email: string): Promise<string | null> {
+  try {
+    // unavatar.io can use email or domain
+    const unavatarUrl = `https://unavatar.io/${encodeURIComponent(email)}`;
+    
+    const response = await fetch(unavatarUrl, {
+      method: "HEAD",
+      signal: AbortSignal.timeout(3000),
+    });
+
+    // unavatar returns 200 even for fallbacks, so check content-type
+    const contentType = response.headers.get("content-type");
+    
+    if (response.ok && contentType?.startsWith("image/")) {
+      return unavatarUrl;
+    }
+
+    return null;
+  } catch (error) {
+    console.warn("unavatar fetch failed:", error);
+    return null;
+  }
 }
 
 /**

@@ -17,11 +17,13 @@ import Globe2 from "@/components/icons/globe-2"
 import Image2 from "@/components/icons/image-2"
 
 export const metadata: Metadata = {
-  title: 'Free Avatar API - Gravatar with Fallback | inbound',
-  description: 'Free avatar API that tries Gravatar first, then falls back to generated initials. Fast, cached, and completely free. No API key required.',
+  title: 'Free Avatar API - BIMI, Gravatar & Smart Fallbacks | inbound',
+  description: 'Free avatar API with cascading sources: BIMI company logos, Gravatar, unavatar.io, and generated initials. Fast, cached, and completely free. No API key required.',
   keywords: [
     'avatar API',
     'gravatar API',
+    'BIMI API',
+    'unavatar API',
     'profile picture API',
     'user avatar API',
     'free avatar API',
@@ -33,18 +35,20 @@ export const metadata: Metadata = {
     'profile picture generator',
     'user avatar service',
     'gravatar alternative',
-    'avatar API free'
+    'avatar API free',
+    'company logo API',
+    'brand avatar API'
   ],
   openGraph: {
-    title: 'Free Avatar API - Gravatar with Intelligent Fallback',
-    description: 'Free avatar API that tries Gravatar first, then falls back to generated initials. Fast, cached, and completely free.',
+    title: 'Free Avatar API - BIMI, Gravatar & Smart Fallbacks',
+    description: 'Free avatar API with cascading sources: BIMI company logos, Gravatar, unavatar.io, and generated initials. Fast, cached, and completely free.',
     type: 'website',
     url: 'https://inbound.new/avatar-api',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Free Avatar API - Gravatar with Intelligent Fallback',
-    description: 'Free avatar API that tries Gravatar first, then falls back to generated initials. Fast, cached, and completely free.',
+    title: 'Free Avatar API - BIMI, Gravatar & Smart Fallbacks',
+    description: 'Free avatar API with cascading sources: BIMI company logos, Gravatar, unavatar.io, and generated initials.',
   },
   alternates: {
     canonical: 'https://inbound.new/avatar-api'
@@ -71,11 +75,11 @@ export default async function AvatarAPIPage() {
             <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6 leading-tight">
               Free Avatar API
               <br />
-              <span className="text-[#1C2894]">Gravatar + Fallback</span>
+              <span className="text-[#1C2894]">4 Cascading Sources</span>
             </h1>
             <p className="text-xl text-gray-600 mb-4 max-w-2xl mx-auto leading-relaxed">
-              Smart avatar API that tries Gravatar first, then generates beautiful initials as fallback. 
-              Fast, cached, and completely free. No API key required.
+              Smart avatar API with cascading fallbacks: BIMI company logos, Gravatar profiles, unavatar.io aggregation, 
+              and beautiful generated initials. Fast, cached, and completely free. No API key required.
             </p>
 
             <div className="flex flex-col sm:flex-row items-center gap-4 max-w-md mx-auto mt-8">
@@ -144,42 +148,57 @@ export default async function AvatarAPIPage() {
 
           {/* How It Works */}
           <div className="mb-32">
-            <h2 className="text-3xl font-bold text-gray-900 mb-12">How It Works</h2>
+            <h2 className="text-3xl font-bold text-gray-900 mb-12">Cascading Avatar Strategy</h2>
             
-            <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-              {/* Step 1 */}
-              <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-8 border border-blue-200">
-                <div className="w-16 h-16 bg-blue-600 rounded-xl flex items-center justify-center mx-auto mb-6">
-                  <Globe2 width="32" height="32" className="text-white" />
+            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
+              {/* Step 1 - BIMI */}
+              <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-xl p-6 border border-indigo-200">
+                <div className="w-14 h-14 bg-indigo-600 rounded-xl flex items-center justify-center mx-auto mb-4">
+                  <ShieldCheck width="28" height="28" className="text-white" />
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-3">1. Try Gravatar</h3>
-                <p className="text-gray-600">
-                  First, we check if the user has a Gravatar profile photo using their email address (SHA-256 hash).
+                <h3 className="text-lg font-bold text-gray-900 mb-2">1. BIMI</h3>
+                <p className="text-gray-600 text-sm">
+                  Check for company logos via BIMI (Brand Indicators for Message Identification).
                 </p>
               </div>
 
-              {/* Step 2 */}
-              <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-8 border border-purple-200">
-                <div className="w-16 h-16 bg-purple-600 rounded-xl flex items-center justify-center mx-auto mb-6">
-                  <CircleUser width="32" height="32" className="text-white" />
+              {/* Step 2 - Gravatar */}
+              <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-6 border border-blue-200">
+                <div className="w-14 h-14 bg-blue-600 rounded-xl flex items-center justify-center mx-auto mb-4">
+                  <Globe2 width="28" height="28" className="text-white" />
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-3">2. Generate Fallback</h3>
-                <p className="text-gray-600">
-                  If no Gravatar exists, we generate a beautiful avatar with initials from the user's name or email.
+                <h3 className="text-lg font-bold text-gray-900 mb-2">2. Gravatar</h3>
+                <p className="text-gray-600 text-sm">
+                  Check if the user has a Gravatar profile using SHA-256 hash of their email.
                 </p>
               </div>
 
-              {/* Step 3 */}
-              <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-8 border border-green-200">
-                <div className="w-16 h-16 bg-green-600 rounded-xl flex items-center justify-center mx-auto mb-6">
-                  <BoltLightning width="32" height="32" className="text-white" />
+              {/* Step 3 - unavatar */}
+              <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-6 border border-purple-200">
+                <div className="w-14 h-14 bg-purple-600 rounded-xl flex items-center justify-center mx-auto mb-4">
+                  <CircleUser width="28" height="28" className="text-white" />
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-3">3. Cache & Serve</h3>
-                <p className="text-gray-600">
-                  Results are cached for 24 hours with smart revalidation for lightning-fast subsequent requests.
+                <h3 className="text-lg font-bold text-gray-900 mb-2">3. unavatar</h3>
+                <p className="text-gray-600 text-sm">
+                  Try unavatar.io which aggregates GitHub, Twitter, Google, and other sources.
+                </p>
+              </div>
+
+              {/* Step 4 - Generated */}
+              <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-6 border border-green-200">
+                <div className="w-14 h-14 bg-green-600 rounded-xl flex items-center justify-center mx-auto mb-4">
+                  <BoltLightning width="28" height="28" className="text-white" />
+                </div>
+                <h3 className="text-lg font-bold text-gray-900 mb-2">4. Initials</h3>
+                <p className="text-gray-600 text-sm">
+                  Generate beautiful initials avatar with smart name parsing and clean design.
                 </p>
               </div>
             </div>
+            
+            <p className="text-center text-gray-500 text-sm mt-6">
+              All results cached for 24 hours with 7-day stale-while-revalidate
+            </p>
           </div>
 
           {/* API Usage */}
@@ -252,27 +271,34 @@ function ProfileCard({ user }) {
               {/* API Parameters */}
               <div className="bg-gray-900 rounded-xl overflow-hidden">
                 <div className="px-6 py-4 border-b border-gray-800">
-                  <h3 className="text-white font-semibold">API Parameters</h3>
+                  <h3 className="text-white font-semibold">API Parameters & Cascade Order</h3>
                 </div>
                 <div className="p-6 font-mono text-sm">
                   <pre className="text-gray-300 whitespace-pre-wrap">
 {`GET https://inbound.new/api/avatar
 
 Query Parameters:
-  email  - User's email (for Gravatar lookup) - Optional
+  email  - User's email (triggers all lookups) - Optional
   name   - User's name (for initials fallback) - Optional
   
 At least one parameter is required.
 
+Cascade Order (with email):
+  1. BIMI - Company logo from domain
+  2. Gravatar - Personal avatar (SHA-256)
+  3. unavatar.io - GitHub, Twitter, Google, etc.
+  4. Generated - Beautiful initials
+
 Response:
   - 302 Redirect to the avatar image
-  - 24-hour cache headers
+  - 24-hour cache (max-age + s-maxage)
   - 7-day stale-while-revalidate
+  - Edge runtime for global speed
 
 Example URLs:
   /api/avatar?email=user@example.com&name=John Doe
   /api/avatar?name=Jane Smith
-  /api/avatar?email=support@company.com`}
+  /api/avatar?email=ceo@company.com`}
                   </pre>
                 </div>
               </div>
