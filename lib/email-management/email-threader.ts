@@ -1,6 +1,7 @@
 /**
  * EmailThreader - Core email threading system
- * Handles conversation threading based on RFC 2822 standards with fallback mechanisms
+ * Handles conversation threading based on RFC 5322 standards
+ * Uses In-Reply-To and References headers to determine thread relationships
  * Processes emails to determine thread relationships and maintains thread metadata
  */
 
@@ -36,35 +37,31 @@ export class EmailThreader {
    */
   static async processEmailForThreading(emailId: string, userId: string): Promise<ThreadingResult> {
     console.log(`🧵 EmailThreader - Processing email ${emailId} for threading`)
-    
+
     // Get email data
     const email = await this.getEmailData(emailId, userId)
     if (!email) {
       throw new Error(`Email ${emailId} not found`)
     }
-    
+
     console.log(`📧 Processing email: messageId=${email.messageId}, subject="${email.subject}"`)
-    
-    // Step 1: Try to find existing thread by Message-ID references
+
+    // RFC 5322 compliant threading: ONLY use In-Reply-To and References headers
+    // Subject-based threading is removed to prevent false positives
     let threadId = await this.findExistingThreadByHeaders(email, userId)
-    
-    // Step 2: Try subject-based threading as fallback (only for emails without threading headers)
-    if (!threadId && !email.inReplyTo && !email.references) {
-      threadId = await this.findExistingThreadBySubject(email, userId)
-    }
-    
-    // Step 3: Create new thread if none found
+
+    // Create new thread if none found (no fallback to subject matching)
     let isNewThread = false
     if (!threadId) {
       threadId = await this.createNewThread(email, userId)
       isNewThread = true
     }
-    
-    // Step 4: Add email to thread and get position
+
+    // Add email to thread and get position
     const threadPosition = await this.addEmailToThread(threadId, emailId, email, userId)
-    
+
     console.log(`✅ Email ${emailId} assigned to thread ${threadId} at position ${threadPosition}`)
-    
+
     return {
       threadId,
       threadPosition,
@@ -103,19 +100,17 @@ export class EmailThreader {
   
   /**
    * Find existing thread by analyzing Message-ID headers (In-Reply-To, References)
+   * RFC 5322 compliant threading: uses In-Reply-To and References headers only
    */
   private static async findExistingThreadByHeaders(email: EmailData, userId: string): Promise<string | null> {
     const messageIds = new Set<string>()
-    
-    // Collect all potential thread message IDs (keep brackets since DB stores them with brackets)
-    if (email.messageId) {
-      messageIds.add(email.messageId)
-    }
-    
+
+    // Collect Message-IDs from In-Reply-To header (direct parent)
     if (email.inReplyTo) {
       messageIds.add(email.inReplyTo)
     }
-    
+
+    // Collect Message-IDs from References header (full thread chain)
     if (email.references) {
       try {
         // Handle both JSON array format and space-separated format
@@ -125,7 +120,7 @@ export class EmailThreader {
         } else {
           refs = email.references.split(/\s+/)
         }
-        
+
         refs.forEach(ref => {
           if (ref.trim()) messageIds.add(ref.trim())
         })
@@ -133,9 +128,12 @@ export class EmailThreader {
         console.error('Failed to parse references:', e)
       }
     }
-    
-    if (messageIds.size === 0) return null
-    
+
+    if (messageIds.size === 0) {
+      console.log(`🔍 No In-Reply-To or References headers found - will create new thread`)
+      return null
+    }
+
     console.log(`🔍 Looking for existing thread with message IDs:`, Array.from(messageIds))
     
     // Look for existing emails with these message IDs that already have thread assignments
@@ -185,7 +183,12 @@ export class EmailThreader {
   }
   
   /**
-   * Find existing thread by normalized subject (fallback method)
+   * Find existing thread by normalized subject
+   *
+   * ⚠️ WARNING: This method is NO LONGER USED and kept only for reference.
+   * Subject-based threading causes false positives when unrelated emails
+   * have the same subject line. RFC 5322 threading should only use
+   * In-Reply-To and References headers.
    */
   private static async findExistingThreadBySubject(email: EmailData, userId: string): Promise<string | null> {
     if (!email.subject) return null
