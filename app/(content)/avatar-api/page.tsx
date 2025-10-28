@@ -332,25 +332,25 @@ Example URLs:
                 </p>
               </div>
 
-              {/* Smart Fallback */}
+              {/* Multi-Source */}
               <div className="text-center p-6">
                 <div className="w-16 h-16 bg-purple-100 rounded-xl flex items-center justify-center mx-auto mb-4">
                   <CircleUser width="32" height="32" className="text-purple-600" />
                 </div>
-                <h3 className="text-lg font-bold text-gray-900 mb-3">Smart Fallback</h3>
+                <h3 className="text-lg font-bold text-gray-900 mb-3">4 Avatar Sources</h3>
                 <p className="text-gray-600 text-sm">
-                  Automatically generates beautiful initials when Gravatar isn't available.
+                  BIMI company logos, Gravatar profiles, unavatar.io aggregation, and generated initials.
                 </p>
               </div>
 
-              {/* Gravatar Compatible */}
+              {/* Universal Coverage */}
               <div className="text-center p-6">
                 <div className="w-16 h-16 bg-indigo-100 rounded-xl flex items-center justify-center mx-auto mb-4">
                   <Globe2 width="32" height="32" className="text-indigo-600" />
                 </div>
-                <h3 className="text-lg font-bold text-gray-900 mb-3">Gravatar Support</h3>
+                <h3 className="text-lg font-bold text-gray-900 mb-3">Universal Coverage</h3>
                 <p className="text-gray-600 text-sm">
-                  Respects existing Gravatar profiles while providing seamless fallback.
+                  Checks multiple sources including GitHub, Twitter, Google, and more via unavatar.io.
                 </p>
               </div>
 
@@ -486,6 +486,19 @@ Example URLs:
             <div className="bg-gray-50 rounded-xl p-8 border border-gray-200 max-w-4xl mx-auto text-left">
               <div className="space-y-6">
                 <div>
+                  <h4 className="font-bold text-gray-900 mb-2">Cascading Avatar Sources</h4>
+                  <p className="text-gray-600 text-sm">
+                    • <strong>BIMI:</strong> Company logos via Brand Indicators (2s timeout)
+                    <br />
+                    • <strong>Gravatar:</strong> SHA-256 hashed email lookups (3s timeout)
+                    <br />
+                    • <strong>unavatar.io:</strong> GitHub, Twitter, Google aggregation (3s timeout)
+                    <br />
+                    • <strong>Generated:</strong> Beautiful initials via useravatar.vercel.app
+                  </p>
+                </div>
+
+                <div>
                   <h4 className="font-bold text-gray-900 mb-2">Caching Strategy</h4>
                   <p className="text-gray-600 text-sm">
                     • Browser cache: 24 hours (max-age=86400)
@@ -497,24 +510,15 @@ Example URLs:
                 </div>
 
                 <div>
-                  <h4 className="font-bold text-gray-900 mb-2">Gravatar Integration</h4>
+                  <h4 className="font-bold text-gray-900 mb-2">Image Quality</h4>
                   <p className="text-gray-600 text-sm">
-                    • Uses SHA-256 hashing (edge runtime compatible)
+                    • BIMI: Vector logos (SVG) from company domains
                     <br />
-                    • 3-second timeout for Gravatar checks
+                    • Gravatar: 500×500px raster images
                     <br />
-                    • Seamless fallback if Gravatar unavailable
-                  </p>
-                </div>
-
-                <div>
-                  <h4 className="font-bold text-gray-900 mb-2">Fallback Generation</h4>
-                  <p className="text-gray-600 text-sm">
-                    • Powered by useravatar.vercel.app
+                    • unavatar.io: High-quality profile pictures
                     <br />
-                    • 500×500px high-quality images
-                    <br />
-                    • Clean Inter font for readability
+                    • Generated: 500×500px with Inter font
                   </p>
                 </div>
 
@@ -524,6 +528,8 @@ Example URLs:
                     • Runs on Vercel Edge Network
                     <br />
                     • Global CDN distribution
+                    <br />
+                    • Parallel timeout handling
                     <br />
                     • Sub-100ms response times
                   </p>
