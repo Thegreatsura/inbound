@@ -960,13 +960,31 @@ export default function LogsPage() {
               )
             })}
             {/* Infinite scroll sentinel */}
-            <div ref={sentinelRef as any} className="h-12 flex items-center justify-center">
-              {isFetchingNextPage && (
-                <div className="text-muted-foreground text-sm">Loading more…</div>
-              )}
-            </div>
+            <div ref={sentinelRef as any} className="h-1" />
           </div>
             </div>
+            
+            {/* Load More Button */}
+            {hasNextPage && (
+              <div className="mt-6 flex justify-center">
+                <Button
+                  variant="outline"
+                  size="lg"
+                  onClick={() => fetchNextPage()}
+                  disabled={isFetchingNextPage}
+                  className="min-w-[200px]"
+                >
+                  {isFetchingNextPage ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin mr-2" />
+                      Loading...
+                    </>
+                  ) : (
+                    'Load More'
+                  )}
+                </Button>
+              </div>
+            )}
           </>
         )}
       </div>
