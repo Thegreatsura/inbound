@@ -116,23 +116,60 @@ export async function POST(
     const endpoint = endpointRecord[0]
     console.log(`📤 Resend email - Target endpoint: ${endpoint.name} (${endpoint.type})`)
 
-    // Create a new delivery record
-    const deliveryId = nanoid()
+    // Check if a delivery record already exists for this email + endpoint combination
+    const existingDelivery = await db
+      .select({
+        id: endpointDeliveries.id,
+        attempts: endpointDeliveries.attempts,
+      })
+      .from(endpointDeliveries)
+      .where(
+        and(
+          eq(endpointDeliveries.emailId, email.emailId),
+          eq(endpointDeliveries.endpointId, endpoint.id)
+        )
+      )
+      .limit(1)
+
     const now = new Date()
+    let deliveryId: string
 
-    await db.insert(endpointDeliveries).values({
-      id: deliveryId,
-      emailId: email.emailId, // Use the actual emailId for consistency
-      endpointId: endpoint.id,
-      deliveryType: endpoint.type,
-      status: 'pending',
-      attempts: 1,
-      lastAttemptAt: now,
-      createdAt: now,
-      updatedAt: now,
-    })
+    if (existingDelivery[0]) {
+      // Update existing delivery record for resend
+      deliveryId = existingDelivery[0].id
+      const currentAttempts = existingDelivery[0].attempts || 0
 
-    console.log(`📤 Resend email - Created delivery record ${deliveryId}`)
+      await db
+        .update(endpointDeliveries)
+        .set({
+          status: 'pending',
+          attempts: currentAttempts + 1,
+          lastAttemptAt: now,
+          updatedAt: now,
+          // Clear previous response data for fresh resend
+          responseData: null,
+        })
+        .where(eq(endpointDeliveries.id, deliveryId))
+
+      console.log(`📤 Resend email - Updated existing delivery record ${deliveryId} (attempt ${currentAttempts + 1})`)
+    } else {
+      // Create a new delivery record if none exists
+      deliveryId = nanoid()
+
+      await db.insert(endpointDeliveries).values({
+        id: deliveryId,
+        emailId: email.emailId, // Use the actual emailId for consistency
+        endpointId: endpoint.id,
+        deliveryType: endpoint.type,
+        status: 'pending',
+        attempts: 1,
+        lastAttemptAt: now,
+        createdAt: now,
+        updatedAt: now,
+      })
+
+      console.log(`📤 Resend email - Created new delivery record ${deliveryId}`)
+    }
 
     try {
       // Use a targeted delivery approach similar to the email router
