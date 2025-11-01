@@ -17,12 +17,26 @@ export async function GET() {
   end.setUTCHours(23, 59, 59, 999)
 
   // Aggregate totals
+  // Note: structured_emails.from_data is JSON text with structure: { text: string, addresses: Array<{name: string|null, address: string|null}> }
+  // - unique_senders: distinct senders FROM received emails (extracted from from_data JSON)
+  // - unique_recipients: distinct recipient addresses we received emails FOR (from recipient field)
   const totalsRes = await db.execute(sql`
     SELECT
       (SELECT COUNT(*) FROM sent_emails WHERE created_at BETWEEN ${start} AND ${end})::int AS sent,
-      (SELECT COUNT(*) FROM received_emails WHERE created_at BETWEEN ${start} AND ${end})::int AS received,
-      (SELECT COUNT(DISTINCT from_address) FROM sent_emails WHERE created_at BETWEEN ${start} AND ${end})::int AS unique_senders,
-      (SELECT COUNT(DISTINCT recipient) FROM received_emails WHERE created_at BETWEEN ${start} AND ${end})::int AS unique_recipients
+      (SELECT COUNT(*) FROM structured_emails WHERE created_at BETWEEN ${start} AND ${end})::int AS received,
+      (SELECT COUNT(DISTINCT 
+        CASE 
+          WHEN from_data IS NOT NULL AND (from_data::jsonb->'addresses') IS NOT NULL 
+            AND jsonb_array_length(from_data::jsonb->'addresses') > 0
+          THEN (from_data::jsonb->'addresses'->0->>'address')
+          ELSE NULL
+        END
+      ) FROM structured_emails 
+      WHERE created_at BETWEEN ${start} AND ${end}
+        AND from_data IS NOT NULL)::int AS unique_senders,
+      (SELECT COUNT(DISTINCT recipient) FROM structured_emails 
+      WHERE created_at BETWEEN ${start} AND ${end}
+        AND recipient IS NOT NULL)::int AS unique_recipients
   `)
   const totalsRow: any = totalsRes.rows[0] || { sent: 0, received: 0, unique_senders: 0, unique_recipients: 0 }
 
@@ -43,7 +57,7 @@ export async function GET() {
     ) s ON s.user_id = u.id
     LEFT JOIN (
       SELECT user_id, COUNT(*) AS received
-      FROM received_emails
+      FROM structured_emails
       WHERE created_at BETWEEN ${start} AND ${end}
       GROUP BY user_id
     ) r ON r.user_id = u.id
