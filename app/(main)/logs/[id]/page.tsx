@@ -11,7 +11,7 @@ import {
   endpoints,
   sesEvents,
 } from "@/lib/db/schema";
-import { and, eq, desc } from "drizzle-orm";
+import { and, eq, desc, asc } from "drizzle-orm";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,10 +26,14 @@ import ArchiveExport from "@/components/icons/archive-export";
 import ShieldCheck from "@/components/icons/shield-check";
 import ShieldAlert from "@/components/icons/shield-alert";
 import Ban2 from "@/components/icons/ban-2";
-import Hashtag2 from "@/components/icons/hashtag-2";
 import ArrowBoldLeft from "@/components/icons/arrow-bold-left";
+import Envelope2 from "@/components/icons/envelope-2";
+import CircleUser from "@/components/icons/circle-user";
+import CircleCheck from "@/components/icons/circle-check";
+import CircleXmark from "@/components/icons/circle-xmark";
+import CircleWarning2 from "@/components/icons/circle-warning-2";
 
-import { format } from "date-fns";
+import { format, formatDistanceToNow } from "date-fns";
 
 import type { GetMailByIdResponse } from "@/app/api/v2/mail/[id]/route";
 import type { GetEmailByIdResponse } from "@/app/api/v2/emails/[id]/route";
@@ -41,6 +45,9 @@ import { ResendEmailDialog } from "@/components/logs/resend-email-dialog";
 import { CodeBlock } from "@/components/ui/code-block";
 import ArrowBoldRight from "@/components/icons/arrow-bold-right";
 import FolderLink from "@/components/icons/folder-link";
+import ChatBubble2 from "@/components/icons/chat-bubble-2";
+import { CopyButton } from "@/components/copy-button";
+import { CopyIdInline } from "@/components/logs/copy-id-inline";
 
 export default async function LogDetailPage({
   params,
@@ -57,7 +64,10 @@ export default async function LogDetailPage({
 
   // Determine if this ID corresponds to an inbound (structuredEmails) or outbound (sentEmails) record
   const [inbound] = await db
-    .select({ id: structuredEmails.id })
+    .select({ 
+      id: structuredEmails.id,
+      threadId: structuredEmails.threadId
+    })
     .from(structuredEmails)
     .where(
       and(eq(structuredEmails.id, id), eq(structuredEmails.userId, userId))
@@ -65,15 +75,24 @@ export default async function LogDetailPage({
     .limit(1);
 
   let type: "inbound" | "outbound" | null = null;
+  let currentThreadId: string | null = null;
+  
   if (inbound) {
     type = "inbound";
+    currentThreadId = inbound.threadId;
   } else {
     const [outbound] = await db
-      .select({ id: sentEmails.id })
+      .select({ 
+        id: sentEmails.id,
+        threadId: sentEmails.threadId
+      })
       .from(sentEmails)
       .where(and(eq(sentEmails.id, id), eq(sentEmails.userId, userId)))
       .limit(1);
-    if (outbound) type = "outbound";
+    if (outbound) {
+      type = "outbound";
+      currentThreadId = outbound.threadId;
+    }
   }
 
   if (!type) {
@@ -127,6 +146,7 @@ export default async function LogDetailPage({
         emailId: structuredEmails.emailId,
         messageId: structuredEmails.messageId,
         subject: structuredEmails.subject,
+        threadId: structuredEmails.threadId,
         fromData: structuredEmails.fromData,
         toData: structuredEmails.toData,
         ccData: structuredEmails.ccData,
@@ -337,6 +357,7 @@ export default async function LogDetailPage({
         providerResponse: sentEmails.providerResponse,
         failureReason: sentEmails.failureReason,
         sentAt: sentEmails.sentAt,
+        threadId: sentEmails.threadId,
       })
       .from(sentEmails)
       .where(and(eq(sentEmails.id, id), eq(sentEmails.userId, userId)))
@@ -395,6 +416,106 @@ export default async function LogDetailPage({
 
   const isInbound = type === "inbound";
 
+  // Fetch all emails in the thread (excluding current email)
+  let threadMembers: Array<{
+    id: string;
+    type: "inbound" | "outbound";
+    order: number;
+    from: string;
+    to: string;
+    timestamp: Date | null;
+    isCurrent: boolean;
+  }> = [];
+
+  if (currentThreadId) {
+    // Get inbound emails in thread
+    const inboundThreadEmails = await db
+      .select({
+        id: structuredEmails.id,
+        subject: structuredEmails.subject,
+        createdAt: structuredEmails.createdAt,
+        date: structuredEmails.date,
+        threadPosition: structuredEmails.threadPosition,
+        fromData: structuredEmails.fromData,
+        toData: structuredEmails.toData,
+      })
+      .from(structuredEmails)
+      .where(
+        and(
+          eq(structuredEmails.threadId, currentThreadId),
+          eq(structuredEmails.userId, userId)
+        )
+      )
+      .orderBy(asc(structuredEmails.threadPosition));
+
+    // Get outbound emails in thread
+    const outboundThreadEmails = await db
+      .select({
+        id: sentEmails.id,
+        subject: sentEmails.subject,
+        createdAt: sentEmails.createdAt,
+        sentAt: sentEmails.sentAt,
+        threadPosition: sentEmails.threadPosition,
+        from: sentEmails.from,
+        to: sentEmails.to,
+      })
+      .from(sentEmails)
+      .where(
+        and(
+          eq(sentEmails.threadId, currentThreadId),
+          eq(sentEmails.userId, userId)
+        )
+      )
+      .orderBy(asc(sentEmails.threadPosition));
+
+    // Combine and include current email; sort by threadPosition where available, fallback to time
+    const combined = [
+      ...inboundThreadEmails.map((e) => {
+        let fromText = "Unknown";
+        let toText = "Unknown";
+        try {
+          const fromParsed = e.fromData ? JSON.parse(e.fromData as unknown as string) : null;
+          const toParsed = e.toData ? JSON.parse(e.toData as unknown as string) : null;
+          fromText = fromParsed?.text || fromParsed?.addresses?.[0]?.address || fromText;
+          toText = toParsed?.text || toParsed?.addresses?.[0]?.address || toText;
+        } catch {}
+        return {
+          id: e.id,
+          type: "inbound" as const,
+          order: e.threadPosition || 0,
+          from: fromText,
+          to: toText,
+          timestamp: e.date || e.createdAt || null,
+          isCurrent: e.id === id,
+        };
+      }),
+      ...outboundThreadEmails.map((e) => {
+        let toAddresses: string[] = [];
+        try {
+          toAddresses = e.to ? JSON.parse(e.to as unknown as string) : [];
+        } catch {}
+        return {
+          id: e.id,
+          type: "outbound" as const,
+          order: e.threadPosition || 0,
+          from: e.from || "Unknown",
+          to: toAddresses[0] || "Unknown",
+          timestamp: e.sentAt || e.createdAt || null,
+          isCurrent: e.id === id,
+        };
+      }),
+    ];
+
+    threadMembers = combined
+      .sort((a, b) => {
+        if (a.order && b.order && a.order !== b.order) return a.order - b.order;
+        const da = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+        const db = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+        return da - db;
+      })
+      .map((m, idx) => ({ ...m, order: m.order || idx + 1 }));
+  }
+
   return (
     <div className="p-4">
       <div className="max-w-6xl mx-auto">
@@ -409,133 +530,272 @@ export default async function LogDetailPage({
 
         <Card className="rounded-xl overflow-hidden mb-4">
           <CardContent className="p-6">
-            <div className="flex items-start justify-between gap-4">
-              <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  {isInbound ? (
-                    <ArchiveDownload
-                      width="16"
-                      height="16"
-                      className="text-purple-600"
-                    />
-                  ) : (
-                    <ArchiveExport
-                      width="16"
-                      height="16"
-                      className="text-blue-600"
-                    />
-                  )}
-                  <h1 className="text-xl font-semibold tracking-tight">
-                    {(isInbound
-                      ? inboundDetails?.subject
-                      : outboundDetails?.subject) || "No Subject"}
-                  </h1>
+            {/* Subject Header */}
+            <div className="flex items-center gap-2 mb-6">
+              <h1 className="text-2xl font-semibold tracking-tight">
+                {(isInbound
+                  ? inboundDetails?.subject
+                  : outboundDetails?.subject) || "No Subject"}
+              </h1>
+            </div>
+
+            {/* Email Flow - Simplified Card Layout */}
+            <div className="flex items-stretch gap-3 overflow-x-auto">
+              {/* From Card */}
+              <div className="flex items-center gap-3 bg-purple-50 border border-purple-200 rounded-lg px-4 py-3 min-w-fit">
+                <div className="w-8 h-8 rounded-full flex items-center justify-center bg-purple-100 border border-purple-300 flex-shrink-0">
+                  <CircleUser width="14" height="14" className="text-purple-600" />
                 </div>
-
-                {/* Email Flow Cards */}
-                <div className="flex items-center overflow-x-auto">
-                  {/* From Card */}
-                  <div className="flex-shrink-0 relative">
-                    <div className="bg-card border border-purple-200 rounded p-2 min-w-[100px]">
-                      <div className="text-xs text-purple-600 font-medium">
-                        From
-                      </div>
-                      <div className="text-sm font-medium text-foreground truncate">
-                        {(isInbound
-                          ? inboundDetails?.from
-                          : outboundDetails?.from) || "unknown"}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Connecting Line and Arrow */}
-                  <div className="flex-shrink-0 relative flex items-center">
-                    <div className="w-8 h-px bg-border"></div>
-                    <div className="text-muted-foreground -ml-1">
-                      <svg
-                        width="16"
-                        height="16"
-                        viewBox="0 0 16 16"
-                        fill="currentColor"
-                      >
-                        <path d="M6 4l4 4-4 4V4z" />
-                      </svg>
-                    </div>
-                    <div className="w-8 h-px bg-border -ml-1"></div>
-                  </div>
-
-                  {/* To Card */}
-                  <div className="flex-shrink-0 relative">
-                    <div className="bg-card border border-blue-200 rounded p-2 min-w-[100px]">
-                      <div className="text-xs text-blue-600 font-medium">
-                        To
-                      </div>
-                      <div className="text-sm font-medium text-foreground truncate">
-                        {isInbound
-                          ? inboundDetails?.recipient
-                          : outboundDetails?.to?.[0] || "unknown"}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Connecting Line, Arrow and Endpoint for inbound emails with deliveries */}
-                  {isInbound &&
-                    inboundDetails?.deliveries &&
-                    inboundDetails.deliveries.length > 0 && (
-                    <>
-                      <div className="flex-shrink-0 relative flex items-center">
-                        <div className="w-8 h-px bg-border"></div>
-                        <div className="text-muted-foreground -ml-1">
-                            <svg
-                              width="16"
-                              height="16"
-                              viewBox="0 0 16 16"
-                              fill="currentColor"
-                            >
-                              <path d="M6 4l4 4-4 4V4z" />
-                          </svg>
-                        </div>
-                        <div className="w-8 h-px bg-border -ml-1"></div>
-                      </div>
-
-                      <div className="flex-shrink-0 relative">
-                          <div
-                            className={`bg-card border rounded p-2 min-w-[100px] ${
-                              inboundDetails.deliveries[0]?.status === "success"
-                                ? "border-green-200"
-                                : inboundDetails.deliveries[0]?.status ===
-                                    "failed"
-                                  ? "border-red-200"
-                                  : "border-yellow-200"
-                            }`}
-                          >
-                            <div
-                              className={`text-xs font-medium ${
-                                inboundDetails.deliveries[0]?.status ===
-                                "success"
-                                  ? "text-green-600"
-                                  : inboundDetails.deliveries[0]?.status ===
-                                      "failed"
-                                    ? "text-red-600"
-                                    : "text-yellow-600"
-                              }`}
-                            >
-                              {inboundDetails.deliveries[0]?.config?.name ||
-                                "Webhook"}
-                          </div>
-                          <div className="text-sm font-medium text-foreground capitalize">
-                              {inboundDetails.deliveries[0]?.status ||
-                                "pending"}
-                          </div>
-                        </div>
-                      </div>
-                    </>
-                  )}
+                <div className="flex flex-col">
+                  <span className="text-xs font-medium text-purple-600 mb-0.5">From</span>
+                  <span className="text-sm font-semibold text-foreground">
+                    {(isInbound ? inboundDetails?.from : outboundDetails?.from) || "unknown"}
+                  </span>
                 </div>
               </div>
+
+              {/* Arrow */}
+              <div className="flex items-center flex-shrink-0">
+                <ArrowBoldRight width="20" height="20" className="text-muted-foreground" />
+              </div>
+
+              {/* To Card */}
+              <div className={`flex items-center gap-3 rounded-lg px-4 py-3 min-w-fit border-2 ${
+                isInbound 
+                  ? 'bg-purple-500 border-purple-600'
+                  : 'bg-blue-500 border-blue-600'
+              }`}>
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                  isInbound ? 'bg-purple-600' : 'bg-blue-600'
+                }`}>
+                  <Envelope2 width="14" height="14" className="text-white" />
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xs font-medium text-white/90 mb-0.5">To</span>
+                  <span className="text-sm font-semibold text-white">
+                    {isInbound
+                      ? inboundDetails?.recipient
+                      : outboundDetails?.to?.[0] || "unknown"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Endpoint Card (for inbound with deliveries) */}
+              {isInbound &&
+                inboundDetails?.deliveries &&
+                inboundDetails.deliveries.length > 0 && (
+                <>
+                  {/* Arrow */}
+                  <div className="flex items-center flex-shrink-0">
+                    <ArrowBoldRight width="20" height="20" className="text-muted-foreground" />
+                  </div>
+
+                  <div className={`flex items-center gap-3 rounded-lg px-4 py-3 min-w-fit border ${
+                    inboundDetails.deliveries[0]?.status === "success"
+                      ? "bg-green-50 border-green-200"
+                      : inboundDetails.deliveries[0]?.status === "failed"
+                        ? "bg-red-50 border-red-200"
+                        : "bg-yellow-50 border-yellow-200"
+                  }`}>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 border ${
+                      inboundDetails.deliveries[0]?.status === "success"
+                        ? "bg-green-100 border-green-300"
+                        : inboundDetails.deliveries[0]?.status === "failed"
+                          ? "bg-red-100 border-red-300"
+                          : "bg-yellow-100 border-yellow-300"
+                    }`}>
+                      {inboundDetails.deliveries[0]?.status === "success" ? (
+                        <CircleCheck width="14" height="14" className="text-green-600" />
+                      ) : inboundDetails.deliveries[0]?.status === "failed" ? (
+                        <CircleXmark width="14" height="14" className="text-red-600" />
+                      ) : (
+                        <CircleWarning2 width="14" height="14" className="text-yellow-600" />
+                      )}
+                    </div>
+                    <div className="flex flex-col">
+                      <span className={`text-xs font-medium mb-0.5 ${
+                        inboundDetails.deliveries[0]?.status === "success"
+                          ? "text-green-600"
+                          : inboundDetails.deliveries[0]?.status === "failed"
+                            ? "text-red-600"
+                            : "text-yellow-600"
+                      }`}>
+                        {inboundDetails.deliveries[0]?.config?.name || "Webhook"}
+                      </span>
+                      <span className="text-sm font-semibold text-foreground capitalize">
+                        {inboundDetails.deliveries[0]?.status || "pending"}
+                      </span>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </CardContent>
         </Card>
+
+        {/* Thread Information Card */}
+        {currentThreadId && threadMembers.length > 0 && (
+          <Card className="rounded-xl overflow-hidden mb-4">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-2">
+                  <ChatBubble2 width="18" height="18" className="text-purple-600" />
+                  <h3 className="text-sm font-semibold text-foreground">
+                    Thread Conversation
+                  </h3>
+                </div>
+                <Badge className="text-xs font-medium bg-purple-500/10 text-purple-600 border-purple-500/20">
+                  {threadMembers.length} message{threadMembers.length !== 1 ? 's' : ''}
+                </Badge>
+              </div>
+              
+              <div className="relative">
+                <div className="space-y-0">
+                  {threadMembers.slice(0, 8).map((member, idx) => {
+                    const isOutbound = member.type === "outbound";
+                    const isCurrent = member.isCurrent;
+                    const isLastInList = idx === Math.min(threadMembers.length, 8) - 1;
+                    const isFirstInList = idx === 0;
+                    
+                    return (
+                      <div key={member.id} className="relative">
+                        {/* Top connecting line */}
+                        {isFirstInList ? (
+                          // Fade in for first item
+                          <div className="absolute left-[19px] top-0 w-[2px] h-[16px] bg-gradient-to-b from-transparent to-purple-200/50" />
+                        ) : (
+                          // Solid line for middle and last items
+                          <div className="absolute left-[19px] top-0 w-[2px] h-[16px]" 
+                               style={{ 
+                                 background: 'linear-gradient(180deg, rgba(139, 92, 246, 0.3) 0%, rgba(59, 130, 246, 0.3) 50%, rgba(139, 92, 246, 0.3) 100%)'
+                               }} />
+                        )}
+                        
+                        {/* Vertical connecting line to next item */}
+                        {!isLastInList && (
+                          <div className="absolute left-[19px] top-[52px] bottom-0 w-[2px]" 
+                               style={{ 
+                                 background: 'linear-gradient(180deg, rgba(139, 92, 246, 0.3) 0%, rgba(59, 130, 246, 0.3) 50%, rgba(139, 92, 246, 0.3) 100%)'
+                               }} />
+                        )}
+                        
+                        <Link
+                          href={`/logs/${member.id}`}
+                          className="block group"
+                          prefetch={true}
+                        >
+                          <div className="relative flex items-start gap-4 py-3 px-3 -ml-3 rounded-lg transition-all duration-200 hover:bg-muted/30">
+                          {/* Timeline node */}
+                          <div className="relative z-10 flex-shrink-0 mt-1">
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 ${
+                              isCurrent
+                                ? isOutbound
+                                  ? 'bg-blue-500 shadow-lg shadow-blue-500/30 ring-4 ring-blue-100'
+                                  : 'bg-purple-500 shadow-lg shadow-purple-500/30 ring-4 ring-purple-100'
+                                : isOutbound 
+                                  ? 'bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-300 group-hover:border-blue-400 group-hover:shadow-md'
+                                  : 'bg-gradient-to-br from-purple-50 to-purple-100 border-2 border-purple-300 group-hover:border-purple-400 group-hover:shadow-md'
+                            }`}>
+                              {isOutbound ? (
+                                <ArchiveExport 
+                                  width="16" 
+                                  height="16" 
+                                  className={isCurrent ? "text-white" : "text-blue-600"}
+                                />
+                              ) : (
+                                <ArchiveDownload 
+                                  width="16" 
+                                  height="16" 
+                                  className={isCurrent ? "text-white" : "text-purple-600"}
+                                />
+                              )}
+                            </div>
+                          </div>
+                            
+                            {/* Message content */}
+                            <div className="flex-1 min-w-0 pt-0.5">
+                              <div className="flex items-center gap-2 mb-1.5">
+                                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                                  isOutbound 
+                                    ? 'bg-blue-100 text-blue-700'
+                                    : 'bg-purple-100 text-purple-700'
+                                }`}>
+                                  {isOutbound ? "Sent" : "Received"}
+                                </span>
+                                {isCurrent && (
+                                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full text-white shadow-sm ${
+                                    isOutbound ? 'bg-blue-500' : 'bg-purple-500'
+                                  }`}>
+                                    Current
+                                  </span>
+                                )}
+                                <span className="text-xs font-mono text-muted-foreground">
+                                  #{idx + 1}
+                                </span>
+                              </div>
+                              
+                              <div className="mb-2">
+                                <div className="flex items-center gap-2 text-sm break-all">
+                                  <span className="font-semibold text-foreground">
+                                    {member.from}
+                                  </span>
+                                  <ArrowBoldRight width="14" height="14" className="text-muted-foreground flex-shrink-0" />
+                                  <span className="font-medium text-muted-foreground">
+                                    {member.to}
+                                  </span>
+                                </div>
+                              </div>
+                              
+                              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                                {member.timestamp && (
+                                  <span className="flex items-center gap-1">
+                                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="opacity-60">
+                                      <circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.5"/>
+                                      <path d="M6 3v3l2 2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                                    </svg>
+                                    {formatDistanceToNow(new Date(member.timestamp), { addSuffix: true })}
+                                  </span>
+                                )}
+                                <CopyIdInline id={member.id} />
+                              </div>
+                            </div>
+                            
+                            {/* Hover arrow */}
+                            <div className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <ArrowBoldRight 
+                                width="18" 
+                                height="18" 
+                                className="text-muted-foreground mt-2"
+                              />
+                            </div>
+                          </div>
+                        </Link>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {threadMembers.length > 8 && (
+                  <div className="mt-4 pl-14 text-xs text-muted-foreground flex items-center gap-2">
+                    <div className="flex -space-x-1">
+                      {[...Array(3)].map((_, i) => (
+                        <div 
+                          key={i} 
+                          className="w-6 h-6 rounded-full bg-muted border-2 border-background flex items-center justify-center"
+                        >
+                          <span className="text-[10px]">•</span>
+                        </div>
+                      ))}
+                    </div>
+                    <span>
+                      {threadMembers.length - 8} more message{threadMembers.length - 8 !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div className="lg:col-span-2 space-y-4">
@@ -590,20 +850,55 @@ export default async function LogDetailPage({
             <Card className="rounded-xl overflow-hidden">
               <CardContent className="p-6">
                 <h3 className="text-sm font-semibold mb-3">Email Content</h3>
-                <Tabs defaultValue="html" className="w-full">
+                <Tabs 
+                  defaultValue={
+                    isInbound
+                      ? inboundDetails?.content?.htmlBody
+                        ? "html"
+                        : inboundDetails?.content?.textBody
+                          ? "text"
+                          : "raw"
+                      : outboundDetails?.html
+                        ? "html"
+                        : "text"
+                  } 
+                  className="w-full"
+                >
                   <TabsList
-                    className={`grid w-full ${isInbound ? "grid-cols-3" : "grid-cols-2"}`}
-                  >
-                    <TabsTrigger value="html">HTML</TabsTrigger>
-                    <TabsTrigger value="text">Text</TabsTrigger>
-                    {isInbound && <TabsTrigger value="raw">Raw</TabsTrigger>}
-                  </TabsList>
-                  <TabsContent value="html" className="space-y-2">
-                    {(
+                    className={`grid w-full ${
                       isInbound
-                        ? inboundDetails?.content?.htmlBody
-                        : outboundDetails?.html
-                    ) ? (
+                        ? `grid-cols-${
+                            [
+                              inboundDetails?.content?.htmlBody,
+                              inboundDetails?.content?.textBody,
+                              inboundDetails?.content?.rawContent,
+                            ].filter(Boolean).length
+                          }`
+                        : `grid-cols-${
+                            [outboundDetails?.html, outboundDetails?.text].filter(
+                              Boolean
+                            ).length
+                          }`
+                    }`}
+                  >
+                    {(isInbound
+                      ? inboundDetails?.content?.htmlBody
+                      : outboundDetails?.html) && (
+                      <TabsTrigger value="html">HTML</TabsTrigger>
+                    )}
+                    {(isInbound
+                      ? inboundDetails?.content?.textBody
+                      : outboundDetails?.text) && (
+                      <TabsTrigger value="text">Text</TabsTrigger>
+                    )}
+                    {isInbound && inboundDetails?.content?.rawContent && (
+                      <TabsTrigger value="raw">Raw</TabsTrigger>
+                    )}
+                  </TabsList>
+                  {(isInbound
+                    ? inboundDetails?.content?.htmlBody
+                    : outboundDetails?.html) && (
+                    <TabsContent value="html" className="space-y-2">
                       <div className="border rounded-lg p-4 bg-muted/20 max-h-[640px] overflow-auto">
                         <iframe
                           srcDoc={`<html><head><link href=\"https://fonts.googleapis.com/css2?family=Outfit:wght@100;200;300;400;500;600;700;800;900&display=swap\" rel=\"stylesheet\"><style>body{font-family:'Outfit',Arial,Helvetica,sans-serif;color:#000;background-color:transparent;margin:0;padding:16px;}*{font-family:'Outfit',Arial,Helvetica,sans-serif;font-weight:400;color:#000;}a{color:#2563eb !important;}</style></head><body>${isInbound ? inboundDetails?.content?.htmlBody || "" : outboundDetails?.html || ""}</body></html>`}
@@ -612,40 +907,24 @@ export default async function LogDetailPage({
                           title="Email HTML Content"
                         />
                       </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">
-                        No HTML content available
-                      </p>
-                    )}
-                  </TabsContent>
-                  <TabsContent value="text" className="space-y-2">
-                    {(
-                      isInbound
-                        ? inboundDetails?.content?.textBody
-                        : outboundDetails?.text
-                    ) ? (
+                    </TabsContent>
+                  )}
+                  {(isInbound
+                    ? inboundDetails?.content?.textBody
+                    : outboundDetails?.text) && (
+                    <TabsContent value="text" className="space-y-2">
                       <pre className="text-sm bg-muted p-4 rounded-lg overflow-x-auto whitespace-pre-wrap max-h-[640px] overflow-y-auto">
                         {isInbound
                           ? inboundDetails?.content?.textBody
                           : outboundDetails?.text}
                       </pre>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">
-                        No text content available
-                      </p>
-                    )}
-                  </TabsContent>
-                  {isInbound && (
+                    </TabsContent>
+                  )}
+                  {isInbound && inboundDetails?.content?.rawContent && (
                     <TabsContent value="raw" className="space-y-2">
-                      {inboundDetails?.content?.rawContent ? (
-                        <pre className="text-xs bg-muted p-4 rounded-lg overflow-x-auto font-mono max-h-[640px] overflow-y-auto">
-                          {inboundDetails?.content?.rawContent}
-                        </pre>
-                      ) : (
-                        <p className="text-sm text-muted-foreground">
-                          Raw content not available
-                        </p>
-                      )}
+                      <pre className="text-xs bg-muted p-4 rounded-lg overflow-x-auto font-mono max-h-[640px] overflow-y-auto">
+                        {inboundDetails?.content?.rawContent}
+                      </pre>
                     </TabsContent>
                   )}
                 </Tabs>

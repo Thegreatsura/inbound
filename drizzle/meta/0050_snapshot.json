@@ -1,6 +1,6 @@
 {
-  "id": "8ec92186-c205-42e9-8627-f6a4650ab5cb",
-  "prevId": "4f771076-881e-4c7c-9364-6c34c5e11b19",
+  "id": "92ecf2c8-995d-4211-917a-fa19b54057ea",
+  "prevId": "8ec92186-c205-42e9-8627-f6a4650ab5cb",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1931,6 +1931,12 @@
         "message_id": {
           "name": "message_id",
           "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ses_message_id": {
+          "name": "ses_message_id",
+          "type": "varchar(300)",
           "primaryKey": false,
           "notNull": false
         },

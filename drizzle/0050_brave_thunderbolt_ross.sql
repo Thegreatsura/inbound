@@ -1,0 +1,1 @@
+ALTER TABLE "sent_emails" ADD COLUMN "ses_message_id" varchar(300);

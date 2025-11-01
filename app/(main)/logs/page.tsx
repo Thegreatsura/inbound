@@ -863,26 +863,26 @@ export default function LogsPage() {
                   const hasFailedDelivery = inboundLog.deliveries.some(d => d.status === 'failed')
                   
                   if (isBlocked) {
-                    return { label: 'Blocked', variant: 'destructive' as const }
+                    return { label: 'Blocked', variant: 'destructive' as const, customClass: '' }
                   } else if (!inboundLog.parseSuccess) {
-                    return { label: 'Parse failed', variant: 'destructive' as const }
+                    return { label: 'Parse failed', variant: 'destructive' as const, customClass: '' }
                   } else if (hasSuccessfulDelivery) {
-                    return { label: inboundLog.deliveries[0].config?.name || 'Delivered', variant: 'default' as const }
+                    return { label: inboundLog.deliveries[0].config?.name || 'Delivered', variant: 'default' as const, customClass: 'bg-purple-100 text-purple-800 border-purple-200 hover:bg-purple-200' }
                   } else if (hasFailedDelivery) {
-                    return { label: 'Delivery failed', variant: 'destructive' as const }
+                    return { label: 'Delivery failed', variant: 'destructive' as const, customClass: '' }
                   } else if (!hasDeliveries) {
-                    return { label: 'No delivery', variant: 'secondary' as const }
+                    return { label: 'No delivery', variant: 'secondary' as const, customClass: 'bg-purple-50 text-purple-700 border-purple-200' }
                   }
-                  return { label: 'Pending', variant: 'secondary' as const }
+                  return { label: 'Pending', variant: 'secondary' as const, customClass: 'bg-purple-50 text-purple-700 border-purple-200' }
                 } else if (outboundLog) {
                   if (outboundLog.status === 'sent') {
-                    return { label: 'Sent', variant: 'default' as const }
+                    return { label: 'Sent', variant: 'default' as const, customClass: 'bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-200' }
                   } else if (outboundLog.status === 'failed') {
-                    return { label: 'Failed', variant: 'destructive' as const }
+                    return { label: 'Failed', variant: 'destructive' as const, customClass: '' }
                   }
-                  return { label: 'Pending', variant: 'secondary' as const }
+                  return { label: 'Pending', variant: 'secondary' as const, customClass: 'bg-blue-50 text-blue-700 border-blue-200' }
                 }
-                return { label: 'Unknown', variant: 'secondary' as const }
+                return { label: 'Unknown', variant: 'secondary' as const, customClass: '' }
               }
 
               const statusInfo = getStatusInfo()
@@ -937,7 +937,7 @@ export default function LogsPage() {
                   <div className="flex-shrink-0 w-32 sm:w-40 text-right">
                     <Badge 
                       variant={statusInfo.variant}
-                      className={statusInfo.variant === 'default' ? 'bg-green-100 text-green-800 border-green-200 hover:bg-green-200' : statusInfo.variant === 'destructive' ? 'bg-red-100 text-red-800 border-red-200 hover:bg-red-200' : ''}
+                      className={statusInfo.customClass || (statusInfo.variant === 'destructive' ? 'bg-red-100 text-red-800 border-red-200 hover:bg-red-200' : '')}
                     >
                       {statusInfo.label}
                     </Badge>

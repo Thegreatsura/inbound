@@ -351,6 +351,13 @@
       "when": 1761342919366,
       "tag": "0049_simple_quentin_quire",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1762020639706,
+      "tag": "0050_brave_thunderbolt_ross",
+      "breakpoints": true
     }
   ]
 }
