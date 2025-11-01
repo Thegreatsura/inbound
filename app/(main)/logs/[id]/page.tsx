@@ -48,6 +48,7 @@ import FolderLink from "@/components/icons/folder-link";
 import ChatBubble2 from "@/components/icons/chat-bubble-2";
 import { CopyButton } from "@/components/copy-button";
 import { CopyIdInline } from "@/components/logs/copy-id-inline";
+import { ScrollPersistWrapper } from "@/components/logs/scroll-persist-wrapper";
 
 export default async function LogDetailPage({
   params,
@@ -517,8 +518,9 @@ export default async function LogDetailPage({
   }
 
   return (
-    <div className="p-4">
-      <div className="max-w-6xl mx-auto">
+    <ScrollPersistWrapper>
+      <div className="p-4">
+        <div className="max-w-6xl mx-auto">
         <div className="flex items-center gap-4 mb-6">
           <Link href="/logs">
             <Button variant="primary">
@@ -1302,6 +1304,7 @@ export default async function LogDetailPage({
           </div>
         </div>
       </div>
-    </div>
+      </div>
+    </ScrollPersistWrapper>
   );
 }

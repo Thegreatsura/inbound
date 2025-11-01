@@ -7,7 +7,7 @@
 
 import { db } from '@/lib/db'
 import { structuredEmails, emailAddresses, endpoints, endpointDeliveries, emailDomains } from '@/lib/db/schema'
-import { eq, and, or } from 'drizzle-orm'
+import { eq, and, or, asc } from 'drizzle-orm'
 import { triggerEmailAction } from './webhook-trigger'
 import { EmailForwarder } from './email-forwarder'
 import { EmailThreader, type ThreadingResult } from './email-threader'
@@ -298,12 +298,13 @@ async function getThreadRootEndpoint(threadId: string, userId: string, currentRe
   try {
     console.log(`🧵 getThreadRootEndpoint - Looking for root endpoint in thread ${threadId} (current recipient: ${currentRecipient})`)
     
-    // Find the root email (threadPosition = 1) in this thread
-    const rootEmail = await db
+    // First try to find email with threadPosition = 1
+    let rootEmail = await db
       .select({
         recipient: structuredEmails.recipient,
         threadPosition: structuredEmails.threadPosition,
         id: structuredEmails.id,
+        date: structuredEmails.date,
       })
       .from(structuredEmails)
       .where(
@@ -314,6 +315,38 @@ async function getThreadRootEndpoint(threadId: string, userId: string, currentRe
         )
       )
       .limit(1)
+    
+    // If not found, fall back to finding the earliest email by threadPosition or date
+    if (!rootEmail[0]) {
+      console.log(`⚠️ getThreadRootEndpoint - No email with threadPosition=1 found, looking for earliest email in thread ${threadId}`)
+      
+      // Find all emails in thread, ordered by threadPosition (nulls last), then by date
+      const allThreadEmails = await db
+        .select({
+          recipient: structuredEmails.recipient,
+          threadPosition: structuredEmails.threadPosition,
+          id: structuredEmails.id,
+          date: structuredEmails.date,
+        })
+        .from(structuredEmails)
+        .where(
+          and(
+            eq(structuredEmails.threadId, threadId),
+            eq(structuredEmails.userId, userId)
+          )
+        )
+        .orderBy(
+          // Order by threadPosition ascending (nulls will naturally sort last), then by date ascending
+          asc(structuredEmails.threadPosition),
+          asc(structuredEmails.date)
+        )
+        .limit(1)
+      
+      if (allThreadEmails[0]) {
+        rootEmail = [allThreadEmails[0]]
+        console.log(`✅ getThreadRootEndpoint - Found earliest email in thread: ${rootEmail[0].id} (threadPosition: ${rootEmail[0].threadPosition || 'null'})`)
+      }
+    }
     
     if (!rootEmail[0]) {
       console.log(`⚠️ getThreadRootEndpoint - Root email not found in thread ${threadId}`)
