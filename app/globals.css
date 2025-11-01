@@ -247,6 +247,16 @@
     text-wrap: balance;
   }
   
+  /* Hide scrollbar while maintaining scroll functionality */
+  .scrollbar-hide {
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+  }
+  
   /* Mobile touch improvements */
   @media (hover: none) and (pointer: coarse) {
     .hover\:scale-105:hover {
