@@ -21,8 +21,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 // Nucleo icons
-import ArchiveDownload from "@/components/icons/archive-download";
-import ArchiveExport from "@/components/icons/archive-export";
 import ShieldCheck from "@/components/icons/shield-check";
 import ShieldAlert from "@/components/icons/shield-alert";
 import Ban2 from "@/components/icons/ban-2";
@@ -33,7 +31,7 @@ import CircleCheck from "@/components/icons/circle-check";
 import CircleXmark from "@/components/icons/circle-xmark";
 import CircleWarning2 from "@/components/icons/circle-warning-2";
 
-import { format, formatDistanceToNow } from "date-fns";
+import { format } from "date-fns";
 
 import type { GetMailByIdResponse } from "@/app/api/v2/mail/[id]/route";
 import type { GetEmailByIdResponse } from "@/app/api/v2/emails/[id]/route";
@@ -49,6 +47,7 @@ import ChatBubble2 from "@/components/icons/chat-bubble-2";
 import { CopyButton } from "@/components/copy-button";
 import { CopyIdInline } from "@/components/logs/copy-id-inline";
 import { ScrollPersistWrapper } from "@/components/logs/scroll-persist-wrapper";
+import { ThreadList } from "@/components/logs/thread-list";
 
 export default async function LogDetailPage({
   params,
@@ -651,150 +650,7 @@ export default async function LogDetailPage({
                 </Badge>
               </div>
               
-              <div className="relative">
-                <div className="space-y-0">
-                  {threadMembers.slice(0, 8).map((member, idx) => {
-                    const isOutbound = member.type === "outbound";
-                    const isCurrent = member.isCurrent;
-                    const isLastInList = idx === Math.min(threadMembers.length, 8) - 1;
-                    const isFirstInList = idx === 0;
-                    
-                    return (
-                      <div key={member.id} className="relative">
-                        {/* Top connecting line */}
-                        {isFirstInList ? (
-                          // Fade in for first item
-                          <div className="absolute left-[19px] top-0 w-[2px] h-[16px] bg-gradient-to-b from-transparent to-purple-200/50" />
-                        ) : (
-                          // Solid line for middle and last items
-                          <div className="absolute left-[19px] top-0 w-[2px] h-[16px]" 
-                               style={{ 
-                                 background: 'linear-gradient(180deg, rgba(139, 92, 246, 0.3) 0%, rgba(59, 130, 246, 0.3) 50%, rgba(139, 92, 246, 0.3) 100%)'
-                               }} />
-                        )}
-                        
-                        {/* Vertical connecting line to next item */}
-                        {!isLastInList && (
-                          <div className="absolute left-[19px] top-[52px] bottom-0 w-[2px]" 
-                               style={{ 
-                                 background: 'linear-gradient(180deg, rgba(139, 92, 246, 0.3) 0%, rgba(59, 130, 246, 0.3) 50%, rgba(139, 92, 246, 0.3) 100%)'
-                               }} />
-                        )}
-                        
-                        <Link
-                          href={`/logs/${member.id}`}
-                          className="block group"
-                          prefetch={true}
-                        >
-                          <div className="relative flex items-start gap-4 py-3 px-3 -ml-3 rounded-lg transition-all duration-200 hover:bg-muted/30">
-                          {/* Timeline node */}
-                          <div className="relative z-10 flex-shrink-0 mt-1">
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 ${
-                              isCurrent
-                                ? isOutbound
-                                  ? 'bg-blue-500 shadow-lg shadow-blue-500/30 ring-4 ring-blue-100'
-                                  : 'bg-purple-500 shadow-lg shadow-purple-500/30 ring-4 ring-purple-100'
-                                : isOutbound 
-                                  ? 'bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-300 group-hover:border-blue-400 group-hover:shadow-md'
-                                  : 'bg-gradient-to-br from-purple-50 to-purple-100 border-2 border-purple-300 group-hover:border-purple-400 group-hover:shadow-md'
-                            }`}>
-                              {isOutbound ? (
-                                <ArchiveExport 
-                                  width="16" 
-                                  height="16" 
-                                  className={isCurrent ? "text-white" : "text-blue-600"}
-                                />
-                              ) : (
-                                <ArchiveDownload 
-                                  width="16" 
-                                  height="16" 
-                                  className={isCurrent ? "text-white" : "text-purple-600"}
-                                />
-                              )}
-                            </div>
-                          </div>
-                            
-                            {/* Message content */}
-                            <div className="flex-1 min-w-0 pt-0.5">
-                              <div className="flex items-center gap-2 mb-1.5">
-                                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                                  isOutbound 
-                                    ? 'bg-blue-100 text-blue-700'
-                                    : 'bg-purple-100 text-purple-700'
-                                }`}>
-                                  {isOutbound ? "Sent" : "Received"}
-                                </span>
-                                {isCurrent && (
-                                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full text-white shadow-sm ${
-                                    isOutbound ? 'bg-blue-500' : 'bg-purple-500'
-                                  }`}>
-                                    Current
-                                  </span>
-                                )}
-                                <span className="text-xs font-mono text-muted-foreground">
-                                  #{idx + 1}
-                                </span>
-                              </div>
-                              
-                              <div className="mb-2">
-                                <div className="flex items-center gap-2 text-sm break-all">
-                                  <span className="font-semibold text-foreground">
-                                    {member.from}
-                                  </span>
-                                  <ArrowBoldRight width="14" height="14" className="text-muted-foreground flex-shrink-0" />
-                                  <span className="font-medium text-muted-foreground">
-                                    {member.to}
-                                  </span>
-                                </div>
-                              </div>
-                              
-                              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                                {member.timestamp && (
-                                  <span className="flex items-center gap-1">
-                                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="opacity-60">
-                                      <circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.5"/>
-                                      <path d="M6 3v3l2 2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                                    </svg>
-                                    {formatDistanceToNow(new Date(member.timestamp), { addSuffix: true })}
-                                  </span>
-                                )}
-                                <CopyIdInline id={member.id} />
-                              </div>
-                            </div>
-                            
-                            {/* Hover arrow */}
-                            <div className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <ArrowBoldRight 
-                                width="18" 
-                                height="18" 
-                                className="text-muted-foreground mt-2"
-                              />
-                            </div>
-                          </div>
-                        </Link>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {threadMembers.length > 8 && (
-                  <div className="mt-4 pl-14 text-xs text-muted-foreground flex items-center gap-2">
-                    <div className="flex -space-x-1">
-                      {[...Array(3)].map((_, i) => (
-                        <div 
-                          key={i} 
-                          className="w-6 h-6 rounded-full bg-muted border-2 border-background flex items-center justify-center"
-                        >
-                          <span className="text-[10px]">•</span>
-                        </div>
-                      ))}
-                    </div>
-                    <span>
-                      {threadMembers.length - 8} more message{threadMembers.length - 8 !== 1 ? 's' : ''}
-                    </span>
-                  </div>
-                )}
-              </div>
+              <ThreadList threadMembers={threadMembers} />
             </CardContent>
           </Card>
         )}
