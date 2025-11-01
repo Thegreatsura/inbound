@@ -10,7 +10,7 @@ import { structuredEmails, emailAddresses, endpoints, endpointDeliveries, emailD
 import { eq, and, or } from 'drizzle-orm'
 import { triggerEmailAction } from './webhook-trigger'
 import { EmailForwarder } from './email-forwarder'
-import { EmailThreader } from './email-threader'
+import { EmailThreader, type ThreadingResult } from './email-threader'
 import { nanoid } from 'nanoid'
 import type { ParsedEmailData } from './email-parser'
 import { sanitizeHtml } from './email-parser'
@@ -35,8 +35,9 @@ export async function routeEmail(emailId: string): Promise<void> {
     }
 
     // 🧵 NEW: Process threading before routing
+    let threadingResult: ThreadingResult | null = null
     try {
-      const threadingResult = await EmailThreader.processEmailForThreading(emailId, emailData.userId)
+      threadingResult = await EmailThreader.processEmailForThreading(emailId, emailData.userId)
       console.log(`🧵 Email ${emailId} assigned to thread ${threadingResult.threadId} at position ${threadingResult.threadPosition}${threadingResult.isNewThread ? ' (new thread)' : ''}`)
     } catch (threadingError) {
       // Don't fail routing if threading fails - log error and continue
@@ -162,8 +163,24 @@ export async function routeEmail(emailId: string): Promise<void> {
     console.log('🛡️ routeEmail - Skipping Guard evaluation (feature inbound_guard disabled for user)')
     }
     
-    // Pass userId to findEndpointForEmail to ensure proper filtering
-    const endpoint = await findEndpointForEmail(emailData.recipient, emailData.userId)
+    // 🧵 Thread Continuity: Check if this is a thread reply and route to original endpoint
+    let endpoint: Endpoint | null = null
+    if (threadingResult && !threadingResult.isNewThread && threadingResult.threadPosition && threadingResult.threadPosition > 1) {
+      console.log(`🧵 routeEmail - Email ${emailId} is a thread reply (position ${threadingResult.threadPosition}), checking for root endpoint routing`)
+      const rootEndpoint = await getThreadRootEndpoint(threadingResult.threadId, emailData.userId, emailData.recipient)
+      if (rootEndpoint) {
+        endpoint = rootEndpoint
+        console.log(`🧵 routeEmail - Thread Continuity: Routing reply to original endpoint ${rootEndpoint.name} from root message`)
+      } else {
+        console.log(`🧵 routeEmail - Thread Continuity: No root endpoint found or root recipient matches current, using normal routing`)
+      }
+    }
+    
+    // If thread routing didn't find an endpoint, use normal endpoint lookup
+    if (!endpoint) {
+      // Pass userId to findEndpointForEmail to ensure proper filtering
+      endpoint = await findEndpointForEmail(emailData.recipient, emailData.userId)
+    }
     if (!endpoint) {
       console.warn(`⚠️ routeEmail - No endpoint configured for ${emailData.recipient}, falling back to legacy webhook lookup`)
       // Fallback to existing webhook logic for backward compatibility
@@ -271,6 +288,73 @@ async function getEmailWithStructuredData(emailId: string) {
 
   // Recipient is now stored directly in structuredEmails.recipient
   return result
+}
+
+/**
+ * Get the endpoint for the root email in a thread (Thread Continuity feature)
+ * Routes thread replies to the original endpoint that received the first message
+ */
+async function getThreadRootEndpoint(threadId: string, userId: string, currentRecipient: string): Promise<Endpoint | null> {
+  try {
+    console.log(`🧵 getThreadRootEndpoint - Looking for root endpoint in thread ${threadId} (current recipient: ${currentRecipient})`)
+    
+    // Find the root email (threadPosition = 1) in this thread
+    const rootEmail = await db
+      .select({
+        recipient: structuredEmails.recipient,
+        threadPosition: structuredEmails.threadPosition,
+        id: structuredEmails.id,
+      })
+      .from(structuredEmails)
+      .where(
+        and(
+          eq(structuredEmails.threadId, threadId),
+          eq(structuredEmails.threadPosition, 1),
+          eq(structuredEmails.userId, userId)
+        )
+      )
+      .limit(1)
+    
+    if (!rootEmail[0]) {
+      console.log(`⚠️ getThreadRootEndpoint - Root email not found in thread ${threadId}`)
+      return null
+    }
+    
+    const rootRecipient = rootEmail[0].recipient
+    if (!rootRecipient) {
+      console.log(`⚠️ getThreadRootEndpoint - Root email has no recipient`)
+      return null
+    }
+    
+    // If the current recipient is the same as root recipient, skip (already correct)
+    if (rootRecipient === currentRecipient) {
+      console.log(`🧵 getThreadRootEndpoint - Current recipient matches root recipient, using normal routing`)
+      return null
+    }
+    
+    console.log(`🧵 getThreadRootEndpoint - Found root email recipient: ${rootRecipient}`)
+    
+    // Find the endpoint for the root recipient
+    const rootEndpoint = await findEndpointForEmail(rootRecipient, userId)
+    
+    if (!rootEndpoint) {
+      console.log(`⚠️ getThreadRootEndpoint - No endpoint configured for root recipient ${rootRecipient}`)
+      return null
+    }
+    
+    // Verify endpoint is active
+    if (!rootEndpoint.isActive) {
+      console.log(`⚠️ getThreadRootEndpoint - Root endpoint ${rootEndpoint.id} is inactive, falling back to normal routing`)
+      return null
+    }
+    
+    console.log(`✅ getThreadRootEndpoint - Found root endpoint: ${rootEndpoint.name} (type: ${rootEndpoint.type}) for recipient ${rootRecipient}`)
+    return rootEndpoint
+    
+  } catch (error) {
+    console.error(`❌ getThreadRootEndpoint - Error finding root endpoint for thread ${threadId}:`, error)
+    return null
+  }
 }
 
 /**

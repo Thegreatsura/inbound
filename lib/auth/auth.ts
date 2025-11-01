@@ -78,7 +78,7 @@ export const auth = betterAuth({
         oAuthProxy({
             productionURL: process.env.BETTER_AUTH_URL || "https://inbound.new",
             currentURL: process.env.NODE_ENV === 'development' 
-                ? "http://localhost:3000" 
+                ? "https://dev.inbound.new" 
                 : process.env.VERCEL_URL 
                     ? `https://${process.env.VERCEL_URL}` 
                     : process.env.VERCEL_BRANCH_URL 
