@@ -11,7 +11,6 @@ import { nanoid } from 'nanoid'
 import { createHmac } from 'crypto'
 import { sanitizeHtml, type ParsedEmailData } from './email-parser'
 import { getOrCreateVerificationToken, generateNewWebhookVerificationToken } from '@/lib/webhooks/verification'
-import { db } from '@/lib/db'
 
 /**
  * Trigger email action by emailID - looks up email data and sends to configured webhook

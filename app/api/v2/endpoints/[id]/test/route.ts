@@ -6,7 +6,7 @@ import { eq, and } from "drizzle-orm";
 import { generateTestPayload } from "@/lib/webhooks/webhook-formats";
 import type { WebhookFormat } from "@/lib/db/schema";
 import { nanoid } from "nanoid";
-import { generateWebhookVerificationToken } from "@/lib/webhooks/verification";
+import { getOrCreateVerificationToken, generateNewWebhookVerificationToken } from "@/lib/webhooks/verification";
 import { sanitizeHtml } from "@/lib/email-management/email-parser";
 import type {
   InboundWebhookPayload,
