@@ -141,11 +141,21 @@ export async function GET(
                 status: emailData.status
             })
 
-            // Parse JSON fields for outbound emails
-            const toAddresses = emailData.to ? JSON.parse(emailData.to) : []
-            const ccAddresses = emailData.cc ? JSON.parse(emailData.cc) : []
-            const bccAddresses = emailData.bcc ? JSON.parse(emailData.bcc) : []
-            const replyToAddresses = emailData.replyTo ? JSON.parse(emailData.replyTo) : []
+            // Parse JSON fields for outbound emails with error handling
+            const parseJsonField = (field: string | null) => {
+                if (!field) return []
+                try {
+                    return JSON.parse(field)
+                } catch (e) {
+                    console.error('Failed to parse JSON field for outbound email:', e)
+                    return []
+                }
+            }
+
+            const toAddresses = parseJsonField(emailData.to)
+            const ccAddresses = parseJsonField(emailData.cc)
+            const bccAddresses = parseJsonField(emailData.bcc)
+            const replyToAddresses = parseJsonField(emailData.replyTo)
 
             // Map status to last_event
             let lastEvent = 'created'
@@ -203,11 +213,21 @@ export async function GET(
                 scheduledAt: emailData.scheduledAt
             })
 
-            // Parse JSON fields for scheduled emails
-            const toAddresses = emailData.toAddresses ? JSON.parse(emailData.toAddresses) : []
-            const ccAddresses = emailData.ccAddresses ? JSON.parse(emailData.ccAddresses) : []
-            const bccAddresses = emailData.bccAddresses ? JSON.parse(emailData.bccAddresses) : []
-            const replyToAddresses = emailData.replyToAddresses ? JSON.parse(emailData.replyToAddresses) : []
+            // Parse JSON fields for scheduled emails with error handling
+            const parseJsonField = (field: string | null) => {
+                if (!field) return []
+                try {
+                    return JSON.parse(field)
+                } catch (e) {
+                    console.error('Failed to parse JSON field for scheduled email:', e)
+                    return []
+                }
+            }
+
+            const toAddresses = parseJsonField(emailData.toAddresses)
+            const ccAddresses = parseJsonField(emailData.ccAddresses)
+            const bccAddresses = parseJsonField(emailData.bccAddresses)
+            const replyToAddresses = parseJsonField(emailData.replyToAddresses)
 
             // Map status to last_event for scheduled emails
             let lastEvent = 'scheduled'
