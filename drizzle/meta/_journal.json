@@ -358,6 +358,13 @@
       "when": 1762020639706,
       "tag": "0050_brave_thunderbolt_ross",
       "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1762092960754,
+      "tag": "0051_fine_scarecrow",
+      "breakpoints": true
     }
   ]
 }

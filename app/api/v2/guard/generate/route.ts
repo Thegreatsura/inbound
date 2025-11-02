@@ -10,7 +10,7 @@ import type { GenerateExplicitRulesRequest, GenerateExplicitRulesResponse } from
 const MODEL = process.env.GUARD_AI_MODEL || 'openai/gpt-5-mini';
 
 // To use different providers, just change the MODEL string:
-// - OpenAI: 'openai/gpt-4o'
+// - OpenAI: 'openai/gpt-5'
 // - Anthropic: 'anthropic/claude-3-5-sonnet-20241022'
 // - Groq: 'groq/llama-3.3-70b-versatile'
 // - Google: 'google/gemini-1.5-pro'

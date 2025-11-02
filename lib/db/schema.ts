@@ -543,6 +543,26 @@ export const scheduledEmails = pgTable('scheduled_emails', {
   sentEmailId: varchar('sent_email_id', { length: 255 }), // Reference to sentEmails after successful sending
 });
 
+// Email Sending Evaluations table - stores AI evaluations of sent emails for fraud monitoring
+export const emailSendingEvaluations = pgTable('email_sending_evaluations', {
+  id: varchar('id', { length: 255 }).primaryKey(),
+  emailId: varchar('email_id', { length: 255 }).notNull(), // Reference to sentEmails.id
+  userId: varchar('user_id', { length: 255 }).notNull(), // Reference to user.id
+  evaluationResult: text('evaluation_result'), // JSON - stores full AI output
+  riskScore: integer('risk_score'), // 0-100 risk score
+  flags: text('flags'), // JSON array of flags like "malicious", "spam", "phishing"
+  aiModel: varchar('ai_model', { length: 255 }), // Model used for evaluation
+  evaluationTime: integer('evaluation_time'), // Milliseconds taken
+  promptTokens: integer('prompt_tokens'), // Optional token count
+  completionTokens: integer('completion_tokens'), // Optional token count
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => ({
+  emailIdIdx: index('email_sending_evaluations_email_id_idx').on(table.emailId),
+  userIdIdx: index('email_sending_evaluations_user_id_idx').on(table.userId),
+  createdAtIdx: index('email_sending_evaluations_created_at_idx').on(table.createdAt),
+}));
+
 // Scheduled email status constants
 export const SCHEDULED_EMAIL_STATUS = {
   SCHEDULED: 'scheduled',
@@ -599,6 +619,8 @@ export type BlockedEmail = typeof blockedEmails.$inferSelect;
 export type NewBlockedEmail = typeof blockedEmails.$inferInsert;
 export type SentEmail = typeof sentEmails.$inferSelect;
 export type NewSentEmail = typeof sentEmails.$inferInsert;
+export type EmailSendingEvaluation = typeof emailSendingEvaluations.$inferSelect;
+export type NewEmailSendingEvaluation = typeof emailSendingEvaluations.$inferInsert;
 
 // Domain status enums
 export const DOMAIN_STATUS = {

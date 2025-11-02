@@ -7,6 +7,8 @@ import { SESClient, SendRawEmailCommand } from '@aws-sdk/client-ses'
 import { buildRawEmailMessage } from '../../v2/helper/email-builder'
 import { extractEmailAddress } from '@/lib/email-management/agent-email-helper'
 import { nanoid } from 'nanoid'
+import { waitUntil } from '@vercel/functions'
+import { evaluateSending } from '@/lib/email-management/email-evaluation'
 
 /**
  * POST /api/webhooks/send-email
@@ -256,6 +258,17 @@ export async function POST(request: NextRequest) {
                 })
                 .where(eq(sentEmails.id, createdSentEmail.id))
         ])
+
+        // Evaluate email for security risks (non-blocking)
+        waitUntil(
+            evaluateSending(createdSentEmail.id, scheduledEmail.userId, {
+                from: scheduledEmail.fromAddress,
+                to: toAddresses,
+                subject: scheduledEmail.subject,
+                textBody: scheduledEmail.textBody || undefined,
+                htmlBody: scheduledEmail.htmlBody || undefined,
+            })
+        )
 
         console.log('✅ Scheduled email processed successfully:', scheduledEmailId)
 

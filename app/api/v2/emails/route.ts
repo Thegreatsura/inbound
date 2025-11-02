@@ -11,6 +11,8 @@ import { nanoid } from 'nanoid'
 import { canUserSendFromEmail, extractEmailAddress, extractDomain } from '@/lib/email-management/agent-email-helper'
 import { parseScheduledAt, validateScheduledDate, formatScheduledDate } from '@/lib/utils/date-parser'
 import { Client as QStashClient } from '@upstash/qstash'
+import { waitUntil } from '@vercel/functions'
+import { evaluateSending } from '@/lib/email-management/email-evaluation'
 
 /**
  * POST /api/v2/emails
@@ -502,6 +504,17 @@ export async function POST(request: NextRequest) {
                     // Don't fail the request if tracking fails
                 }
             }
+
+            // Evaluate email for security risks (non-blocking)
+            waitUntil(
+                evaluateSending(emailId, userId, {
+                    from: body.from,
+                    to: body.to,
+                    subject: body.subject,
+                    textBody: body.text,
+                    htmlBody: body.html,
+                })
+            )
 
             console.log('✅ Email processing complete')
             const response: PostEmailsResponse = {

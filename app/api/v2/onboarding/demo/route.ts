@@ -5,6 +5,8 @@ import { db } from '@/lib/db'
 import { onboardingDemoEmails, sentEmails } from '@/lib/db/schema'
 import { nanoid } from 'nanoid'
 import { eq } from 'drizzle-orm'
+import { waitUntil } from '@vercel/functions'
+import { evaluateSending } from '@/lib/email-management/email-evaluation'
 
 /**
  * POST /api/v2/onboarding/demo
@@ -108,6 +110,20 @@ export async function POST(request: NextRequest) {
     })
 
     console.log('📝 Tracked demo email for reply matching:', { demoEmailId, messageId })
+
+    // Evaluate email for security risks (non-blocking)
+    if (response?.id) {
+      waitUntil(
+        evaluateSending(response.id, userId, {
+          from: 'Inbound Agent <agent@inbnd.dev>',
+          to: body.to,
+          subject: 'Welcome to Inbound - Reply to Complete Onboarding!',
+          textBody: 'Thanks for signing up! Please reply to this email with your favorite email client.',
+          htmlBody: '<p>Thanks for signing up!</p><p><strong>Please reply to this email with your favorite email client.</strong></p>'
+        })
+      )
+    }
+
     return NextResponse.json({ id: response?.id }, { status: 200 })
 
   } catch (error) {

@@ -22,6 +22,8 @@ import {
   extractDomain,
   extractEmailName,
 } from "@/lib/email-management/agent-email-helper";
+import { waitUntil } from "@vercel/functions";
+import { evaluateSending } from "@/lib/email-management/email-evaluation";
 import { EmailThreader } from "@/lib/email-management/email-threader";
 
 /**
@@ -890,6 +892,17 @@ export async function POST(
           // Don't fail the request if tracking fails
         }
       }
+
+      // Evaluate email for security risks (non-blocking)
+      waitUntil(
+        evaluateSending(replyEmailId, userId, {
+          from: formattedFromAddress,
+          to: toAddresses,
+          subject: subject,
+          textBody: body.text,
+          htmlBody: body.html,
+        })
+      )
 
       console.log("✅ Reply processing complete");
       const response: PostEmailReplyNewResponse = {
