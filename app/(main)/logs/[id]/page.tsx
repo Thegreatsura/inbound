@@ -396,6 +396,7 @@ export default async function LogDetailPage({
 
     outboundDetails = {
       object: "email",
+      email_type: "outbound",
       id: row.id,
       to,
       from: row.from,
