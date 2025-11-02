@@ -7,6 +7,7 @@ import { eq, and } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { EmailForwarder } from '@/lib/email-management/email-forwarder'
 import { sanitizeHtml, type ParsedEmailData } from '@/lib/email-management/email-parser'
+import { getOrCreateVerificationToken } from '@/lib/webhooks/verification'
 
 // Maximum webhook payload size (5MB safety margin)
 const MAX_WEBHOOK_PAYLOAD_SIZE = 1_000_000
@@ -372,6 +373,21 @@ async function handleWebhookEndpoint(emailId: string, endpoint: any, emailData: 
       throw new Error('Webhook URL not configured')
     }
 
+    // Get or create verification token (will be added to config if missing)
+    const hadToken = !!config.verificationToken
+    const verificationToken = getOrCreateVerificationToken(config)
+    
+    // If we generated a new token, save it back to the database
+    if (!hadToken) {
+      await db.update(endpoints)
+        .set({
+          config: JSON.stringify(config),
+          updatedAt: new Date()
+        })
+        .where(eq(endpoints.id, endpoint.id))
+      console.log(`🔐 handleWebhookEndpoint - Generated and saved new verification token for endpoint ${endpoint.id}`)
+    }
+
     console.log(`📤 handleWebhookEndpoint - Sending email ${emailData.messageId} to webhook: ${endpoint.name} (${webhookUrl})`)
 
     // Reconstruct ParsedEmailData from structured data
@@ -440,6 +456,7 @@ async function handleWebhookEndpoint(emailId: string, endpoint: any, emailData: 
       'X-Webhook-Timestamp': webhookPayload.timestamp,
       'X-Email-ID': emailData.structuredId,
       'X-Message-ID': emailData.messageId || '',
+      'X-Webhook-Verification-Token': verificationToken, // Non-breaking verification token
       ...customHeaders
     }
 

@@ -17,6 +17,7 @@ import { sanitizeHtml } from './email-parser'
 import type { Endpoint } from '@/features/endpoints/types'
 import { evaluateGuardRules } from '../guard/rule-matcher'
 import { Autumn as autumn } from 'autumn-js'
+import { getOrCreateVerificationToken } from '@/lib/webhooks/verification'
 
 // Maximum webhook payload size (5MB safety margin)
 const MAX_WEBHOOK_PAYLOAD_SIZE = 1_000_000
@@ -560,6 +561,21 @@ async function handleWebhookEndpoint(emailId: string, endpoint: Endpoint): Promi
       throw new Error('Webhook URL not configured')
     }
 
+    // Get or create verification token (will be added to config if missing)
+    const hadToken = !!config.verificationToken
+    const verificationToken = getOrCreateVerificationToken(config)
+    
+    // If we generated a new token, save it back to the database
+    if (!hadToken) {
+      await db.update(endpoints)
+        .set({
+          config: JSON.stringify(config),
+          updatedAt: new Date()
+        })
+        .where(eq(endpoints.id, endpoint.id))
+      console.log(`🔐 handleWebhookEndpoint - Generated and saved new verification token for endpoint ${endpoint.id}`)
+    }
+
     console.log(`📤 handleWebhookEndpoint - Sending email ${emailData.messageId} to webhook: ${endpoint.name} (${webhookUrl})`)
 
     // Reconstruct ParsedEmailData from structured data
@@ -628,6 +644,7 @@ async function handleWebhookEndpoint(emailId: string, endpoint: Endpoint): Promi
       'X-Webhook-Timestamp': webhookPayload.timestamp,
       'X-Email-ID': emailData.structuredId, // Use structured email ID for v2 API compatibility
       'X-Message-ID': emailData.messageId || '',
+      'X-Webhook-Verification-Token': verificationToken, // Non-breaking verification token
       ...customHeaders
     }
 

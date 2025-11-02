@@ -6,6 +6,7 @@ import { endpoints } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { generateTestPayload } from '@/lib/webhooks/webhook-formats'
 import type { WebhookFormat } from '@/lib/db/schema'
+import { getOrCreateVerificationToken } from '@/lib/webhooks/verification'
 
 export async function POST(
   request: NextRequest,
@@ -96,11 +97,25 @@ export async function POST(
             }
           }
 
+          // Get or create verification token for this endpoint
+          const verificationToken = getOrCreateVerificationToken(config)
+          
+          // Save token if it was newly generated
+          if (!config.verificationToken) {
+            await db.update(endpoints)
+              .set({
+                config: JSON.stringify(config),
+                updatedAt: new Date()
+              })
+              .where(eq(endpoints.id, endpoint[0].id))
+          }
+
           const requestHeaders = {
             'Content-Type': 'application/json',
             'User-Agent': 'InboundEmail-Test/1.0',
             'X-Test-Request': 'true',
             'X-Endpoint-ID': endpoint[0].id,
+            'X-Webhook-Verification-Token': verificationToken, // Non-breaking verification token
             ...customHeaders
           }
 

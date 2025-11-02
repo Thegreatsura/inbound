@@ -10,6 +10,8 @@ import { eq, and } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { createHmac } from 'crypto'
 import { sanitizeHtml, type ParsedEmailData } from './email-parser'
+import { getOrCreateVerificationToken, generateNewWebhookVerificationToken } from '@/lib/webhooks/verification'
+import { db } from '@/lib/db'
 
 /**
  * Trigger email action by emailID - looks up email data and sends to configured webhook
@@ -178,6 +180,19 @@ export async function triggerEmailAction(emailId: string): Promise<{ success: bo
       signature = `sha256=${hmac.digest('hex')}`
     }
 
+    // For legacy webhooks, generate a token (not persisted - endpoints have proper storage)
+    // TODO: Legacy webhooks should migrate to endpoints for full verification token support
+    // For now, we generate a token but users need the endpoint config to verify
+    let verificationToken = ''
+    // Note: Legacy webhooks can't persist tokens easily, so this is a placeholder
+    // Users should migrate to endpoints for full verification support
+    if ((webhook as any).verificationToken) {
+      verificationToken = (webhook as any).verificationToken
+    } else {
+      // Generate a temporary token (won't be persisted for legacy webhooks)
+      verificationToken = generateNewWebhookVerificationToken()
+    }
+
     // Prepare headers
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -187,6 +202,7 @@ export async function triggerEmailAction(emailId: string): Promise<{ success: bo
       'X-Webhook-Timestamp': webhookPayload.timestamp,
       'X-Email-ID': emailData.id,
       'X-Message-ID': emailData.messageId || '',
+      'X-Webhook-Verification-Token': verificationToken, // Non-breaking verification token
     }
 
     if (signature) {

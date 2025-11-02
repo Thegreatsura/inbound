@@ -27,6 +27,7 @@ export type WebhookConfig = {
   headers?: Record<string, string>
   timeout?: number
   retryAttempts?: number
+  verificationToken?: string // Token for verifying webhook requests (auto-generated)
 }
 
 export type EmailForwardConfig = {

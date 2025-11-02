@@ -6,6 +6,7 @@ import { eq, and } from "drizzle-orm";
 import { generateTestPayload } from "@/lib/webhooks/webhook-formats";
 import type { WebhookFormat } from "@/lib/db/schema";
 import { nanoid } from "nanoid";
+import { generateWebhookVerificationToken } from "@/lib/webhooks/verification";
 import { sanitizeHtml } from "@/lib/email-management/email-parser";
 import type {
   InboundWebhookPayload,
@@ -363,6 +364,19 @@ export async function POST(
               type: endpoint.type as any,
             });
 
+            // Get or create verification token for this endpoint
+            const verificationToken = getOrCreateVerificationToken(config);
+            
+            // Save token if it was newly generated
+            if (!config.verificationToken) {
+              await db.update(endpoints)
+                .set({
+                  config: JSON.stringify(config),
+                  updatedAt: new Date()
+                })
+                .where(eq(endpoints.id, endpoint.id));
+            }
+
             const requestHeaders = {
               "Content-Type": "application/json",
               "User-Agent": "InboundEmail-Webhook/1.0",
@@ -371,6 +385,7 @@ export async function POST(
               "X-Webhook-Timestamp": testPayload.timestamp,
               "X-Email-ID": testPayload.email.id,
               "X-Message-ID": testPayload.email.messageId || "",
+              "X-Webhook-Verification-Token": verificationToken, // Non-breaking verification token
               ...customHeaders,
             };
 
@@ -429,12 +444,26 @@ export async function POST(
               }
             );
 
+            // Get or create verification token for this endpoint
+            const verificationToken2 = getOrCreateVerificationToken(config);
+            
+            // Save token if it was newly generated
+            if (!config.verificationToken) {
+              await db.update(endpoints)
+                .set({
+                  config: JSON.stringify(config),
+                  updatedAt: new Date()
+                })
+                .where(eq(endpoints.id, endpoint.id));
+            }
+
             const requestHeaders = {
               "Content-Type": "application/json",
               "User-Agent": "InboundEmail-Test/2.0",
               "X-Test-Request": "true",
               "X-Endpoint-ID": endpoint.id,
               "X-Webhook-Format": preferredFormat,
+              "X-Webhook-Verification-Token": verificationToken2, // Non-breaking verification token
               ...customHeaders,
             };
 
