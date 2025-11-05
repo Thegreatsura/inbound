@@ -440,14 +440,14 @@ export default function SettingsPage() {
 
       {/* Upgrade Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-6xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[95vw] lg:max-w-[1400px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-2xl font-bold text-center">Upgrade Your Plan</DialogTitle>
             <DialogDescription className="text-center">
               Choose the plan that best fits your needs and unlock more features
             </DialogDescription>
           </DialogHeader>
-          <div className="mt-6">
+          <div className="mt-6 w-full">
             <PricingTable />
           </div>
         </DialogContent>

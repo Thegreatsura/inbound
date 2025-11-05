@@ -98,9 +98,11 @@ export const PricingTable = ({
         )}
         <div
           className={cn(
-            "w-full grid grid-cols-1 gap-6 max-w-6xl mx-auto",
+            "w-full grid grid-cols-1 gap-6 max-w-7xl mx-auto",
             hasEvenProducts && "sm:grid-cols-2",
-            products.length >= 3 && "lg:grid-cols-3",
+            products.length === 3 && "lg:grid-cols-3",
+            products.length === 4 && "lg:grid-cols-4",
+            products.length > 4 && "lg:grid-cols-3",
             className
           )}
         >
