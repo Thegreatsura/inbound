@@ -36,27 +36,34 @@ export function getRootDomain(domain: string): string | null {
 }
 
 /**
- * Check if a domain is a root domain (exactly 2 parts)
+ * Check if a domain is a root domain (no subdomain prefix)
+ * Correctly handles multi-level TLDs using the Public Suffix List
  * 
  * @example
  * isRootDomain('example.com') // true
+ * isRootDomain('example.co.uk') // true
  * isRootDomain('mail.example.com') // false
+ * isRootDomain('mail.example.co.uk') // false
  */
 export function isRootDomain(domain: string): boolean {
-  const parts = domain.split('.')
-  return parts.length === 2 // example.com = true, mail.example.com = false
+  const rootDomain = getRootDomain(domain)
+  return rootDomain === domain
 }
 
 /**
- * Check if a domain is a subdomain (more than 2 parts)
+ * Check if a domain is a subdomain (has a prefix before the root domain)
+ * Correctly handles multi-level TLDs using the Public Suffix List
  * 
  * @example
  * isSubdomain('mail.example.com') // true
  * isSubdomain('docs.app.example.com') // true
+ * isSubdomain('mail.example.co.uk') // true
  * isSubdomain('example.com') // false
+ * isSubdomain('example.co.uk') // false
  */
 export function isSubdomain(domain: string): boolean {
-  const parts = domain.split('.')
-  return parts.length > 2
+  const rootDomain = getRootDomain(domain)
+  if (!rootDomain) return false
+  return domain !== rootDomain && domain.endsWith('.' + rootDomain)
 }
 
