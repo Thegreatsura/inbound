@@ -3,25 +3,30 @@
  * Handles root domain extraction and subdomain detection
  */
 
+import psl from 'psl'
+
 /**
- * Get the root domain from a domain string
- * Always returns the last two parts (TLD + domain)
+ * Get the root domain from a domain string using the Public Suffix List
+ * Handles multi-level TLDs correctly (e.g., example.co.uk)
  * 
  * @example
  * getRootDomain('mail.example.com') // 'example.com'
- * getRootDomain('docs.app.example.com') // 'example.com' (NOT 'app.example.com')
+ * getRootDomain('docs.app.example.com') // 'example.com'
  * getRootDomain('app.example.com') // 'example.com'
  * getRootDomain('example.com') // 'example.com'
+ * getRootDomain('mail.example.co.uk') // 'example.co.uk' (correctly handles multi-level TLD)
  */
 export function getRootDomain(domain: string): string | null {
-  const parts = domain.split('.')
-  if (parts.length < 2) return null
-  
-  // Return last two parts as root domain
-  // mail.example.com → example.com
-  // docs.app.example.com → example.com (NOT app.example.com)
-  // app.example.com → example.com
-  return parts.slice(-2).join('.')
+  try {
+    const parsed = psl.parse(domain)
+    if (parsed.domain) {
+      return parsed.domain
+    }
+    return null
+  } catch (error) {
+    console.error(`Error parsing domain ${domain} with PSL:`, error)
+    return null
+  }
 }
 
 /**

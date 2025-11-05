@@ -85,13 +85,36 @@ export async function initiateDomainVerification(
         console.log(`✅ Parent domain ${parentDomain.domain} is verified, skipping SES verification for ${domain}`)
         
         // Return simplified DNS records - only need MX for receiving
-        const dnsRecords = [{
+        const simplifiedDnsRecords = [{
           type: 'MX',
           name: domain,
           value: `10 inbound-smtp.${awsRegion}.amazonaws.com`,
-          isVerified: false,
           description: 'Inbound email routing (parent domain already verified for sending)'
         }]
+        
+        // Persist the verification status to the database
+        try {
+          await updateDomainSesVerification(
+            domainRecord.id,
+            '', // No verification token needed for subdomains
+            'Success', // Set status to 'verified'
+            simplifiedDnsRecords
+          )
+          console.log(`✅ Persisted subdomain verification status for ${domain}`)
+        } catch (dbError) {
+          console.error(`❌ Failed to persist subdomain verification status for ${domain}:`, dbError)
+          // Log error but continue with response
+          // The in-memory response will still be correct even if DB update fails
+        }
+        
+        // Return simplified DNS records for response
+        const dnsRecords = simplifiedDnsRecords.map(record => ({
+          type: record.type,
+          name: record.name,
+          value: record.value,
+          isVerified: false,
+          description: record.description
+        }))
         
         return {
           domain,
