@@ -2,6 +2,7 @@ import { db } from './index'
 import { emailDomains, domainDnsRecords, emailAddresses, type EmailDomain, type NewEmailDomain, type DomainDnsRecord, type NewDomainDnsRecord, type EmailAddress, type NewEmailAddress } from './schema'
 import { eq, and } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
+import { getRootDomain, isSubdomain } from '@/lib/domains-and-dns/domain-utils'
 
 export interface DomainWithRecords extends EmailDomain {
   dnsRecords: DomainDnsRecord[]
@@ -439,4 +440,59 @@ export async function markDomainAsVerified(domain: string): Promise<EmailDomain 
     console.error('❌ markDomainAsVerified - Error updating domain status:', error)
     return null
   }
+}
+
+/**
+ * Get verified parent domain for a subdomain
+ * Returns the verified root domain if it exists for the user
+ * 
+ * @example
+ * getVerifiedParentDomain('mail.example.com', userId) 
+ * // Returns EmailDomain for 'example.com' if it exists and is verified
+ */
+export async function getVerifiedParentDomain(
+  subdomain: string, 
+  userId: string
+): Promise<EmailDomain | null> {
+  const rootDomain = getRootDomain(subdomain)
+  if (!rootDomain) return null
+  
+  const [parent] = await db
+    .select()
+    .from(emailDomains)
+    .where(and(
+      eq(emailDomains.domain, rootDomain),
+      eq(emailDomains.userId, userId),
+      eq(emailDomains.status, 'verified')
+    ))
+    .limit(1)
+  
+  return parent || null
+}
+
+/**
+ * Get all subdomains that depend on a root domain
+ * Finds all domains that have the given root domain as their parent
+ * 
+ * @example
+ * getDependentSubdomains('example.com', userId)
+ * // Returns ['mail.example.com', 'docs.example.com', 'app.example.com'] etc.
+ */
+export async function getDependentSubdomains(
+  rootDomain: string,
+  userId: string
+): Promise<EmailDomain[]> {
+  // Get all domains for the user
+  const allDomains = await db
+    .select()
+    .from(emailDomains)
+    .where(eq(emailDomains.userId, userId))
+  
+  // Filter to find subdomains of the root domain
+  return allDomains.filter(d => {
+    if (d.domain === rootDomain) return false // Exclude self
+    if (!isSubdomain(d.domain)) return false // Only check subdomains
+    const domainRoot = getRootDomain(d.domain)
+    return domainRoot === rootDomain
+  })
 } 

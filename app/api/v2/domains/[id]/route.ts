@@ -6,6 +6,8 @@ import { eq, and, count } from 'drizzle-orm'
 import { AWSSESReceiptRuleManager } from '@/lib/aws-ses/aws-ses-rules'
 import { verifyDnsRecords } from '@/lib/domains-and-dns/dns'
 import { SESClient, GetIdentityVerificationAttributesCommand, GetIdentityDkimAttributesCommand, GetIdentityMailFromDomainAttributesCommand, SetIdentityMailFromDomainCommand } from '@aws-sdk/client-ses'
+import { isRootDomain } from '@/lib/domains-and-dns/domain-utils'
+import { getDependentSubdomains } from '@/lib/db/domains'
 
 // AWS SES Client setup
 const awsRegion = process.env.AWS_REGION || 'us-east-2'
@@ -843,6 +845,27 @@ export async function DELETE(
 
         const domain = domainResult[0]
         console.log('✅ Found domain:', domain.domain, 'status:', domain.status)
+
+        // NEW: Check if this is a root domain with dependent subdomains
+        if (isRootDomain(domain.domain)) {
+            const dependentSubdomains = await getDependentSubdomains(domain.domain, userId)
+            
+            if (dependentSubdomains.length > 0) {
+                console.log(`❌ Cannot delete root domain ${domain.domain} - ${dependentSubdomains.length} subdomain(s) depend on it`)
+                return NextResponse.json(
+                    {
+                        error: `Cannot delete root domain. This domain has ${dependentSubdomains.length} subdomain(s) that depend on it: ${dependentSubdomains.map(d => d.domain).join(', ')}`,
+                        code: 'DOMAIN_HAS_DEPENDENT_SUBDOMAINS',
+                        dependentSubdomains: dependentSubdomains.map(d => ({
+                            id: d.id,
+                            domain: d.domain,
+                            status: d.status
+                        }))
+                    },
+                    { status: 409 }
+                )
+            }
+        }
 
         // Track deletion stats
         const deletionStats = {

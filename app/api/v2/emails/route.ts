@@ -13,6 +13,7 @@ import { parseScheduledAt, validateScheduledDate, formatScheduledDate } from '@/
 import { Client as QStashClient } from '@upstash/qstash'
 import { waitUntil } from '@vercel/functions'
 import { evaluateSending } from '@/lib/email-management/email-evaluation'
+import { isSubdomain, getRootDomain } from '@/lib/domains-and-dns/domain-utils'
 
 /**
  * POST /api/v2/emails
@@ -204,7 +205,7 @@ export async function POST(request: NextRequest) {
         } else {
             // Verify sender domain ownership for non-agent emails
             console.log('🔍 Verifying domain ownership for:', fromDomain)
-            const userDomain = await db
+            let userDomain = await db
                 .select()
                 .from(emailDomains)
                 .where(
@@ -215,6 +216,29 @@ export async function POST(request: NextRequest) {
                     )
                 )
                 .limit(1)
+
+            // NEW: If not found and is subdomain, check parent root domain
+            if (userDomain.length === 0 && isSubdomain(fromDomain)) {
+                const rootDomain = getRootDomain(fromDomain)
+                if (rootDomain) {
+                    console.log(`🔍 Checking parent domain ${rootDomain} for subdomain ${fromDomain}`)
+                    userDomain = await db
+                        .select()
+                        .from(emailDomains)
+                        .where(
+                            and(
+                                eq(emailDomains.userId, userId),
+                                eq(emailDomains.domain, rootDomain),
+                                eq(emailDomains.status, 'verified')
+                            )
+                        )
+                        .limit(1)
+                    
+                    if (userDomain.length > 0) {
+                        console.log(`✅ Allowing send from ${fromDomain} - parent ${rootDomain} is verified`)
+                    }
+                }
+            }
 
             if (userDomain.length === 0) {
                 console.log('❌ User does not own the sender domain:', fromDomain)

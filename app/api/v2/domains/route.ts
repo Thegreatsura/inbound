@@ -5,11 +5,12 @@ import { emailDomains, emailAddresses, endpoints, domainDnsRecords } from '@/lib
 import { eq, and, desc, count } from 'drizzle-orm'
 import { AWSSESReceiptRuleManager } from '@/lib/aws-ses/aws-ses-rules'
 import { checkDomainCanReceiveEmails } from '@/lib/domains-and-dns/dns'
-import { createDomainVerification } from '@/lib/db/domains'
+import { createDomainVerification, getVerifiedParentDomain } from '@/lib/db/domains'
 import { initiateDomainVerification } from '@/lib/domains-and-dns/domain-verification'
 import { Autumn as autumn } from 'autumn-js'
 import { verifyDnsRecords } from '@/lib/domains-and-dns/dns'
 import { SESClient, GetIdentityVerificationAttributesCommand } from '@aws-sdk/client-ses'
+import { isSubdomain } from '@/lib/domains-and-dns/domain-utils'
 
 // AWS SES Client setup
 const awsRegion = process.env.AWS_REGION || 'us-east-2'
@@ -486,6 +487,8 @@ export interface PostDomainsResponse {
     }>
     createdAt: Date
     updatedAt: Date
+    parentDomain?: string
+    message?: string
 }
 
 export async function POST(request: NextRequest) {
@@ -623,6 +626,55 @@ export async function POST(request: NextRequest) {
                 provider: dnsResult.provider
             }
         )
+
+        // NEW: Check if this is a subdomain with verified parent
+        let parentDomain: string | null = null
+        if (isSubdomain(domain)) {
+            const parent = await getVerifiedParentDomain(domain, userId)
+            if (parent) {
+                console.log(`✅ Subdomain detected with verified parent: ${parent.domain}`)
+                parentDomain = parent.domain
+                
+                // Mark domain as verified immediately (inherits from parent)
+                await db
+                    .update(emailDomains)
+                    .set({
+                        status: 'verified',
+                        verificationToken: null, // Not needed
+                        updatedAt: new Date()
+                    })
+                    .where(eq(emailDomains.id, domainRecord.id))
+                
+                // Return simplified response with only MX record
+                const response: PostDomainsResponse = {
+                    id: domainRecord.id,
+                    domain: domainRecord.domain,
+                    status: 'verified', // Inherit from parent
+                    canReceiveEmails: domainRecord.canReceiveEmails || false,
+                    hasMxRecords: domainRecord.hasMxRecords || false,
+                    domainProvider: domainRecord.domainProvider,
+                    providerConfidence: domainRecord.providerConfidence,
+                    dnsRecords: [
+                        {
+                            type: 'MX',
+                            name: domain,
+                            value: `10 inbound-smtp.${awsRegion}.amazonaws.com`,
+                            description: 'Add this MX record to receive emails at this subdomain',
+                            isRequired: true
+                        }
+                    ],
+                    createdAt: domainRecord.createdAt || new Date(),
+                    updatedAt: new Date()
+                }
+                
+                console.log(`✅ Subdomain created with parent verification: ${domain} inherits from ${parent.domain}`)
+                return NextResponse.json({
+                    ...response,
+                    parentDomain: parent.domain,
+                    message: `Subdomain inherits verification from ${parent.domain}. Only MX record needed for receiving.`
+                }, { status: 201 })
+            }
+        }
 
         // Initiate SES verification (includes tenant association for new domains)
         console.log('🔐 Initiating SES domain verification with tenant integration')
