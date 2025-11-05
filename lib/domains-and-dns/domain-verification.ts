@@ -1,6 +1,7 @@
 import { SESClient, VerifyDomainIdentityCommand, GetIdentityVerificationAttributesCommand, DeleteIdentityCommand, SetIdentityMailFromDomainCommand, GetIdentityMailFromDomainAttributesCommand } from '@aws-sdk/client-ses'
-import { getDomainWithRecords, updateDomainSesVerification } from '@/lib/db/domains'
+import { getDomainWithRecords, updateDomainSesVerification, getVerifiedParentDomain } from '@/lib/db/domains'
 import { getUserTenant, associateIdentityWithUserTenant } from '@/lib/aws-ses/aws-ses-tenants'
+import { isSubdomain } from '@/lib/domains-and-dns/domain-utils'
 
 // Check if AWS credentials are available
 const awsRegion = process.env.AWS_REGION || 'us-east-2'
@@ -24,7 +25,7 @@ if (awsAccessKeyId && awsSecretAccessKey) {
 export interface DomainVerificationResult {
   domain: string
   domainId: string
-  verificationToken: string
+  verificationToken: string | null
   status: 'pending' | 'verified' | 'failed'
   sesStatus?: string
   mailFromDomain?: string
@@ -38,6 +39,8 @@ export interface DomainVerificationResult {
   }>
   canProceed: boolean
   error?: string
+  parentDomain?: string
+  isSubdomain?: boolean
 }
 
 /**
@@ -72,6 +75,53 @@ export async function initiateDomainVerification(
     const domainRegex = /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/
     if (!domainRegex.test(domain) || domain.length > 253) {
       throw new Error('Invalid domain format')
+    }
+
+    // NEW: Check if this is a subdomain with verified parent
+    if (isSubdomain(domain)) {
+      const parentDomain = await getVerifiedParentDomain(domain, userId)
+      
+      if (parentDomain) {
+        console.log(`✅ Parent domain ${parentDomain.domain} is verified, skipping SES verification for ${domain}`)
+        
+        // Return simplified DNS records - only need MX for receiving
+        const dnsRecords = [{
+          type: 'MX',
+          name: domain,
+          value: `10 inbound-smtp.${awsRegion}.amazonaws.com`,
+          isVerified: false,
+          description: 'Inbound email routing (parent domain already verified for sending)'
+        }]
+        
+        // Persist the verification status to the database
+        try {
+          await updateDomainSesVerification(
+            domainRecord.id,
+            '', // No verification token needed for subdomains
+            'Success', // Set status to verified
+            dnsRecords,
+            undefined, // No mailFromDomain for subdomains
+            undefined, // No mailFromDomainStatus for subdomains
+            undefined // Tenant ID will be handled separately if needed
+          )
+          console.log(`✅ Persisted subdomain verification status to database for ${domain}`)
+        } catch (dbError) {
+          console.error(`❌ Failed to persist subdomain verification status for ${domain}:`, dbError)
+          // Continue with response even if DB update fails, but log the error
+          throw new Error(`Failed to update domain status in database: ${dbError instanceof Error ? dbError.message : 'Unknown error'}`)
+        }
+        
+        return {
+          domain,
+          domainId: domainRecord.id,
+          verificationToken: null, // Not needed
+          status: 'verified', // Inherit from parent
+          dnsRecords,
+          canProceed: true,
+          parentDomain: parentDomain.domain,
+          isSubdomain: true
+        }
+      }
     }
 
     // Get or create tenant for user (NEW TENANT INTEGRATION)

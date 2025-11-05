@@ -59,7 +59,7 @@ interface AddDomainResponse {
   success: boolean
   domain: string
   domainId: string
-  verificationToken: string
+  verificationToken: string | null
   status: 'pending' | 'verified' | 'failed'
   sesStatus?: string
   dnsRecords: Array<{
@@ -505,7 +505,7 @@ async function handleAddDomain(
       success: true,
       domain: verificationResult.domain,
       domainId: verificationResult.domainId,
-      verificationToken: verificationResult.verificationToken,
+      verificationToken: verificationResult.verificationToken ?? null,
       status: mappedStatus,
       sesStatus: verificationResult.sesStatus,
       dnsRecords: verificationResult.dnsRecords,

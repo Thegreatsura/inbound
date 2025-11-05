@@ -21,6 +21,8 @@
     "email": "bun run scripts/sending/resend.ts",
     "email-verified": "bun run scripts/test-domain-verification.ts",
     "preview-email": "bun run scripts/preview-domain-email.ts",
+    "ses-playground": "bun run scripts/aws-ses-playground.ts",
+    "ses-depth-test": "bun run scripts/aws-ses-playground.ts --depth-only",
     "test-qstash-webhook": "curl -X POST \"http://localhost:3000/api/webhooks/send-email\" -H \"Content-Type: application/json\" -d '{\"type\":\"scheduled\",\"scheduledEmailId\":\"test-id\"}' || echo 'Make sure your dev server is running'",
     "check": "tsc --noEmit && prettier --check . --ignore-path .gitignore || true",
     "registry:build": "shadcn build"
@@ -119,6 +121,7 @@
     "openapi-types": "^12.1.3",
     "particlesjs": "^2.2.3",
     "pg": "^8.16.0",
+    "psl": "^1.15.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-email": "^4.0.16",
