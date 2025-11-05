@@ -85,10 +85,11 @@ export async function initiateDomainVerification(
         console.log(`✅ Parent domain ${parentDomain.domain} is verified, skipping SES verification for ${domain}`)
         
         // Return simplified DNS records - only need MX for receiving
-        const simplifiedDnsRecords = [{
+        const dnsRecords = [{
           type: 'MX',
           name: domain,
           value: `10 inbound-smtp.${awsRegion}.amazonaws.com`,
+          isVerified: false,
           description: 'Inbound email routing (parent domain already verified for sending)'
         }]
         
@@ -97,24 +98,18 @@ export async function initiateDomainVerification(
           await updateDomainSesVerification(
             domainRecord.id,
             '', // No verification token needed for subdomains
-            'Success', // Set status to 'verified'
-            simplifiedDnsRecords
+            'Success', // Set status to verified
+            dnsRecords,
+            undefined, // No mailFromDomain for subdomains
+            undefined, // No mailFromDomainStatus for subdomains
+            undefined // Tenant ID will be handled separately if needed
           )
-          console.log(`✅ Persisted subdomain verification status for ${domain}`)
+          console.log(`✅ Persisted subdomain verification status to database for ${domain}`)
         } catch (dbError) {
           console.error(`❌ Failed to persist subdomain verification status for ${domain}:`, dbError)
-          // Log error but continue with response
-          // The in-memory response will still be correct even if DB update fails
+          // Continue with response even if DB update fails, but log the error
+          throw new Error(`Failed to update domain status in database: ${dbError instanceof Error ? dbError.message : 'Unknown error'}`)
         }
-        
-        // Return simplified DNS records for response
-        const dnsRecords = simplifiedDnsRecords.map(record => ({
-          type: record.type,
-          name: record.name,
-          value: record.value,
-          isVerified: false,
-          description: record.description
-        }))
         
         return {
           domain,

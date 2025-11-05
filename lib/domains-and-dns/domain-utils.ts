@@ -3,28 +3,34 @@
  * Handles root domain extraction and subdomain detection
  */
 
-import psl from 'psl'
+// @ts-expect-error - psl package has type definitions but they're not properly exported in package.json
+import { parse, type ParsedDomain, type ErrorResult } from 'psl'
 
 /**
  * Get the root domain from a domain string using the Public Suffix List
- * Handles multi-level TLDs correctly (e.g., example.co.uk)
+ * Correctly handles multi-level TLDs (e.g., example.co.uk)
  * 
  * @example
  * getRootDomain('mail.example.com') // 'example.com'
  * getRootDomain('docs.app.example.com') // 'example.com'
  * getRootDomain('app.example.com') // 'example.com'
  * getRootDomain('example.com') // 'example.com'
- * getRootDomain('mail.example.co.uk') // 'example.co.uk' (correctly handles multi-level TLD)
+ * getRootDomain('mail.example.co.uk') // 'example.co.uk'
  */
 export function getRootDomain(domain: string): string | null {
   try {
-    const parsed = psl.parse(domain)
-    if (parsed.domain) {
-      return parsed.domain
+    const parsed = parse(domain)
+    // Check if it's an error result (has 'error' property)
+    if ('error' in parsed) {
+      return null
     }
-    return null
+    // Check if domain is null or empty
+    if (!parsed.domain) {
+      return null
+    }
+    return parsed.domain
   } catch (error) {
-    console.error(`Error parsing domain ${domain} with PSL:`, error)
+    // If psl.parse throws an error or returns invalid result, return null
     return null
   }
 }
