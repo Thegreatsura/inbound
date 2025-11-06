@@ -460,6 +460,10 @@ export const sentEmails = pgTable('sent_emails', {
   threadId: varchar('thread_id', { length: 255 }), // Reference to emailThreads.id
   threadPosition: integer('thread_position'), // Position in thread
 
+  // Batch sending fields
+  batchId: varchar('batch_id', { length: 255 }), // For grouping batch sends
+  batchIndex: integer('batch_index'), // Order within batch
+
   // User and timestamps
   userId: varchar('user_id', { length: 255 }).notNull(),
   createdAt: timestamp('created_at').defaultNow(),
