@@ -114,6 +114,7 @@ async function handleScheduledEmail(payload: QStashPayload) {
     const { scheduledEmailId } = payload
     console.log('📧 Processing scheduled email:', scheduledEmailId)
 
+    try {
         // Check if SES is configured
         if (!sesClient) {
             console.error('❌ AWS SES not configured')
@@ -461,28 +462,31 @@ async function handleBatchEmail(
             })
             .where(eq(sentEmails.id, emailId))
 
-        // Track email usage with Autumn (non-blocking)
-        waitUntil(
-            (async () => {
-                try {
-                    const { Autumn: autumn } = await import('autumn-js')
-                    const { data: emailCheck } = await autumn.check({
-                        customer_id: userId,
-                        feature_id: "emails_sent"
-                    })
+        // Track email usage with Autumn (blocking - every email must count towards quota)
+        try {
+            const { Autumn: autumn } = await import('autumn-js')
+            const { data: emailCheck } = await autumn.check({
+                customer_id: userId,
+                feature_id: "emails_sent"
+            })
 
-                    if (!emailCheck.unlimited) {
-                        await autumn.track({
-                            customer_id: userId,
-                            feature_id: "emails_sent",
-                            value: 1,
-                        })
-                    }
-                } catch (trackError) {
+            if (emailCheck && !emailCheck.unlimited) {
+                console.log('📊 Tracking email usage with Autumn')
+                const { error: trackError } = await autumn.track({
+                    customer_id: userId,
+                    feature_id: "emails_sent",
+                    value: 1,
+                })
+
+                if (trackError) {
                     console.error('❌ Failed to track email usage:', trackError)
+                    // Don't fail the request if tracking fails, but log it
                 }
-            })()
-        )
+            }
+        } catch (trackError) {
+            console.error('❌ Failed to track email usage:', trackError)
+            // Don't fail the request if tracking fails
+        }
 
         // Evaluate email for security risks (non-blocking)
         waitUntil(
