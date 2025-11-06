@@ -12,8 +12,10 @@ import { isSubdomain, getRootDomain } from '@/lib/domains-and-dns/domain-utils'
 
 /**
  * POST /api/v2/emails/batch
- * Send batch emails through the API (Resend-compatible)
- * Supports up to 100 emails per batch
+ * Send batch emails through the API
+ * Accepts a single email object with an array of recipients in the 'to' field
+ * Creates separate email entities for each recipient
+ * Supports up to 1000 recipients per batch
  * Each email is queued via QStash with 500ms delays
  * Has tests? ❌
  * Has logging? ✅
@@ -39,7 +41,9 @@ export interface PostEmailsRequest {
     }>
 }
 
-export type PostEmailsBatchRequest = PostEmailsRequest[]
+export interface PostEmailsBatchRequest extends PostEmailsRequest {
+    to: string[] // In batch mode, 'to' must be an array
+}
 
 export interface PostEmailsBatchResponse {
     data: Array<{ id: string }>
@@ -52,22 +56,59 @@ function toArray(value: string | string[] | undefined): string[] {
     return Array.isArray(value) ? value : [value]
 }
 
-// Validation function for a single email
+// Validation function for batch email request
 interface ValidationResult {
     valid: boolean
     error?: string
 }
 
-async function validateEmail(
-    email: PostEmailsRequest,
-    userId: string,
-    index: number
+async function validateBatchEmail(
+    email: PostEmailsBatchRequest,
+    userId: string
 ): Promise<ValidationResult> {
     // Validate required fields
     if (!email.from || !email.to || !email.subject) {
         return {
             valid: false,
-            error: `Email at index ${index}: Missing required fields: from, to, and subject are required`
+            error: 'Missing required fields: from, to, and subject are required'
+        }
+    }
+
+    // Validate that 'to' is an array
+    if (!Array.isArray(email.to)) {
+        return {
+            valid: false,
+            error: 'The "to" field must be an array of email addresses for batch sending'
+        }
+    }
+
+    // Validate batch size (max 1000 recipients)
+    if (email.to.length === 0) {
+        return {
+            valid: false,
+            error: 'At least one recipient email address is required in the "to" array'
+        }
+    }
+
+    if (email.to.length > 1000) {
+        return {
+            valid: false,
+            error: 'Cannot send to more than 1000 recipients at once. Please split into smaller batches.'
+        }
+    }
+
+    // Validate combined recipients per email (to + cc + bcc)
+    // Each email in the batch will have: 1 recipient from 'to' + all 'cc' + all 'bcc'
+    const ccAddresses = toArray(email.cc)
+    const bccAddresses = toArray(email.bcc)
+    const recipientsPerEmail = 1 + ccAddresses.length + bccAddresses.length
+    
+    // AWS SES limit is 50 recipients per email
+    const MAX_RECIPIENTS_PER_EMAIL = 50
+    if (recipientsPerEmail > MAX_RECIPIENTS_PER_EMAIL) {
+        return {
+            valid: false,
+            error: `Combined total of recipients per email (1 'to' + ${ccAddresses.length} 'cc' + ${bccAddresses.length} 'bcc' = ${recipientsPerEmail}) exceeds the limit of ${MAX_RECIPIENTS_PER_EMAIL} recipients per email. Please reduce the number of CC or BCC recipients.`
         }
     }
 
@@ -75,7 +116,7 @@ async function validateEmail(
     if (!email.html && !email.text) {
         return {
             valid: false,
-            error: `Email at index ${index}: Either html or text content must be provided`
+            error: 'Either html or text content must be provided'
         }
     }
 
@@ -121,33 +162,30 @@ async function validateEmail(
         if (!domainFound) {
             return {
                 valid: false,
-                error: `Email at index ${index}: You don't have permission to send from domain: ${fromDomain}`
+                error: `You don't have permission to send from domain: ${fromDomain}`
             }
-        }
-    }
-
-    // Convert recipients to arrays
-    const toAddresses = toArray(email.to)
-    const ccAddresses = toArray(email.cc)
-    const bccAddresses = toArray(email.bcc)
-
-    // Validate combined recipients count (max 50 per email)
-    const allRecipients = [...toAddresses, ...ccAddresses, ...bccAddresses]
-    if (allRecipients.length > 50) {
-        return {
-            valid: false,
-            error: `Email at index ${index}: Combined total of all recipients (to, cc, bcc) should not exceed 50 addresses`
         }
     }
 
     // Validate email addresses format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    for (const recipient of allRecipients) {
+    for (const recipient of email.to) {
         const address = extractEmailAddress(recipient)
         if (!emailRegex.test(address)) {
             return {
                 valid: false,
-                error: `Email at index ${index}: Invalid email format: ${recipient}`
+                error: `Invalid email format in 'to' array: ${recipient}`
+            }
+        }
+    }
+
+    // Validate cc/bcc if provided (already converted to arrays above)
+    for (const recipient of [...ccAddresses, ...bccAddresses]) {
+        const address = extractEmailAddress(recipient)
+        if (!emailRegex.test(address)) {
+            return {
+                valid: false,
+                error: `Invalid email format: ${recipient}`
             }
         }
     }
@@ -179,64 +217,45 @@ export async function POST(request: NextRequest) {
         console.log('📝 Parsing request body')
         const body: PostEmailsBatchRequest = await request.json()
 
-        // Validate that body is an array
-        if (!Array.isArray(body)) {
+        // Validate that body is an object (not an array)
+        if (Array.isArray(body)) {
             return NextResponse.json(
-                { error: 'Request body must be an array of email objects' },
+                { error: 'Request body must be a single email object with an array of recipients in the "to" field' },
                 { status: 400 }
             )
         }
 
-        // Validate batch size (max 1000 emails)
-        if (body.length === 0) {
+        // Validate the batch email request
+        const validation = await validateBatchEmail(body, userId)
+        if (!validation.valid) {
             return NextResponse.json(
-                { error: 'Batch must contain at least one email' },
+                { error: validation.error },
                 { status: 400 }
             )
         }
 
-        if (body.length > 1000) {
-            return NextResponse.json(
-                { error: 'Batch cannot contain more than 1000 emails, please split your batch into smaller batches' },
-                { status: 400 }
-            )
-        }
-
-        console.log(`📊 Processing batch of ${body.length} emails`)
-
-        // Validate all emails
-        const validationResults: Array<{ index: number; result: ValidationResult }> = []
-        const errors: Array<{ index: number; message: string }> = []
-
-        for (let i = 0; i < body.length; i++) {
-            const result = await validateEmail(body[i], userId, i)
-            validationResults.push({ index: i, result })
-            
-            if (!result.valid) {
-                errors.push({ index: i, message: result.error || 'Validation failed' })
-            }
-        }
-
-        // In strict mode, return error if any validation failed
-        if (validationMode === 'strict' && errors.length > 0) {
-            console.log('❌ Strict mode: Validation failed for some emails')
-            return NextResponse.json(
-                { error: 'Batch validation failed', errors },
-                { status: 400 }
-            )
-        }
-
-        // In permissive mode, continue with valid emails only
-        const validEmails = body.filter((_, index) => {
-            const validation = validationResults.find(v => v.index === index)
-            return validation?.result.valid
-        })
-
-        console.log(`✅ ${validEmails.length} valid emails, ${errors.length} invalid emails`)
+        // Get recipients array
+        const recipients = Array.isArray(body.to) ? body.to : [body.to]
+        console.log(`📊 Processing batch of ${recipients.length} recipients`)
 
         // Generate batch ID for grouping
         const batchId = nanoid()
         console.log('🆔 Batch ID:', batchId)
+
+        // Process attachments once (shared across all emails)
+        let processedAttachments: any[] = []
+        if (body.attachments && body.attachments.length > 0) {
+            try {
+                const { processAttachments: processAttachmentsFn } = await import('../../helper/attachment-processor')
+                processedAttachments = await processAttachmentsFn(body.attachments)
+            } catch (attachmentError) {
+                console.error('❌ Attachment processing error:', attachmentError)
+                return NextResponse.json(
+                    { error: `Failed to process attachments: ${attachmentError instanceof Error ? attachmentError.message : 'Unknown error'}` },
+                    { status: 400 }
+                )
+            }
+        }
 
         // Initialize QStash client
         const qstashClient = new QStashClient({ 
@@ -244,96 +263,69 @@ export async function POST(request: NextRequest) {
         })
         const webhookUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/send-email`
 
-        // Process each valid email
+        // Extract common email data
+        const fromAddress = extractEmailAddress(body.from)
+        const fromDomain = extractDomain(body.from)
+        const ccAddresses = toArray(body.cc)
+        const bccAddresses = toArray(body.bcc)
+        const replyToAddresses = toArray(body.replyTo || body.reply_to)
+
+        // Process each recipient - create separate email for each
         const emailIds: Array<{ id: string }> = []
-        const validIndices: number[] = []
+        const errors: Array<{ index: number; message: string }> = []
 
-        for (let i = 0; i < body.length; i++) {
-            const email = body[i]
-            const validation = validationResults.find(v => v.index === i)
-            
-            // Skip invalid emails in permissive mode
-            if (validationMode === 'permissive' && !validation?.result.valid) {
-                continue
-            }
-
-            validIndices.push(i)
+        for (let i = 0; i < recipients.length; i++) {
+            const recipient = recipients[i]
             const emailId = nanoid()
-            const batchIndex = validIndices.length - 1
-
-            // Create initial sentEmails record with PENDING status
-            const toAddresses = toArray(email.to)
-            const ccAddresses = toArray(email.cc)
-            const bccAddresses = toArray(email.bcc)
-            const replyToAddresses = toArray(email.replyTo || email.reply_to)
-            const fromAddress = extractEmailAddress(email.from)
-            const fromDomain = extractDomain(email.from)
-
-            // Process attachments if present
-            let processedAttachments: any[] = []
-            if (email.attachments && email.attachments.length > 0) {
-                try {
-                    const { processAttachments: processAttachmentsFn } = await import('../../helper/attachment-processor')
-                    processedAttachments = await processAttachmentsFn(email.attachments)
-                } catch (attachmentError) {
-                    console.error(`❌ Attachment processing error for email ${i}:`, attachmentError)
-                    // In permissive mode, add to errors and continue
-                    if (validationMode === 'permissive') {
-                        errors.push({
-                            index: i,
-                            message: `Failed to process attachments: ${attachmentError instanceof Error ? attachmentError.message : 'Unknown error'}`
-                        })
-                        continue
-                    } else {
-                        // This shouldn't happen in strict mode, but handle it
-                        return NextResponse.json(
-                            { error: `Failed to process attachments for email at index ${i}` },
-                            { status: 400 }
-                        )
-                    }
-                }
-            }
-
-            // Create sent email record
-            await db.insert(sentEmails).values({
-                id: emailId,
-                from: email.from,
-                fromAddress,
-                fromDomain,
-                to: JSON.stringify(toAddresses),
-                cc: ccAddresses.length > 0 ? JSON.stringify(ccAddresses) : null,
-                bcc: bccAddresses.length > 0 ? JSON.stringify(bccAddresses) : null,
-                replyTo: replyToAddresses.length > 0 ? JSON.stringify(replyToAddresses) : null,
-                subject: email.subject,
-                textBody: email.text || null,
-                htmlBody: email.html || null,
-                headers: email.headers ? JSON.stringify(email.headers) : null,
-                attachments: processedAttachments.length > 0 ? JSON.stringify(
-                    attachmentsToStorageFormat(processedAttachments)
-                ) : null,
-                tags: email.tags ? JSON.stringify(email.tags) : null,
-                status: SENT_EMAIL_STATUS.PENDING,
-                userId,
-                batchId,
-                batchIndex,
-                createdAt: new Date(),
-                updatedAt: new Date()
-            })
-
-            // Queue via QStash with delay (500ms per email)
-            const delaySeconds = Math.floor((batchIndex * 500) / 1000) // Convert to seconds
-            const notBefore = Math.floor(Date.now() / 1000) + delaySeconds
-
-            console.log(`📤 Queueing email ${emailId} (index ${batchIndex}) with delay ${delaySeconds}s`)
+            const batchIndex = i
 
             try {
+                // Create sent email record for this recipient
+                // Each recipient gets their own email with only them in the 'to' field
+                await db.insert(sentEmails).values({
+                    id: emailId,
+                    from: body.from,
+                    fromAddress,
+                    fromDomain,
+                    to: JSON.stringify([recipient]), // Single recipient per email
+                    cc: ccAddresses.length > 0 ? JSON.stringify(ccAddresses) : null,
+                    bcc: bccAddresses.length > 0 ? JSON.stringify(bccAddresses) : null,
+                    replyTo: replyToAddresses.length > 0 ? JSON.stringify(replyToAddresses) : null,
+                    subject: body.subject,
+                    textBody: body.text || null,
+                    htmlBody: body.html || null,
+                    headers: body.headers ? JSON.stringify(body.headers) : null,
+                    attachments: processedAttachments.length > 0 ? JSON.stringify(
+                        attachmentsToStorageFormat(processedAttachments)
+                    ) : null,
+                    tags: body.tags ? JSON.stringify(body.tags) : null,
+                    status: SENT_EMAIL_STATUS.PENDING,
+                    userId,
+                    batchId,
+                    batchIndex,
+                    createdAt: new Date(),
+                    updatedAt: new Date()
+                })
+
+                // Queue via QStash with delay (500ms per email)
+                const delaySeconds = Math.floor((batchIndex * 500) / 1000) // Convert to seconds
+                const notBefore = Math.floor(Date.now() / 1000) + delaySeconds
+
+                console.log(`📤 Queueing email ${emailId} for recipient ${recipient} (index ${batchIndex}) with delay ${delaySeconds}s`)
+
+                // Create email data for QStash (single recipient version)
+                const emailDataForQueue: PostEmailsRequest = {
+                    ...body,
+                    to: recipient // Single recipient for this email
+                }
+
                 await qstashClient.publishJSON({
                     url: webhookUrl,
                     body: {
                         type: 'batch',
                         emailId,
                         userId,
-                        emailData: email,
+                        emailData: emailDataForQueue,
                         batchId,
                         batchIndex
                     },
@@ -342,45 +334,48 @@ export async function POST(request: NextRequest) {
                 })
 
                 emailIds.push({ id: emailId })
-            } catch (qstashError) {
-                console.error(`❌ Failed to queue email ${emailId}:`, qstashError)
+            } catch (error) {
+                console.error(`❌ Failed to queue email for recipient ${recipient}:`, error)
                 
-                // Update email status to failed
-                await db
-                    .update(sentEmails)
-                    .set({
-                        status: SENT_EMAIL_STATUS.FAILED,
-                        failureReason: qstashError instanceof Error ? qstashError.message : 'Failed to queue email',
-                        updatedAt: new Date()
-                    })
-                    .where(eq(sentEmails.id, emailId))
-
-                // In permissive mode, add to errors
-                if (validationMode === 'permissive') {
-                    errors.push({
-                        index: i,
-                        message: `Failed to queue email: ${qstashError instanceof Error ? qstashError.message : 'Unknown error'}`
-                    })
-                } else {
-                    // In strict mode, this is unexpected but handle it
-                    return NextResponse.json(
-                        { error: `Failed to queue email at index ${i}` },
-                        { status: 500 }
-                    )
+                // Update email status to failed if record was created
+                try {
+                    await db
+                        .update(sentEmails)
+                        .set({
+                            status: SENT_EMAIL_STATUS.FAILED,
+                            failureReason: error instanceof Error ? error.message : 'Failed to queue email',
+                            updatedAt: new Date()
+                        })
+                        .where(eq(sentEmails.id, emailId))
+                } catch (updateError) {
+                    // Record might not exist, that's okay
                 }
+
+                errors.push({
+                    index: i,
+                    message: `Failed to queue email for recipient ${recipient}: ${error instanceof Error ? error.message : 'Unknown error'}`
+                })
             }
         }
 
-        console.log(`✅ Batch processing complete: ${emailIds.length} emails queued`)
+        console.log(`✅ Batch processing complete: ${emailIds.length} emails queued, ${errors.length} errors`)
 
         // Build response
         const response: PostEmailsBatchResponse = {
             data: emailIds
         }
 
-        // Include errors array only in permissive mode if there are errors
-        if (validationMode === 'permissive' && errors.length > 0) {
+        // Include errors if any occurred
+        if (errors.length > 0) {
             response.errors = errors
+        }
+
+        // If no emails were queued successfully, return error
+        if (emailIds.length === 0) {
+            return NextResponse.json(
+                { error: 'Failed to queue any emails', errors },
+                { status: 500 }
+            )
         }
 
         return NextResponse.json(response, { status: 200 })
