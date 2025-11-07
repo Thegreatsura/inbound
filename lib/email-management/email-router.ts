@@ -576,8 +576,6 @@ async function handleWebhookEndpoint(emailId: string, endpoint: Endpoint): Promi
       console.log(`🔐 handleWebhookEndpoint - Generated and saved new verification token for endpoint ${endpoint.id}`)
     }
 
-    console.log(`📤 handleWebhookEndpoint - Sending email ${emailData.messageId} to webhook: ${endpoint.name} (${webhookUrl})`)
-
     // Reconstruct ParsedEmailData from structured data
     const parsedEmailData = reconstructParsedEmailData(emailData)
 
@@ -713,8 +711,34 @@ async function handleWebhookEndpoint(emailId: string, endpoint: Endpoint): Promi
     let deliverySuccess = false
     let responseCode = 0
     let responseBody = ''
+    let responseHeaders: Record<string, string> = {}
     let errorMessage = ''
     let deliveryTime = 0
+
+    // Log comprehensive request details BEFORE sending
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+    console.log(`📤 Webhook Request - Starting delivery`)
+    console.log(`  Endpoint:       ${endpoint.name} (ID: ${endpoint.id})`)
+    console.log(`  URL:            ${webhookUrl}`)
+    console.log(`  Method:         POST`)
+    console.log(`  Timeout:        ${timeout}s`)
+    console.log(`  Email ID:       ${emailData.structuredId}`)
+    console.log(`  Message ID:     ${emailData.messageId}`)
+    console.log(`  Recipient:      ${emailData.recipient}`)
+    console.log(`  Subject:        ${emailData.subject}`)
+    console.log(`  Payload Size:   ${finalPayloadString.length.toLocaleString()} bytes`)
+    if (strippedFields.length > 0) {
+      console.log(`  Stripped:       ${strippedFields.join(', ')}`)
+    }
+    console.log(`  Headers:`)
+    Object.entries(headers).forEach(([key, value]) => {
+      // Mask sensitive headers
+      const displayValue = key.toLowerCase().includes('token') || key.toLowerCase().includes('auth')
+        ? `${String(value).substring(0, 8)}...`
+        : value
+      console.log(`    ${key}: ${displayValue}`)
+    })
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
 
     try {
       const response = await fetch(webhookUrl, {
@@ -728,8 +752,45 @@ async function handleWebhookEndpoint(emailId: string, endpoint: Endpoint): Promi
       responseCode = response.status
       responseBody = await response.text().catch(() => 'Unable to read response body')
       deliverySuccess = response.ok
+      
+      // Capture response headers
+      response.headers.forEach((value, key) => {
+        responseHeaders[key] = value
+      })
 
-      console.log(`${deliverySuccess ? '✅' : '❌'} handleWebhookEndpoint - Delivery ${deliverySuccess ? 'succeeded' : 'failed'} for ${emailData.recipient}: ${responseCode} in ${deliveryTime}ms`)
+      // Log comprehensive response details
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+      console.log(`${deliverySuccess ? '✅' : '❌'} Webhook Response - ${deliverySuccess ? 'SUCCESS' : 'FAILED'}`)
+      console.log(`  Status Code:    ${responseCode} ${response.statusText}`)
+      console.log(`  Delivery Time:  ${deliveryTime}ms`)
+      console.log(`  URL:            ${webhookUrl}`)
+      console.log(`  Response Headers:`)
+      Object.entries(responseHeaders).forEach(([key, value]) => {
+        console.log(`    ${key}: ${value}`)
+      })
+      console.log(`  Response Body:  ${responseBody.length > 500 ? responseBody.substring(0, 500) + '... (truncated)' : responseBody}`)
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+
+      if (!deliverySuccess) {
+        console.error(`❌ Webhook Failed - Non-OK status code`)
+        console.error(`  Expected: 2xx status code`)
+        console.error(`  Received: ${responseCode}`)
+        console.error(`  This usually indicates:`)
+        if (responseCode === 404) {
+          console.error(`    - The webhook endpoint URL doesn't exist`)
+          console.error(`    - The endpoint path is incorrect`)
+          console.error(`    - The server is not handling POST requests at this path`)
+        } else if (responseCode === 401 || responseCode === 403) {
+          console.error(`    - Authentication/authorization failure`)
+          console.error(`    - Check verification token or custom auth headers`)
+        } else if (responseCode === 500 || responseCode === 502 || responseCode === 503) {
+          console.error(`    - Server error on the webhook receiver side`)
+          console.error(`    - Check the receiver's application logs`)
+        } else if (responseCode === 400) {
+          console.error(`    - Bad request - the payload may be invalid`)
+          console.error(`    - Check the webhook receiver's expected format`)
+        }
+      }
 
     } catch (error) {
       deliveryTime = Date.now() - startTime
@@ -745,7 +806,38 @@ async function handleWebhookEndpoint(emailId: string, endpoint: Endpoint): Promi
         errorMessage = 'Unknown error'
       }
 
-      console.error(`❌ handleWebhookEndpoint - Delivery failed for ${emailData.recipient}:`, errorMessage)
+      // Log comprehensive error details
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+      console.error(`❌ Webhook Error - Request Failed`)
+      console.error(`  Error Type:     ${error instanceof Error ? error.name : 'Unknown'}`)
+      console.error(`  Error Message:  ${errorMessage}`)
+      console.error(`  Delivery Time:  ${deliveryTime}ms (failed)`)
+      console.error(`  URL:            ${webhookUrl}`)
+      console.error(`  Timeout Config: ${timeout}s`)
+      
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          console.error(`  Cause:          Request exceeded timeout limit`)
+          console.error(`  Resolution:     Increase timeout in endpoint config or optimize webhook handler`)
+        } else if (error.message.includes('fetch failed') || error.message.includes('ECONNREFUSED')) {
+          console.error(`  Cause:          Cannot connect to webhook URL`)
+          console.error(`  Resolution:     Check if the URL is accessible and the server is running`)
+        } else if (error.message.includes('ENOTFOUND') || error.message.includes('getaddrinfo')) {
+          console.error(`  Cause:          DNS resolution failed`)
+          console.error(`  Resolution:     Check if the domain name is correct and resolvable`)
+        } else if (error.message.includes('certificate') || error.message.includes('SSL')) {
+          console.error(`  Cause:          SSL/TLS certificate issue`)
+          console.error(`  Resolution:     Check SSL certificate validity`)
+        }
+        
+        if (error.stack) {
+          console.error(`  Stack Trace:`)
+          error.stack.split('\n').slice(0, 5).forEach(line => {
+            console.error(`    ${line}`)
+          })
+        }
+      }
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
     }
 
     // Update the pre-created delivery record with results
@@ -755,22 +847,25 @@ async function handleWebhookEndpoint(emailId: string, endpoint: Endpoint): Promi
         status: deliverySuccess ? 'success' : 'failed',
         lastAttemptAt: new Date(),
         responseData: JSON.stringify({ 
-        responseCode,
+          responseCode,
           responseBody: responseBody ? responseBody.substring(0, 2000) : null,
-        deliveryTime,
-        error: errorMessage || null,
-        url: webhookUrl,
-        deliveredAt: new Date().toISOString()
+          responseHeaders,
+          deliveryTime,
+          error: errorMessage || null,
+          url: webhookUrl,
+          payloadSize: finalPayloadString.length,
+          strippedFields: strippedFields.length > 0 ? strippedFields : null,
+          deliveredAt: new Date().toISOString()
         }),
         updatedAt: new Date()
       })
       .where(eq(endpointDeliveries.id, deliveryId))
 
     if (!deliverySuccess) {
-      throw new Error(errorMessage || 'Webhook delivery failed')
+      throw new Error(errorMessage || `Webhook delivery failed with status ${responseCode}`)
     }
 
-    console.log(`✅ handleWebhookEndpoint - Successfully delivered email ${emailId} to webhook ${endpoint.name}`)
+    console.log(`✅ handleWebhookEndpoint - Successfully delivered email ${emailId} to webhook ${endpoint.name} (${deliveryTime}ms)`)
 
   } catch (error) {
     // Update delivery record to failed state if any error occurred during processing
@@ -782,6 +877,7 @@ async function handleWebhookEndpoint(emailId: string, endpoint: Endpoint): Promi
           lastAttemptAt: new Date(),
           responseData: JSON.stringify({
             error: error instanceof Error ? error.message : 'Unknown error',
+            errorType: error instanceof Error ? error.name : 'Unknown',
             failedAt: new Date().toISOString()
           }),
           updatedAt: new Date()
@@ -791,7 +887,13 @@ async function handleWebhookEndpoint(emailId: string, endpoint: Endpoint): Promi
       console.error('❌ handleWebhookEndpoint - Failed to update delivery record:', updateError)
     }
 
-    console.error(`❌ handleWebhookEndpoint - Error processing webhook endpoint:`, error)
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+    console.error(`❌ handleWebhookEndpoint - Final Error Summary`)
+    console.error(`  Endpoint:       ${endpoint.name} (ID: ${endpoint.id})`)
+    console.error(`  Email ID:       ${emailId}`)
+    console.error(`  Error:          ${error instanceof Error ? error.message : 'Unknown error'}`)
+    console.error(`  Delivery ID:    ${deliveryId}`)
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
     throw error
   }
 }
