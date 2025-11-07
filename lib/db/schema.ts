@@ -97,6 +97,18 @@ export const emailDomains = pgTable('email_domains', {
   userId: varchar('user_id', { length: 255 }).notNull(),
 });
 
+// SES Receipt Rules table - tracks batch catch-all rules for load balancing domains
+export const sesReceiptRules = pgTable('ses_receipt_rules', {
+  id: varchar('id', { length: 255 }).primaryKey(),
+  ruleName: varchar('rule_name', { length: 255 }).notNull().unique(),
+  ruleSetName: varchar('rule_set_name', { length: 255 }).notNull(),
+  domainCount: integer('domain_count').notNull().default(0),
+  maxCapacity: integer('max_capacity').notNull().default(500),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
 export const emailAddresses = pgTable('email_addresses', {
   id: varchar('id', { length: 255 }).primaryKey(),
   address: varchar('address', { length: 255 }).notNull().unique(),
@@ -597,6 +609,8 @@ export type UserOnboarding = typeof userOnboarding.$inferSelect;
 export type NewUserOnboarding = typeof userOnboarding.$inferInsert;
 export type EmailDomain = typeof emailDomains.$inferSelect;
 export type NewEmailDomain = typeof emailDomains.$inferInsert;
+export type SesReceiptRule = typeof sesReceiptRules.$inferSelect;
+export type NewSesReceiptRule = typeof sesReceiptRules.$inferInsert;
 export type EmailAddress = typeof emailAddresses.$inferSelect;
 export type NewEmailAddress = typeof emailAddresses.$inferInsert;
 export type Webhook = typeof webhooks.$inferSelect;

@@ -258,6 +258,9 @@ export const handler = async (event: any, context: any) => {
           // Build list of possible locations across all domains
           const possibleKeys: string[] = [];
           
+          // Check batch catch-all location first (most common for new domains)
+          possibleKeys.push(`emails/batch-catchall/${messageId}`);
+          
           // For each domain, check both individual and catch-all locations
           for (const domain of domains) {
             possibleKeys.push(

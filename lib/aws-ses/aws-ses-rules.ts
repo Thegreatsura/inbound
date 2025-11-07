@@ -39,6 +39,22 @@ export interface CatchAllConfig {
   ruleSetName?: string
 }
 
+export interface BatchCatchAllConfig {
+  domains: string[]  // Array of domains to add as catch-alls
+  lambdaFunctionArn: string
+  s3BucketName: string
+  ruleSetName: string  // e.g., "inbound-catchall-domain-default"
+  ruleName: string     // e.g., "batch-rule-001"
+}
+
+export interface BatchRuleResult {
+  ruleName: string
+  domainsAdded: string[]
+  totalDomains: number
+  status: 'created' | 'updated' | 'failed'
+  error?: string
+}
+
 export class AWSSESReceiptRuleManager {
   private sesClient: SESClient
   private region: string
@@ -153,6 +169,99 @@ export class AWSSESReceiptRuleManager {
   }
 
   /**
+   * Create or update a batch receipt rule with multiple domain catch-alls
+   * Supports up to 500 domain catch-alls per rule
+   */
+  async configureBatchCatchAllRule(config: BatchCatchAllConfig): Promise<BatchRuleResult> {
+    try {
+      console.log(`🔧 SES Batch - Configuring batch catch-all rule: ${config.ruleName}`)
+      console.log(`📧 SES Batch - Domains: ${config.domains.length} domains`)
+      
+      // Validate domain count
+      if (config.domains.length > 500) {
+        throw new Error(`Cannot add ${config.domains.length} domains to a single rule (max 500)`)
+      }
+      
+      // Ensure rule set exists
+      await this.ensureRuleSetExists(config.ruleSetName)
+      
+      // Check if rule already exists
+      const existingRule = await this.getRuleIfExists(config.ruleSetName, config.ruleName)
+      
+      // Build recipients array with domain names (AWS SES uses just domain name for catch-all, not *@domain)
+      const recipients = config.domains
+      
+      // If rule exists, merge with existing recipients
+      let finalRecipients = recipients
+      if (existingRule && existingRule.Recipients) {
+        const existingRecipients = existingRule.Recipients || []
+        console.log(`📋 SES Batch - Existing recipients: ${existingRecipients.length}`)
+        
+        // Merge and deduplicate
+        const recipientSet = new Set([...existingRecipients, ...recipients])
+        finalRecipients = Array.from(recipientSet)
+        console.log(`🔀 SES Batch - Merged recipients: ${finalRecipients.length}`)
+      }
+      
+      // Create receipt rule with batch catch-alls
+      const rule: ReceiptRule = {
+        Name: config.ruleName,
+        Enabled: true,
+        Recipients: finalRecipients,
+        Actions: [
+          // Store email in S3 (using batch-catchall prefix since multiple domains in one rule)
+          {
+            S3Action: {
+              BucketName: config.s3BucketName,
+              ObjectKeyPrefix: `emails/batch-catchall/`,  // Lambda will check this location
+              TopicArn: undefined
+            }
+          },
+          // Invoke Lambda function
+          {
+            LambdaAction: {
+              FunctionArn: config.lambdaFunctionArn,
+              InvocationType: 'Event'
+            }
+          }
+        ]
+      }
+      
+      let status: 'created' | 'updated' = 'created'
+      
+      if (existingRule) {
+        console.log(`🔄 SES Batch - Updating existing rule: ${config.ruleName}`)
+        const updateCommand = new UpdateReceiptRuleCommand({
+          RuleSetName: config.ruleSetName,
+          Rule: rule
+        })
+        await this.sesClient.send(updateCommand)
+        status = 'updated'
+      } else {
+        console.log(`➕ SES Batch - Creating new rule: ${config.ruleName}`)
+        const createCommand = new CreateReceiptRuleCommand({
+          RuleSetName: config.ruleSetName,
+          Rule: rule
+        })
+        await this.sesClient.send(createCommand)
+        status = 'created'
+      }
+      
+      console.log(`✅ SES Batch - Successfully ${status} rule ${config.ruleName} with ${finalRecipients.length} catch-alls`)
+      
+      return {
+        ruleName: config.ruleName,
+        domainsAdded: config.domains,
+        totalDomains: finalRecipients.length,
+        status
+      }
+    } catch (error) {
+      console.error('💥 SES Batch - Failed to configure batch catch-all rule:', error)
+      throw error
+    }
+  }
+
+  /**
    * Remove receipt rule for a domain
    */
   async removeEmailReceiving(domain: string, ruleSetName: string = 'inbound-email-rules'): Promise<boolean> {
@@ -175,7 +284,7 @@ export class AWSSESReceiptRuleManager {
   /**
    * Check if a rule exists and return it
    */
-  private async getRuleIfExists(ruleSetName: string, ruleName: string): Promise<ReceiptRule | null> {
+  async getRuleIfExists(ruleSetName: string, ruleName: string): Promise<ReceiptRule | null> {
     try {
       const command = new DescribeReceiptRuleSetCommand({
         RuleSetName: ruleSetName
