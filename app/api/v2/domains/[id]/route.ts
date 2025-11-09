@@ -716,8 +716,14 @@ export async function PUT(
             try {
                 console.log('🔧 Removing domain from AWS SES batch catch-all:', existingDomain[0].domain)
                 
+                // Get AWS configuration
+                const awsRegion = process.env.AWS_REGION || 'us-east-2'
+                const lambdaFunctionName = process.env.LAMBDA_FUNCTION_NAME || 'email-processor'
+                const s3BucketName = process.env.S3_BUCKET_NAME
+                const awsAccountId = process.env.AWS_ACCOUNT_ID
+                
                 const batchManager = new BatchRuleManager('inbound-catchall-domain-default')
-                const sesManager = new AWSSESReceiptRuleManager()
+                const sesManager = new AWSSESReceiptRuleManager(awsRegion)
                 
                 // Get the existing batch rule
                 const existingRule = await sesManager.getRuleIfExists(
@@ -733,10 +739,6 @@ export async function PUT(
                     
                     if (updatedRecipients.length > 0) {
                         // Update rule with remaining domains
-                        const awsRegion = process.env.AWS_REGION || 'us-east-2'
-                        const lambdaFunctionName = process.env.LAMBDA_FUNCTION_NAME || 'email-processor'
-                        const s3BucketName = process.env.S3_BUCKET_NAME
-                        const awsAccountId = process.env.AWS_ACCOUNT_ID
                         
                         if (s3BucketName && awsAccountId) {
                             const lambdaArn = AWSSESReceiptRuleManager.getLambdaFunctionArn(
@@ -778,7 +780,10 @@ export async function PUT(
             // DISABLE catch-all: Remove old-style individual catch-all rule
             try {
                 console.log('🔧 Removing old-style AWS SES catch-all for domain:', existingDomain[0].domain)
-                const sesManager = new AWSSESReceiptRuleManager()
+                
+                // Get AWS configuration
+                const awsRegion = process.env.AWS_REGION || 'us-east-2'
+                const sesManager = new AWSSESReceiptRuleManager(awsRegion)
                 
                 const ruleRemoved = await sesManager.removeCatchAllDomain(existingDomain[0].domain)
                 
