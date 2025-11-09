@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateRequest } from '../../helper/main'
 import { db } from '@/lib/db'
-import { emailDomains, emailAddresses, endpoints, domainDnsRecords, sesReceiptRules } from '@/lib/db/schema'
+import { emailDomains, emailAddresses, endpoints, domainDnsRecords } from '@/lib/db/schema'
 import { eq, and, count } from 'drizzle-orm'
-import { AWSSESReceiptRuleManager } from '@/lib/aws-ses/aws-ses-rules'
-import { BatchRuleManager } from '@/lib/aws-ses/batch-rule-manager'
 import { verifyDnsRecords } from '@/lib/domains-and-dns/dns'
+import { AWSSESReceiptRuleManager } from '@/lib/aws-ses/aws-ses-rules' // Used by DELETE handler only
 import { SESClient, GetIdentityVerificationAttributesCommand, GetIdentityDkimAttributesCommand, GetIdentityMailFromDomainAttributesCommand, SetIdentityMailFromDomainCommand } from '@aws-sdk/client-ses'
 import { isRootDomain } from '@/lib/domains-and-dns/domain-utils'
 import { getDependentSubdomains } from '@/lib/db/domains'
@@ -539,6 +538,8 @@ export async function GET(
 /**
  * PUT /api/v2/domains/{id}
  * Updates domain catch-all settings (enable/disable with endpoint configuration)
+ * Note: Only updates database flags - domain is already in SES batch rules (added when first email created)
+ * Filtering is handled by email-router.ts based on isCatchAllEnabled flag
  * Supports both session-based auth and API key auth
  * Has tests? ⏳
  * Has logging? ✅
@@ -563,8 +564,6 @@ export interface PutDomainByIdResponse {
         type: string
         isActive: boolean
     } | null
-    receiptRuleName?: string | null
-    awsConfigurationWarning?: string
     updatedAt: Date
 }
 
@@ -652,159 +651,18 @@ export async function PUT(
             }
         }
 
-        let receiptRuleName = null
-        let awsConfigurationWarning = null
-
-        if (data.isCatchAllEnabled && data.catchAllEndpointId) {
-            // ENABLE catch-all: Configure AWS SES batch catch-all receipt rule
-            try {
-                console.log('🔧 Configuring AWS SES batch catch-all for domain:', existingDomain[0].domain)
-                
-                // Get AWS configuration
-                const awsRegion = process.env.AWS_REGION || 'us-east-2'
-                const lambdaFunctionName = process.env.LAMBDA_FUNCTION_NAME || 'email-processor'
-                const s3BucketName = process.env.S3_BUCKET_NAME
-                const awsAccountId = process.env.AWS_ACCOUNT_ID
-
-                if (!s3BucketName || !awsAccountId) {
-                    awsConfigurationWarning = 'AWS configuration incomplete. Missing S3_BUCKET_NAME or AWS_ACCOUNT_ID'
-                    console.warn('⚠️ AWS configuration incomplete')
-                } else {
-                    const lambdaArn = AWSSESReceiptRuleManager.getLambdaFunctionArn(
-                        lambdaFunctionName,
-                        awsAccountId,
-                        awsRegion
-                    )
-                    
-                    // Use batch rule system to avoid hitting SES rule limits
-                    const batchManager = new BatchRuleManager('inbound-catchall-domain-default')
-                    const sesManager = new AWSSESReceiptRuleManager(awsRegion)
-                    
-                    try {
-                        // Find or create rule with capacity
-                        const rule = await batchManager.findOrCreateRuleWithCapacity(1)
-                        console.log(`📋 Using batch rule: ${rule.ruleName} (${rule.currentCapacity}/${rule.availableSlots + rule.currentCapacity})`)
-                        
-                        // Add domain catch-all to batch rule
-                        await sesManager.configureBatchCatchAllRule({
-                            domains: [existingDomain[0].domain],
-                            lambdaFunctionArn: lambdaArn,
-                            s3BucketName,
-                            ruleSetName: 'inbound-catchall-domain-default',
-                            ruleName: rule.ruleName
-                        })
-                        
-                        // Increment rule capacity if this is a new domain (not already in a batch rule)
-                        if (!existingDomain[0].catchAllReceiptRuleName?.startsWith('batch-rule-')) {
-                            await batchManager.incrementRuleCapacity(rule.id, 1)
-                        }
-                        
-                        receiptRuleName = rule.ruleName
-                        console.log(`✅ Added domain to batch rule: ${rule.ruleName}`)
-                        
-                    } catch (error) {
-                        console.error('Failed to add domain to batch rule:', error)
-                        awsConfigurationWarning = `Failed to configure batch catch-all rule: ${error instanceof Error ? error.message : 'Unknown error'}`
-                    }
-                }
-            } catch (error) {
-                console.error('❌ AWS SES configuration error:', error)
-                awsConfigurationWarning = `AWS SES configuration error: ${error instanceof Error ? error.message : 'Unknown error'}`
-            }
-        } else if (!data.isCatchAllEnabled && existingDomain[0].catchAllReceiptRuleName?.startsWith('batch-rule-')) {
-            // DISABLE catch-all: Remove domain from batch rule
-            try {
-                console.log('🔧 Removing domain from AWS SES batch catch-all:', existingDomain[0].domain)
-                
-                // Get AWS configuration
-                const awsRegion = process.env.AWS_REGION || 'us-east-2'
-                const lambdaFunctionName = process.env.LAMBDA_FUNCTION_NAME || 'email-processor'
-                const s3BucketName = process.env.S3_BUCKET_NAME
-                const awsAccountId = process.env.AWS_ACCOUNT_ID
-                
-                const batchManager = new BatchRuleManager('inbound-catchall-domain-default')
-                const sesManager = new AWSSESReceiptRuleManager(awsRegion)
-                
-                // Get the existing batch rule
-                const existingRule = await sesManager.getRuleIfExists(
-                    'inbound-catchall-domain-default',
-                    existingDomain[0].catchAllReceiptRuleName
-                )
-                
-                if (existingRule && existingRule.Recipients) {
-                    // Remove this domain from the recipients list
-                    const updatedRecipients = existingRule.Recipients.filter(
-                        recipient => recipient !== existingDomain[0].domain
-                    )
-                    
-                    if (updatedRecipients.length > 0) {
-                        // Update rule with remaining domains
-                        
-                        if (s3BucketName && awsAccountId) {
-                            const lambdaArn = AWSSESReceiptRuleManager.getLambdaFunctionArn(
-                                lambdaFunctionName,
-                                awsAccountId,
-                                awsRegion
-                            )
-                            
-                            await sesManager.configureBatchCatchAllRule({
-                                domains: updatedRecipients,
-                                lambdaFunctionArn: lambdaArn,
-                                s3BucketName,
-                                ruleSetName: 'inbound-catchall-domain-default',
-                                ruleName: existingDomain[0].catchAllReceiptRuleName
-                            })
-                            
-                            // Decrement capacity
-                            const ruleRecord = await db
-                                .select()
-                                .from(sesReceiptRules)
-                                .where(eq(sesReceiptRules.ruleName, existingDomain[0].catchAllReceiptRuleName))
-                                .limit(1)
-                            
-                            if (ruleRecord[0]) {
-                                await batchManager.decrementRuleCapacity(ruleRecord[0].id, 1)
-                            }
-                            
-                            console.log(`✅ Removed domain from batch rule: ${existingDomain[0].catchAllReceiptRuleName}`)
-                        }
-                    } else {
-                        // Last domain in rule - could delete the rule, but leaving it for reuse
-                        console.log('⚠️ Last domain in batch rule, leaving rule for reuse')
-                    }
-                }
-            } catch (error) {
-                console.error('❌ Failed to remove domain from batch rule:', error)
-            }
-        } else if (!data.isCatchAllEnabled && existingDomain[0].catchAllReceiptRuleName) {
-            // DISABLE catch-all: Remove old-style individual catch-all rule
-            try {
-                console.log('🔧 Removing old-style AWS SES catch-all for domain:', existingDomain[0].domain)
-                
-                // Get AWS configuration
-                const awsRegion = process.env.AWS_REGION || 'us-east-2'
-                const sesManager = new AWSSESReceiptRuleManager(awsRegion)
-                
-                const ruleRemoved = await sesManager.removeCatchAllDomain(existingDomain[0].domain)
-                
-                if (ruleRemoved) {
-                    console.log('✅ AWS SES catch-all removed successfully')
-                } else {
-                    console.warn('⚠️ Failed to remove AWS SES catch-all rule')
-                }
-            } catch (error) {
-                console.error('❌ AWS SES removal error:', error)
-            }
-        }
+        // Note: Domain is already in SES batch catch-all rule (added when first email address was created)
+        // We only need to update database flags - email-router.ts will handle filtering based on isCatchAllEnabled
+        console.log('💾 Updating catch-all configuration in database (SES rules already configured at domain level)')
+        const catchAllEnabled = data.isCatchAllEnabled ?? false
+        const catchAllEndpointId = catchAllEnabled ? data.catchAllEndpointId : null
 
         // Update domain in database
-        console.log('💾 Updating domain in database')
         const [updatedDomain] = await db
             .update(emailDomains)
             .set({
-                isCatchAllEnabled: data.isCatchAllEnabled,
-                catchAllEndpointId: data.isCatchAllEnabled ? data.catchAllEndpointId : null,
-                catchAllReceiptRuleName: receiptRuleName,
+                isCatchAllEnabled: catchAllEnabled,
+                catchAllEndpointId: catchAllEndpointId,
                 updatedAt: new Date()
             })
             .where(eq(emailDomains.id, id))
@@ -844,13 +702,8 @@ export async function PUT(
              isCatchAllEnabled: updatedDomain.isCatchAllEnabled || false,
              catchAllEndpointId: updatedDomain.catchAllEndpointId,
              catchAllEndpoint,
-             receiptRuleName,
              updatedAt: updatedDomain.updatedAt || new Date()
          }
-
-        if (awsConfigurationWarning) {
-            response.awsConfigurationWarning = awsConfigurationWarning
-        }
 
         return NextResponse.json(response)
 
