@@ -48,7 +48,7 @@ export class InboundEmailStack extends cdk.Stack {
     
     // Consistent resource names
     const bucketName = `inbound-emails-${this.account}-${this.region}`;
-    const ruleSetName = 'inbound-email-rules';
+    const ruleSetName = 'inbound-catchall-domain-default';
     const lambdaFunctionName = 'inbound-email-processor';
     const dlqName = 'inbound-email-processor-dlq';
 

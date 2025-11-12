@@ -68,7 +68,7 @@ export class AWSSESReceiptRuleManager {
    * Create or update receipt rules for a domain
    */
   async configureEmailReceiving(config: EmailReceiptConfig): Promise<ReceiptRuleResult> {
-    const ruleSetName = config.ruleSetName || 'inbound-email-rules'
+    const ruleSetName = config.ruleSetName || 'inbound-catchall-domain-default'
     const ruleName = `${config.domain}-rule`
 
     try {
@@ -264,7 +264,7 @@ export class AWSSESReceiptRuleManager {
   /**
    * Remove receipt rule for a domain
    */
-  async removeEmailReceiving(domain: string, ruleSetName: string = 'inbound-email-rules'): Promise<boolean> {
+  async removeEmailReceiving(domain: string, ruleSetName: string = 'inbound-catchall-domain-default'): Promise<boolean> {
     try {
       const ruleName = `${domain}-rule`
       
@@ -357,7 +357,7 @@ export class AWSSESReceiptRuleManager {
    * @param preserveIndividualRules - If true, keeps existing individual email rules (for mixed mode)
    */
   async configureCatchAllDomain(config: CatchAllConfig & { preserveIndividualRules?: boolean }): Promise<ReceiptRuleResult> {
-    const ruleSetName = config.ruleSetName || 'inbound-email-rules'
+    const ruleSetName = config.ruleSetName || 'inbound-catchall-domain-default'
     const ruleName = `${config.domain}-catchall-rule`
     const individualRuleName = `${config.domain}-rule`
 
@@ -462,7 +462,7 @@ export class AWSSESReceiptRuleManager {
   /**
    * Remove catch-all receipt rule for a domain
    */
-  async removeCatchAllDomain(domain: string, ruleSetName: string = 'inbound-email-rules'): Promise<boolean> {
+  async removeCatchAllDomain(domain: string, ruleSetName: string = 'inbound-catchall-domain-default'): Promise<boolean> {
     try {
       const ruleName = `${domain}-catchall-rule`
       
@@ -483,7 +483,7 @@ export class AWSSESReceiptRuleManager {
   /**
    * Check if a domain has catch-all configured
    */
-  async isCatchAllConfigured(domain: string, ruleSetName: string = 'inbound-email-rules'): Promise<boolean> {
+  async isCatchAllConfigured(domain: string, ruleSetName: string = 'inbound-catchall-domain-default'): Promise<boolean> {
     const ruleName = `${domain}-catchall-rule`
     const existingRule = await this.getRuleIfExists(ruleSetName, ruleName)
     return existingRule !== null
@@ -492,7 +492,7 @@ export class AWSSESReceiptRuleManager {
   /**
    * Get all rules for a domain (both individual and catch-all)
    */
-  async getDomainRules(domain: string, ruleSetName: string = 'inbound-email-rules'): Promise<{
+  async getDomainRules(domain: string, ruleSetName: string = 'inbound-catchall-domain-default'): Promise<{
     individualRule: ReceiptRule | null
     catchAllRule: ReceiptRule | null
   }> {
@@ -523,7 +523,7 @@ export class AWSSESReceiptRuleManager {
     individualRule?: ReceiptRuleResult
     catchAllRule: ReceiptRuleResult
   }> {
-    const ruleSetName = config.ruleSetName || 'inbound-email-rules'
+    const ruleSetName = config.ruleSetName || 'inbound-catchall-domain-default'
     
     try {
       console.log(`🔀 SES Rules - Configuring mixed mode for domain: ${config.domain}`)
@@ -575,7 +575,7 @@ export class AWSSESReceiptRuleManager {
     emailAddresses: string[], 
     lambdaFunctionArn: string, 
     s3BucketName: string,
-    ruleSetName: string = 'inbound-email-rules'
+    ruleSetName: string = 'inbound-catchall-domain-default'
   ): Promise<ReceiptRuleResult> {
     const ruleName = `${domain}-rule`
 
