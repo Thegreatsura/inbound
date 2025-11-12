@@ -772,23 +772,23 @@ async function handleWebhookEndpoint(emailId: string, endpoint: Endpoint): Promi
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
 
       if (!deliverySuccess) {
-        console.error(`❌ Webhook Failed - Non-OK status code`)
-        console.error(`  Expected: 2xx status code`)
-        console.error(`  Received: ${responseCode}`)
-        console.error(`  This usually indicates:`)
+        console.log(`❌ Webhook Failed - Non-OK status code`)
+        console.log(`  Expected: 2xx status code`)
+        console.log(`  Received: ${responseCode}`)
+        console.log(`  This usually indicates:`)
         if (responseCode === 404) {
-          console.error(`    - The webhook endpoint URL doesn't exist`)
-          console.error(`    - The endpoint path is incorrect`)
-          console.error(`    - The server is not handling POST requests at this path`)
+          console.log(`    - The webhook endpoint URL doesn't exist`)
+          console.log(`    - The endpoint path is incorrect`)
+          console.log(`    - The server is not handling POST requests at this path`)
         } else if (responseCode === 401 || responseCode === 403) {
-          console.error(`    - Authentication/authorization failure`)
-          console.error(`    - Check verification token or custom auth headers`)
+          console.log(`    - Authentication/authorization failure`)
+          console.log(`    - Check verification token or custom auth headers`)
         } else if (responseCode === 500 || responseCode === 502 || responseCode === 503) {
-          console.error(`    - Server error on the webhook receiver side`)
-          console.error(`    - Check the receiver's application logs`)
+          console.log(`    - Server error on the webhook receiver side`)
+          console.log(`    - Check the receiver's application logs`)
         } else if (responseCode === 400) {
-          console.error(`    - Bad request - the payload may be invalid`)
-          console.error(`    - Check the webhook receiver's expected format`)
+          console.log(`    - Bad request - the payload may be invalid`)
+          console.log(`    - Check the webhook receiver's expected format`)
         }
       }
 
@@ -862,7 +862,10 @@ async function handleWebhookEndpoint(emailId: string, endpoint: Endpoint): Promi
       .where(eq(endpointDeliveries.id, deliveryId))
 
     if (!deliverySuccess) {
-      throw new Error(errorMessage || `Webhook delivery failed with status ${responseCode}`)
+      // Log the failure but don't throw - webhook receiver errors are not our fault
+      console.log(`❌ handleWebhookEndpoint - Webhook delivery failed with status ${responseCode} for email ${emailId} to ${endpoint.name}`)
+      console.log(`   This is a receiver-side error and does not affect email processing`)
+      return // Exit gracefully without throwing
     }
 
     console.log(`✅ handleWebhookEndpoint - Successfully delivered email ${emailId} to webhook ${endpoint.name} (${deliveryTime}ms)`)

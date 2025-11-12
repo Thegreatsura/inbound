@@ -9,11 +9,17 @@ export const { GET, POST } = autumnHandler({
       headers: request.headers,
     });
 
+    // Only include customerId if user is authenticated to prevent 500 errors
+    // When customerId is omitted, Autumn treats the request as unauthenticated
+    if (!session?.user?.id) {
+      return {};
+    }
+
     return {
-      customerId: session?.user.id,
+      customerId: session.user.id,
       customerData: {
-        name: session?.user.name,
-        email: session?.user.email,
+        name: session.user.name,
+        email: session.user.email,
       },
     };
   },
