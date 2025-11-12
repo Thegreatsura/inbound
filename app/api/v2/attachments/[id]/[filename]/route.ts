@@ -196,13 +196,22 @@ export async function GET(
 
     console.log(`✅ Attachment download - Found: ${attachment.filename} (${attachment.size} bytes)`)
 
+    // Encode filename for Content-Disposition header (RFC 5987)
+    // This handles non-ASCII characters properly
+    const safeFilename = attachment.filename || 'download'
+    const asciiFilename = safeFilename.replace(/[^\x00-\x7F]/g, '_') // ASCII fallback
+    const encodedFilename = encodeURIComponent(safeFilename) // UTF-8 encoded
+    
+    // Use both filename (ASCII fallback) and filename* (UTF-8 encoded) per RFC 5987
+    const contentDisposition = `attachment; filename="${asciiFilename}"; filename*=UTF-8''${encodedFilename}`
+
     // Return the attachment with appropriate headers
     // Convert Buffer to Uint8Array for NextResponse compatibility
     return new NextResponse(new Uint8Array(attachment.content), {
       status: 200,
       headers: {
         'Content-Type': attachment.contentType || 'application/octet-stream',
-        'Content-Disposition': `attachment; filename="${attachment.filename}"`,
+        'Content-Disposition': contentDisposition,
         'Content-Length': attachment.size?.toString() || '0',
         'Cache-Control': 'private, max-age=3600',
       },
