@@ -57,7 +57,7 @@ The [aws/cdk/lib/inbound-email-stack.ts](mdc:aws/cdk/lib/inbound-email-stack.ts)
 ### Resources Created
 - **S3 Bucket** - `inbound-emails-{account}-{region}`
 - **Lambda Function** - `inbound-email-processor`
-- **SES Receipt Rule Set** - `inbound-email-rules`
+- **SES Receipt Rule Set** - `inbound-catchall-domain-default`
 - **Dead Letter Queue** - `inbound-email-processor-dlq`
 - **CloudWatch Alarms** - Error and duration monitoring
 

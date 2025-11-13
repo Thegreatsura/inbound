@@ -101,7 +101,7 @@ const result = await response.json() as { isManaged?: boolean };
 ### Consistent Naming Pattern
 - **S3 Bucket**: `inbound-emails-{account}-{region}`
 - **Lambda Function**: `inbound-email-processor`
-- **SES Rule Set**: `inbound-email-rules`
+- **SES Rule Set**: `inbound-catchall-domain-default`
 - **DLQ**: `inbound-email-processor-dlq`
 - **CloudWatch Alarms**: `InboundEmailProcessor-{Type}`
 
