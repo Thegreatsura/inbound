@@ -436,6 +436,7 @@ export async function GET(
                                 .set(updateData)
                                 .where(eq(emailDomains.id, domain.id))
                             response.updatedAt = updateData.updatedAt
+                            // Update the domain status in the database
                         }
                     } catch (sesError) {
                         console.error(`❌ SES verification check failed:`, sesError)
