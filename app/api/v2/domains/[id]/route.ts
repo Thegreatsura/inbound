@@ -396,7 +396,8 @@ export async function GET(
                         
                         // Update domain status based on SES verification
                         const updateData: any = {
-                            lastSesCheck: new Date()
+                            lastSesCheck: new Date(),
+                            updatedAt: new Date()
                         }
 
                         // Update MAIL FROM status if it exists
@@ -414,26 +415,27 @@ export async function GET(
 
                         if (sesStatus === 'Success' && domain.status !== 'verified') {
                             updateData.status = 'verified'
-                            updateData.updatedAt = new Date()
                             await db
                                 .update(emailDomains)
                                 .set(updateData)
                                 .where(eq(emailDomains.id, domain.id))
                             response.status = 'verified'
+                            response.updatedAt = updateData.updatedAt
                         } else if (sesStatus === 'Failed' && domain.status !== 'failed') {
                             updateData.status = 'failed'
-                            updateData.updatedAt = new Date()
                             await db
                                 .update(emailDomains)
                                 .set(updateData)
                                 .where(eq(emailDomains.id, domain.id))
                             response.status = 'failed'
+                            response.updatedAt = updateData.updatedAt
                         } else {
-                            // Just update last check time and MAIL FROM status
+                            // Just update last check time, MAIL FROM status, and updatedAt timestamp
                             await db
                                 .update(emailDomains)
                                 .set(updateData)
                                 .where(eq(emailDomains.id, domain.id))
+                            response.updatedAt = updateData.updatedAt
                         }
                     } catch (sesError) {
                         console.error(`❌ SES verification check failed:`, sesError)
