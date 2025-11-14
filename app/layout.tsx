@@ -196,6 +196,22 @@ export default function RootLayout({
           src="/js/script.js">
         </script>
 
+        {/* PromptWatch Analytics */}
+        <Script
+          id="promptwatch"
+          strategy="afterInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                var script = document.createElement('script');
+                script.setAttribute('data-project-id', 'f7c86fd6-182c-41f4-88d9-6f34f89f28d8');
+                script.src = 'https://ingest.promptwatch.com/js/client.min.js';
+                document.head.appendChild(script);
+              })();
+            `
+          }}
+        />
+
       </head>
       <body
         className={`${outfit.variable} ${geist.variable} ${geistMono.variable} antialiased`}
