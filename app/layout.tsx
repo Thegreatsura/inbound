@@ -150,6 +150,14 @@ export default function RootLayout({
     <html lang="en">
       <head>
         {/* Structured Data for SEO */}
+        {process.env.NODE_ENV === "development" && (
+          <Script
+            src="//unpkg.com/react-grab@0.0.31/dist/index.global.js"
+            crossOrigin="anonymous"
+            strategy="beforeInteractive"
+            data-enabled="true"
+          />
+        )}
 
 
         {/* Twitter Conversion Tracking */}
