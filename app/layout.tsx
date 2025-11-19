@@ -286,11 +286,14 @@ export default function RootLayout({
             </AutumnProvider>
           </QueryProvider>
         </NuqsAdapter>
+        <DubAnalytics 
+          publishableKey="dub_pk_fOTFXrX9wpCXjiJiFUrb2QVS"
+          domainsConfig={{
+            refer: "inbd.link"
+          }} 
+        />
         {/* <Toolbar /> */}
       </body>
-      <DubAnalytics domainsConfig={{
-        refer: "inbd.link"
-      }} />
     </html>
   );
 }

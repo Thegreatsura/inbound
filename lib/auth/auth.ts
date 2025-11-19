@@ -18,7 +18,9 @@ import fs from "fs";
 import { render } from "@react-email/components";
 import MagicLinkEmail from "@/emails/magic-link-email";
 
-const dub = new Dub();
+const dub = new Dub({
+    token: process.env.DUB_API_KEY,
+});
 
 const RESEND_AUTUMN_AUDIENCE_ID = "515e5071-4d0e-4117-9c12-e8ddd29b807e"
 
