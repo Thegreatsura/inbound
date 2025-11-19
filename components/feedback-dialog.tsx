@@ -58,7 +58,7 @@ export function FeedbackDialog({ children }: FeedbackDialogProps) {
       const result = await sendFeedbackAction({ feedback: feedback.trim(), browserLogs })
       
       if (result.success) {
-        toast.success("Thank you! Your feedback has been sent to Ryan.")
+        toast.success("Support ticket submitted successfully! We'll get back to you soon.")
         setFeedback("")
         setIncludeLogs(true)
         setOpen(false)
@@ -94,9 +94,9 @@ export function FeedbackDialog({ children }: FeedbackDialogProps) {
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         {children || (
-          <SidebarMenuButton tooltip="Send Feedback" className="w-full">
+          <SidebarMenuButton tooltip="Submit Support Ticket" className="w-full">
             <ChatBubble2 className="h-4 w-4" />
-            <span>Send Feedback</span>
+            <span>Submit Support Ticket</span>
           </SidebarMenuButton>
         )}
       </DialogTrigger>
@@ -104,17 +104,17 @@ export function FeedbackDialog({ children }: FeedbackDialogProps) {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ChatBubble2 className="h-5 w-5 text-primary" />
-            Send Feedback to Developer Team
+            Submit Support Ticket
           </DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="flex-row items-center">
             <p className="font-medium text-foreground mb-1 tracking-tight">Remember, this goes to a real human being, mind your manners.</p>
-            <p className="text-muted-foreground text-sm">Your feedback helps make inbound better. We will auto attach your account information as well as current browser logs.</p>
+            <p className="text-muted-foreground text-sm">Help us improve inbound or report an issue. We'll automatically attach your account information and browser logs for faster support.</p>
           </div>
           <div className="space-y-2">
             <Textarea
-              placeholder="What's on your mind? Share your feedback, suggestions, or any issues you've encountered..."
+              placeholder="Describe your issue or suggestion. Be as detailed as possible to help us assist you better..."
               value={feedback}
               onChange={(e) => setFeedback(e.target.value)}
               onKeyDown={handleKeyDown}
@@ -156,7 +156,7 @@ export function FeedbackDialog({ children }: FeedbackDialogProps) {
                   Sending...
                 </>
               ) : (
-                "Send Feedback"
+                "Submit Ticket"
               )}
             </Button>
           </DialogFooter>
