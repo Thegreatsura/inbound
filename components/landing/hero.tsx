@@ -389,6 +389,9 @@ export default function Hero({ content }: HeroProps) {
             <div className="flex items-center gap-2 opacity-60">
               <img src="/images/agentuity.png" alt="Agentuity logo" className="h-5 w-auto" />
             </div>
+            <div className="flex items-center gap-2 opacity-60">
+              <p className="tracking-normal">replybound.com</p>
+            </div>
           </div>
         </div>
       </div>
