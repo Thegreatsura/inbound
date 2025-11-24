@@ -1137,6 +1137,201 @@ describe("E2 API - Domains Endpoint", () => {
       })
     })
   })
+
+  // ===================================================================
+  // Country Code TLD Domains (e.g., .co.uk, .com.au)
+  // Tests for domains with multi-part TLDs
+  // ===================================================================
+
+  describe("Country Code TLD Domains (e.g., .co.uk)", () => {
+    // Use a unique test domain name to avoid conflicts
+    const testCCTLDDomain = `e2-test-${Date.now()}.co.uk`
+    let createdDomainId: string | null = null
+
+    it("should create a .co.uk domain successfully", async () => {
+      console.log(`🧪 Testing creation of country code TLD domain: ${testCCTLDDomain}`)
+
+      const response = await apiRequest("/domains", {
+        method: "POST",
+        body: JSON.stringify({ domain: testCCTLDDomain }),
+      })
+
+      const data = await response.json()
+      console.log("📋 Create response:", {
+        status: response.status,
+        domain: data.domain,
+        id: data.id,
+        dnsRecordsCount: data.dnsRecords?.length,
+      })
+
+      // Should be 201 Created (or 409 if somehow exists)
+      if (response.status === 201) {
+        expect(data.id).toBeDefined()
+        expect(data.domain).toBe(testCCTLDDomain)
+        expect(data.status).toMatch(/pending|verified/)
+        expect(data.dnsRecords).toBeDefined()
+        expect(Array.isArray(data.dnsRecords)).toBe(true)
+
+        // Verify DNS records contain proper domain name (not duplicated)
+        for (const record of data.dnsRecords) {
+          // Check that the record name doesn't have duplicate domain parts
+          // e.g., should NOT be "mail.spendwisely.co.uk.spendwisely.co.uk"
+          const domainParts = testCCTLDDomain.split(".")
+          const recordName = record.name
+          
+          // Count occurrences of the base domain in the record name
+          const baseDomain = domainParts.slice(-2).join(".") // e.g., "co.uk"
+          const occurrences = (recordName.match(new RegExp(baseDomain.replace(".", "\\."), "g")) || []).length
+          
+          expect(occurrences).toBeLessThanOrEqual(1)
+          console.log(`  ✅ DNS Record: ${record.type} ${record.name} → ${record.value.substring(0, 50)}...`)
+        }
+
+        createdDomainId = data.id
+        console.log(`✅ Successfully created .co.uk domain: ${data.domain} (${data.id})`)
+      } else if (response.status === 409) {
+        console.log("⚠️ Domain already exists (might be from previous test run)")
+        expect(data.error).toBeDefined()
+      } else if (response.status === 400) {
+        // DNS conflict - expected if domain has existing MX/CNAME
+        console.log("⚠️ Domain has DNS conflicts:", data.error)
+      } else if (response.status === 403) {
+        // Plan limit reached
+        console.log("⚠️ Domain limit reached:", data.error)
+      } else {
+        console.error("❌ Unexpected response:", response.status, data)
+        expect(response.status).toBe(201)
+      }
+    })
+
+    it("should retrieve .co.uk domain with correct DNS records", async () => {
+      if (!createdDomainId) {
+        console.log("⚠️ Skipping - no domain was created in previous test")
+        return
+      }
+
+      const response = await apiRequest(`/domains/${createdDomainId}`)
+      expect(response.status).toBe(200)
+
+      const data = await response.json()
+      expect(data.id).toBe(createdDomainId)
+      expect(data.domain).toBe(testCCTLDDomain)
+      expect(data.dnsRecords).toBeDefined()
+
+      // Verify DNS record names are properly formatted
+      console.log(`📋 DNS Records for ${data.domain}:`)
+      for (const record of data.dnsRecords) {
+        console.log(`  - ${record.recordType}: ${record.name}`)
+        
+        // Ensure no duplicate domain parts in record names
+        // Bad: "mail.example.co.uk.example.co.uk"
+        // Good: "mail.example.co.uk"
+        const fullDomain = data.domain
+        const recordName = record.name
+        
+        // Check that the full domain doesn't appear twice
+        const domainOccurrences = (recordName.match(new RegExp(fullDomain.replace(/\./g, "\\."), "g")) || []).length
+        expect(domainOccurrences).toBeLessThanOrEqual(1)
+      }
+
+      console.log(`✅ DNS records properly formatted for .co.uk domain`)
+    })
+
+    it("should retrieve .co.uk domain with check=true for live verification", async () => {
+      if (!createdDomainId) {
+        console.log("⚠️ Skipping - no domain was created in previous test")
+        return
+      }
+
+      const response = await apiRequest(`/domains/${createdDomainId}?check=true`)
+      expect(response.status).toBe(200)
+
+      const data = await response.json()
+      expect(data.verificationCheck).toBeDefined()
+      expect(data.verificationCheck.dnsRecords).toBeDefined()
+      expect(data.verificationCheck.sesStatus).toBeDefined()
+
+      console.log(`📋 Verification check for ${data.domain}:`, {
+        sesStatus: data.verificationCheck.sesStatus,
+        isFullyVerified: data.verificationCheck.isFullyVerified,
+        dnsRecordsChecked: data.verificationCheck.dnsRecords.length,
+      })
+
+      // Check that verification DNS records don't have duplicate domain parts
+      for (const record of data.verificationCheck.dnsRecords) {
+        const fullDomain = data.domain
+        const domainOccurrences = (record.name.match(new RegExp(fullDomain.replace(/\./g, "\\."), "g")) || []).length
+        expect(domainOccurrences).toBeLessThanOrEqual(1)
+        
+        console.log(`  - ${record.type}: ${record.name} (verified: ${record.isVerified})`)
+      }
+
+      console.log(`✅ Live verification works for .co.uk domain`)
+    })
+
+    it("should delete the test .co.uk domain", async () => {
+      if (!createdDomainId) {
+        console.log("⚠️ Skipping cleanup - no domain was created")
+        return
+      }
+
+      console.log(`🗑️ Cleaning up test domain: ${testCCTLDDomain} (${createdDomainId})`)
+
+      const response = await apiRequest(`/domains/${createdDomainId}`, {
+        method: "DELETE",
+      })
+
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+      expect(data.deletedResources).toBeDefined()
+      expect(data.deletedResources.domain).toBe(testCCTLDDomain)
+
+      console.log(`✅ Successfully deleted test domain:`, {
+        domain: data.deletedResources.domain,
+        emailAddresses: data.deletedResources.emailAddresses,
+        dnsRecords: data.deletedResources.dnsRecords,
+        sesIdentity: data.deletedResources.sesIdentity,
+      })
+
+      createdDomainId = null
+    })
+
+    // Additional test for other country code TLD formats
+    it("should validate various country code TLD formats", async () => {
+      // Test domain format validation for various ccTLDs
+      const testDomains = [
+        { domain: "test.co.uk", shouldBeValid: true },
+        { domain: "test.com.au", shouldBeValid: true },
+        { domain: "test.org.uk", shouldBeValid: true },
+        { domain: "test.net.nz", shouldBeValid: true },
+        { domain: "test.co.jp", shouldBeValid: true },
+        { domain: "münchen.de", shouldBeValid: false }, // IDN not supported in basic regex
+        { domain: "test..co.uk", shouldBeValid: false }, // Double dot
+        { domain: ".co.uk", shouldBeValid: false }, // Missing subdomain
+        { domain: "-test.co.uk", shouldBeValid: false }, // Starts with hyphen
+      ]
+
+      console.log("🧪 Testing domain format validation for various ccTLDs:")
+
+      for (const test of testDomains) {
+        // We're just validating the domain format regex
+        // Not actually creating domains to avoid AWS costs
+        const domainRegex =
+          /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/
+        const isValid = domainRegex.test(test.domain) && test.domain.length <= 253
+
+        if (test.shouldBeValid) {
+          expect(isValid).toBe(true)
+          console.log(`  ✅ ${test.domain} - valid format`)
+        } else {
+          expect(isValid).toBe(false)
+          console.log(`  ✅ ${test.domain} - correctly rejected`)
+        }
+      }
+    })
+  })
 })
 
 // ===================================================================
@@ -1160,4 +1355,8 @@ console.log("  - Get Domain by ID")
 console.log("  - Update Domain Catch-All")
 console.log("  - Create Domain (validation)")
 console.log("  - Delete Domain")
+console.log("  - Country Code TLD Domains (.co.uk, .com.au)")
+console.log("    - Create/Delete lifecycle")
+console.log("    - DNS record format validation")
+console.log("    - Duplicate domain detection")
 console.log("=".repeat(60) + "\n")
