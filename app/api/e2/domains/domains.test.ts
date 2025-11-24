@@ -713,6 +713,430 @@ describe("E2 API - Domains Endpoint", () => {
       console.log("✅ Domains endpoint documented:", domainsEndpoint.summary)
     })
   })
+
+  // ===================================================================
+  // List Domains with check=true (Live Verification)
+  // ===================================================================
+
+  describe("GET /domains?check=true - List Domains with Verification", () => {
+    it("should return verificationCheck when check=true", async () => {
+      const response = await apiRequest("/domains?check=true&limit=1")
+
+      expect(response.status).toBe(200)
+
+      const data = await response.json()
+
+      if (data.data.length > 0) {
+        const domain = data.data[0]
+
+        // Should have verificationCheck object
+        expect(domain.verificationCheck).toBeDefined()
+        expect(domain.verificationCheck.dnsRecords).toBeDefined()
+        expect(Array.isArray(domain.verificationCheck.dnsRecords)).toBe(true)
+        expect(domain.verificationCheck.sesStatus).toBeDefined()
+        expect(typeof domain.verificationCheck.isFullyVerified).toBe("boolean")
+        expect(domain.verificationCheck.lastChecked).toBeDefined()
+
+        console.log("✅ Verification check returned:", {
+          sesStatus: domain.verificationCheck.sesStatus,
+          isFullyVerified: domain.verificationCheck.isFullyVerified,
+          dnsRecordsCount: domain.verificationCheck.dnsRecords.length,
+        })
+      }
+    })
+
+    it("should update domain status based on SES verification", async () => {
+      const response = await apiRequest("/domains?check=true&limit=1&status=verified")
+
+      expect(response.status).toBe(200)
+
+      const data = await response.json()
+
+      if (data.data.length > 0) {
+        const domain = data.data[0]
+        
+        // If SES says Success, status should be verified
+        if (domain.verificationCheck?.sesStatus === "Success") {
+          expect(domain.status).toBe("verified")
+        }
+
+        console.log("✅ Domain status synced with SES:", {
+          status: domain.status,
+          sesStatus: domain.verificationCheck?.sesStatus,
+        })
+      }
+    })
+  })
+
+  // ===================================================================
+  // Get Domain by ID (GET /domains/:id)
+  // ===================================================================
+
+  describe("GET /domains/:id - Get Domain by ID", () => {
+    it("should return domain details with DNS records", async () => {
+      // First get a domain ID
+      const listResponse = await apiRequest("/domains?limit=1")
+      const listData = await listResponse.json()
+
+      if (listData.data.length === 0) {
+        console.log("⚠️ No domains available for testing GET /domains/:id")
+        return
+      }
+
+      const domainId = listData.data[0].id
+      const response = await apiRequest(`/domains/${domainId}`)
+
+      expect(response.status).toBe(200)
+
+      const data = await response.json()
+
+      // Verify full domain response structure
+      expect(data.id).toBe(domainId)
+      expect(data.domain).toBeDefined()
+      expect(data.status).toBeDefined()
+      expect(typeof data.canReceiveEmails).toBe("boolean")
+      expect(typeof data.hasMxRecords).toBe("boolean")
+      expect(typeof data.isCatchAllEnabled).toBe("boolean")
+      expect(data.createdAt).toBeDefined()
+      expect(data.updatedAt).toBeDefined()
+      expect(data.userId).toBeDefined()
+
+      // Should have stats
+      expect(data.stats).toBeDefined()
+      expect(typeof data.stats.totalEmailAddresses).toBe("number")
+      expect(typeof data.stats.activeEmailAddresses).toBe("number")
+
+      // Should always have dnsRecords array
+      expect(data.dnsRecords).toBeDefined()
+      expect(Array.isArray(data.dnsRecords)).toBe(true)
+
+      console.log("✅ Domain details returned:", {
+        id: data.id,
+        domain: data.domain,
+        status: data.status,
+        dnsRecordsCount: data.dnsRecords.length,
+      })
+    })
+
+    it("should return 404 for non-existent domain", async () => {
+      const response = await apiRequest("/domains/nonexistent-domain-id-12345")
+
+      expect(response.status).toBe(404)
+
+      console.log("✅ 404 returned for non-existent domain")
+    })
+
+    it("should support check=true for live verification", async () => {
+      // First get a domain ID
+      const listResponse = await apiRequest("/domains?limit=1")
+      const listData = await listResponse.json()
+
+      if (listData.data.length === 0) {
+        console.log("⚠️ No domains available for testing")
+        return
+      }
+
+      const domainId = listData.data[0].id
+      const response = await apiRequest(`/domains/${domainId}?check=true`)
+
+      expect(response.status).toBe(200)
+
+      const data = await response.json()
+
+      // Should have verificationCheck
+      expect(data.verificationCheck).toBeDefined()
+      expect(data.verificationCheck.dnsRecords).toBeDefined()
+      expect(data.verificationCheck.sesStatus).toBeDefined()
+      expect(typeof data.verificationCheck.isFullyVerified).toBe("boolean")
+
+      // May have auth recommendations if SPF/DMARC missing
+      if (data.authRecommendations) {
+        expect(typeof data.authRecommendations).toBe("object")
+      }
+
+      console.log("✅ Live verification returned:", {
+        sesStatus: data.verificationCheck.sesStatus,
+        dkimStatus: data.verificationCheck.dkimStatus,
+        mailFromStatus: data.verificationCheck.mailFromStatus,
+        isFullyVerified: data.verificationCheck.isFullyVerified,
+        hasRecommendations: !!data.authRecommendations,
+      })
+    })
+
+    it("should include catch-all endpoint info if configured", async () => {
+      // Find a domain with catch-all enabled
+      const listResponse = await apiRequest("/domains?limit=50")
+      const listData = await listResponse.json()
+
+      const domainWithCatchAll = listData.data.find(
+        (d: any) => d.isCatchAllEnabled && d.catchAllEndpointId
+      )
+
+      if (!domainWithCatchAll) {
+        console.log("⚠️ No domains with catch-all configured for testing")
+        return
+      }
+
+      const response = await apiRequest(`/domains/${domainWithCatchAll.id}`)
+      expect(response.status).toBe(200)
+
+      const data = await response.json()
+
+      expect(data.isCatchAllEnabled).toBe(true)
+      expect(data.catchAllEndpointId).toBeDefined()
+      expect(data.catchAllEndpoint).toBeDefined()
+      expect(data.catchAllEndpoint.id).toBeDefined()
+      expect(data.catchAllEndpoint.name).toBeDefined()
+      expect(data.catchAllEndpoint.type).toBeDefined()
+      expect(typeof data.catchAllEndpoint.isActive).toBe("boolean")
+
+      console.log("✅ Catch-all endpoint info returned:", {
+        endpointId: data.catchAllEndpoint.id,
+        name: data.catchAllEndpoint.name,
+        type: data.catchAllEndpoint.type,
+      })
+    })
+  })
+
+  // ===================================================================
+  // Update Domain (PATCH /domains/:id)
+  // ===================================================================
+
+  describe("PATCH /domains/:id - Update Domain Catch-All", () => {
+    it("should return 404 for non-existent domain", async () => {
+      const response = await apiRequest("/domains/nonexistent-domain-id-12345", {
+        method: "PATCH",
+        body: JSON.stringify({
+          isCatchAllEnabled: false,
+        }),
+      })
+
+      expect(response.status).toBe(404)
+      console.log("✅ 404 returned for non-existent domain update")
+    })
+
+    it("should require domain to be verified", async () => {
+      // Find a pending domain if one exists
+      const listResponse = await apiRequest("/domains?status=pending&limit=1")
+      const listData = await listResponse.json()
+
+      if (listData.data.length === 0) {
+        console.log("⚠️ No pending domains available for testing")
+        return
+      }
+
+      const pendingDomain = listData.data[0]
+      const response = await apiRequest(`/domains/${pendingDomain.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          isCatchAllEnabled: true,
+          catchAllEndpointId: null,
+        }),
+      })
+
+      expect(response.status).toBe(400)
+
+      console.log("✅ Update rejected for unverified domain")
+    })
+
+    it("should update catch-all settings for verified domain", async () => {
+      // Find a verified domain
+      const listResponse = await apiRequest("/domains?status=verified&limit=1")
+      const listData = await listResponse.json()
+
+      if (listData.data.length === 0) {
+        console.log("⚠️ No verified domains available for testing")
+        return
+      }
+
+      const verifiedDomain = listData.data[0]
+      const currentCatchAllEnabled = verifiedDomain.isCatchAllEnabled
+
+      // Toggle catch-all off (safe operation that doesn't require endpoint)
+      const response = await apiRequest(`/domains/${verifiedDomain.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          isCatchAllEnabled: false,
+          catchAllEndpointId: null,
+        }),
+      })
+
+      expect(response.status).toBe(200)
+
+      const data = await response.json()
+      expect(data.id).toBe(verifiedDomain.id)
+      expect(data.isCatchAllEnabled).toBe(false)
+      expect(data.catchAllEndpointId).toBeNull()
+      expect(data.updatedAt).toBeDefined()
+
+      console.log("✅ Catch-all settings updated:", {
+        domain: data.domain,
+        isCatchAllEnabled: data.isCatchAllEnabled,
+      })
+    })
+
+    it("should validate endpoint belongs to user when enabling catch-all", async () => {
+      // Find a verified domain
+      const listResponse = await apiRequest("/domains?status=verified&limit=1")
+      const listData = await listResponse.json()
+
+      if (listData.data.length === 0) {
+        console.log("⚠️ No verified domains available for testing")
+        return
+      }
+
+      const verifiedDomain = listData.data[0]
+
+      // Try to enable catch-all with invalid endpoint
+      const response = await apiRequest(`/domains/${verifiedDomain.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          isCatchAllEnabled: true,
+          catchAllEndpointId: "invalid-endpoint-id-12345",
+        }),
+      })
+
+      expect(response.status).toBe(400)
+
+      console.log("✅ Invalid endpoint rejected")
+    })
+  })
+
+  // ===================================================================
+  // Create Domain (POST /domains)
+  // ===================================================================
+
+  describe("POST /domains - Create Domain", () => {
+    const testDomainName = `test-e2-${Date.now()}.example.com`
+
+    it("should require domain field", async () => {
+      const response = await apiRequest("/domains", {
+        method: "POST",
+        body: JSON.stringify({}),
+      })
+
+      expect(response.status).toBe(400)
+      console.log("✅ Empty request rejected")
+    })
+
+    it("should validate domain format", async () => {
+      const invalidDomains = [
+        "invalid domain with spaces",
+        "-startwithdash.com",
+        "toolong" + "a".repeat(250) + ".com",
+      ]
+
+      for (const invalidDomain of invalidDomains) {
+        const response = await apiRequest("/domains", {
+          method: "POST",
+          body: JSON.stringify({ domain: invalidDomain }),
+        })
+
+        // Should be 400 for invalid format
+        expect(response.status).toBe(400)
+      }
+
+      console.log("✅ Invalid domain formats rejected")
+    })
+
+    it("should reject duplicate domains", async () => {
+      // First get an existing domain
+      const listResponse = await apiRequest("/domains?limit=1")
+      const listData = await listResponse.json()
+
+      if (listData.data.length === 0) {
+        console.log("⚠️ No domains available for duplicate test")
+        return
+      }
+
+      const existingDomain = listData.data[0].domain
+
+      // Try to add the same domain
+      const response = await apiRequest("/domains", {
+        method: "POST",
+        body: JSON.stringify({ domain: existingDomain }),
+      })
+
+      expect(response.status).toBe(409)
+
+      const data = await response.json()
+      expect(data.error).toBeDefined()
+
+      console.log("✅ Duplicate domain rejected:", data.error)
+    })
+
+    // Note: We don't test actual domain creation in CI as it:
+    // 1. Creates AWS SES identities
+    // 2. May hit plan limits
+    // 3. Would leave orphaned domains
+    // Instead, we test validation and error cases
+  })
+
+  // ===================================================================
+  // Delete Domain (DELETE /domains/:id)
+  // ===================================================================
+
+  describe("DELETE /domains/:id - Delete Domain", () => {
+    it("should return 404 for non-existent domain", async () => {
+      const response = await apiRequest("/domains/nonexistent-domain-id-12345", {
+        method: "DELETE",
+      })
+
+      expect(response.status).toBe(404)
+      console.log("✅ 404 returned for non-existent domain deletion")
+    })
+
+    // Note: We don't test actual deletion in CI as it:
+    // 1. Removes real domains
+    // 2. Cleans up AWS SES identities
+    // 3. Is destructive and irreversible
+    // Instead, test would be done in a controlled environment with test domains
+
+    it("should block deletion of root domain with dependent subdomains", async () => {
+      // Find a domain that might have subdomains
+      const listResponse = await apiRequest("/domains?limit=100")
+      const listData = await listResponse.json()
+
+      // Look for potential root domain and subdomain pairs
+      const domains = listData.data
+      const domainNames = domains.map((d: any) => d.domain)
+
+      // Find a root domain that has subdomains
+      let rootDomainWithSubs = null
+      for (const domain of domains) {
+        const domainName = domain.domain
+        const hasSubdomain = domainNames.some(
+          (d: string) => d !== domainName && d.endsWith(`.${domainName}`)
+        )
+        if (hasSubdomain) {
+          rootDomainWithSubs = domain
+          break
+        }
+      }
+
+      if (!rootDomainWithSubs) {
+        console.log("⚠️ No root domains with subdomains available for testing")
+        return
+      }
+
+      // Try to delete the root domain
+      const response = await apiRequest(`/domains/${rootDomainWithSubs.id}`, {
+        method: "DELETE",
+      })
+
+      expect(response.status).toBe(409)
+
+      const data = await response.json()
+      expect(data.error).toContain("subdomain")
+      expect(data.code).toBe("DOMAIN_HAS_DEPENDENT_SUBDOMAINS")
+      expect(data.dependentSubdomains).toBeDefined()
+
+      console.log("✅ Root domain deletion blocked:", {
+        rootDomain: rootDomainWithSubs.domain,
+        dependentCount: data.dependentSubdomains?.length,
+      })
+    })
+  })
 })
 
 // ===================================================================
@@ -726,9 +1150,14 @@ console.log("✅ All tests completed")
 console.log("📚 Coverage:")
 console.log("  - Authentication & Rate Limiting")
 console.log("  - List Domains with Pagination")
+console.log("  - List Domains with check=true (Live Verification)")
 console.log("  - Query Parameter Filtering")
 console.log("  - RFC Compliance & Error Handling")
 console.log("  - Type Safety & Data Integrity")
 console.log("  - Performance & Edge Cases")
 console.log("  - OpenAPI Documentation")
+console.log("  - Get Domain by ID")
+console.log("  - Update Domain Catch-All")
+console.log("  - Create Domain (validation)")
+console.log("  - Delete Domain")
 console.log("=".repeat(60) + "\n")

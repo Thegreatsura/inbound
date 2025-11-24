@@ -1,6 +1,10 @@
 import { Elysia } from "elysia"
 import { openapi } from "@elysiajs/openapi"
 import { listDomains } from "../domains/list"
+import { createDomain } from "../domains/create"
+import { getDomain } from "../domains/get"
+import { updateDomain } from "../domains/update"
+import { deleteDomain } from "../domains/delete"
 import { AuthError } from "../lib/auth"
 
 const app = new Elysia({ prefix: "/api/e2" })
@@ -63,12 +67,12 @@ const app = new Elysia({ prefix: "/api/e2" })
       statusCode: 500,
     }
   })
+  // Domain routes
   .use(listDomains)
-// Future routes will be added here:
-// .use(createDomain)
-// .use(deleteDomain)
-// .use(getDomain)
-// .use(updateDomain)
+  .use(createDomain)
+  .use(getDomain)
+  .use(updateDomain)
+  .use(deleteDomain)
 
 export const GET = app.fetch
 export const POST = app.fetch
