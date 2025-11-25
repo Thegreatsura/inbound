@@ -11,6 +11,7 @@ import {
   GetIdentityMailFromDomainAttributesCommand,
   SetIdentityMailFromDomainCommand,
 } from "@aws-sdk/client-ses"
+import { isSubdomain, getRootDomain } from "@/lib/domains-and-dns/domain-utils"
 
 // AWS SES Client setup
 const awsRegion = process.env.AWS_REGION || "us-east-2"
@@ -129,6 +130,9 @@ const GetDomainResponse = t.Object({
   dnsRecords: t.Array(DnsRecordSchema),
   verificationCheck: VerificationCheckSchema,
   authRecommendations: AuthRecommendationsSchema,
+  // Subdomain inheritance info
+  inheritsFromParent: t.Optional(t.Boolean()),
+  parentDomain: t.Optional(t.Nullable(t.String())),
 })
 
 export const getDomain = new Elysia().get(
@@ -161,6 +165,32 @@ export const getDomain = new Elysia().get(
 
     const domain = domainResult[0]
     console.log("✅ Found domain:", domain.domain, "status:", domain.status)
+
+    // Check if this is a subdomain that inherits verification from a parent
+    let inheritsFromParent = false
+    let parentDomainName: string | null = null
+    
+    if (isSubdomain(domain.domain)) {
+      const rootDomain = getRootDomain(domain.domain)
+      if (rootDomain) {
+        // Check if user has the parent domain verified
+        const parentDomainResult = await db
+          .select()
+          .from(emailDomains)
+          .where(and(
+            eq(emailDomains.domain, rootDomain),
+            eq(emailDomains.userId, userId),
+            eq(emailDomains.status, "verified")
+          ))
+          .limit(1)
+        
+        if (parentDomainResult[0]) {
+          inheritsFromParent = true
+          parentDomainName = rootDomain
+          console.log(`📋 Subdomain ${domain.domain} inherits from verified parent: ${rootDomain}`)
+        }
+      }
+    }
 
     // Get domain statistics
     console.log("📊 Calculating domain statistics")
@@ -254,6 +284,9 @@ export const getDomain = new Elysia().get(
       stats,
       catchAllEndpoint,
       dnsRecords,
+      // Subdomain inheritance info
+      inheritsFromParent,
+      parentDomain: parentDomainName,
     }
 
     // If check=true, perform DNS and SES verification checks
@@ -282,32 +315,38 @@ export const getDomain = new Elysia().get(
           dbId: record.id,
         }))
 
-        // Also check for SPF and DMARC even if not in database
-        const spfRecord = dnsRecordsResult.find(
-          (r) =>
-            r.recordType === "TXT" &&
-            r.name === domain.domain &&
-            (r.value || "").toLowerCase().includes("v=spf1")
-        )
-        if (!spfRecord) {
-          recordsToVerify.push({
-            type: "TXT",
-            name: domain.domain,
-            value: "v=spf1 include:amazonses.com ~all",
-            dbId: null,
-          })
-        }
+        // Skip SPF/DMARC checks for subdomains that inherit from a verified parent
+        // These records should be configured on the parent domain, not the subdomain
+        if (!inheritsFromParent) {
+          // Check for SPF and DMARC for root domains or domains without verified parent
+          const spfRecord = dnsRecordsResult.find(
+            (r) =>
+              r.recordType === "TXT" &&
+              r.name === domain.domain &&
+              (r.value || "").toLowerCase().includes("v=spf1")
+          )
+          if (!spfRecord) {
+            recordsToVerify.push({
+              type: "TXT",
+              name: domain.domain,
+              value: "v=spf1 include:amazonses.com ~all",
+              dbId: null,
+            })
+          }
 
-        const dmarcRecord = dnsRecordsResult.find(
-          (r) => r.recordType === "TXT" && r.name === `_dmarc.${domain.domain}`
-        )
-        if (!dmarcRecord) {
-          recordsToVerify.push({
-            type: "TXT",
-            name: `_dmarc.${domain.domain}`,
-            value: `v=DMARC1; p=none; rua=mailto:dmarc@${domain.domain}; ruf=mailto:dmarc@${domain.domain}; fo=1; aspf=r; adkim=r`,
-            dbId: null,
-          })
+          const dmarcRecord = dnsRecordsResult.find(
+            (r) => r.recordType === "TXT" && r.name === `_dmarc.${domain.domain}`
+          )
+          if (!dmarcRecord) {
+            recordsToVerify.push({
+              type: "TXT",
+              name: `_dmarc.${domain.domain}`,
+              value: `v=DMARC1; p=none; rua=mailto:dmarc@${domain.domain}; ruf=mailto:dmarc@${domain.domain}; fo=1; aspf=r; adkim=r`,
+              dbId: null,
+            })
+          }
+        } else {
+          console.log(`⏭️ Skipping SPF/DMARC checks for subdomain ${domain.domain} (inherits from parent)`)
         }
 
         if (recordsToVerify.length > 0) {
@@ -356,7 +395,16 @@ export const getDomain = new Elysia().get(
         let mailFromStatus: string | undefined
         let mailFromVerified = false
 
-        if (sesClient) {
+        // For subdomains that inherit from parent, skip SES check (they don't have their own SES identity)
+        if (inheritsFromParent) {
+          console.log(`⏭️ Skipping SES verification for subdomain ${domain.domain} (inherits from parent)`)
+          // Set status to reflect inheritance
+          sesStatus = "InheritedFromParent"
+          dkimStatus = "InheritedFromParent"
+          dkimVerified = true // Parent has DKIM verified
+          mailFromStatus = "InheritedFromParent"
+          mailFromVerified = true // Parent handles mail from
+        } else if (sesClient) {
           try {
             console.log(`🔍 Checking SES verification status`)
             const getAttributesCommand = new GetIdentityVerificationAttributesCommand({
@@ -506,38 +554,43 @@ export const getDomain = new Elysia().get(
       }
 
       // Build recommendations if SPF/DMARC missing or not verified
-      try {
-        const verificationCheckResults = response.verificationCheck?.dnsRecords || []
-        const spfVerified = verificationCheckResults.some(
-          (r: any) => r.type === "TXT" && r.name === domain.domain && r.isVerified
-        )
-        const dmarcVerified = verificationCheckResults.some(
-          (r: any) => r.type === "TXT" && r.name === `_dmarc.${domain.domain}` && r.isVerified
-        )
+      // Skip for subdomains that inherit from a verified parent (SPF/DMARC should be on parent)
+      if (!inheritsFromParent) {
+        try {
+          const verificationCheckResults = response.verificationCheck?.dnsRecords || []
+          const spfVerified = verificationCheckResults.some(
+            (r: any) => r.type === "TXT" && r.name === domain.domain && r.isVerified
+          )
+          const dmarcVerified = verificationCheckResults.some(
+            (r: any) => r.type === "TXT" && r.name === `_dmarc.${domain.domain}` && r.isVerified
+          )
 
-        const recommendations: any = {}
+          const recommendations: any = {}
 
-        if (!spfVerified) {
-          recommendations.spf = {
-            name: domain.domain,
-            value: "v=spf1 include:amazonses.com ~all",
-            description: "SPF record for root domain (recommended)",
+          if (!spfVerified) {
+            recommendations.spf = {
+              name: domain.domain,
+              value: "v=spf1 include:amazonses.com ~all",
+              description: "SPF record for root domain (recommended)",
+            }
           }
-        }
 
-        if (!dmarcVerified) {
-          recommendations.dmarc = {
-            name: `_dmarc.${domain.domain}`,
-            value: `v=DMARC1; p=none; rua=mailto:dmarc@${domain.domain}; ruf=mailto:dmarc@${domain.domain}; fo=1; aspf=r; adkim=r`,
-            description: "DMARC policy record (starts with p=none for monitoring)",
+          if (!dmarcVerified) {
+            recommendations.dmarc = {
+              name: `_dmarc.${domain.domain}`,
+              value: `v=DMARC1; p=none; rua=mailto:dmarc@${domain.domain}; ruf=mailto:dmarc@${domain.domain}; fo=1; aspf=r; adkim=r`,
+              description: "DMARC policy record (starts with p=none for monitoring)",
+            }
           }
-        }
 
-        if (recommendations.spf || recommendations.dmarc) {
-          response.authRecommendations = recommendations
+          if (recommendations.spf || recommendations.dmarc) {
+            response.authRecommendations = recommendations
+          }
+        } catch (recError) {
+          console.warn("⚠️ Failed to build auth recommendations:", recError)
         }
-      } catch (recError) {
-        console.warn("⚠️ Failed to build auth recommendations:", recError)
+      } else {
+        console.log(`⏭️ Skipping auth recommendations for subdomain ${domain.domain} (inherits from parent)`)
       }
     }
 

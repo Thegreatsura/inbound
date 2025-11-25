@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { track } from '@vercel/analytics'
+import { client } from '@/lib/api/client'
 import type { 
     GetDomainsResponse,
     GetDomainsRequest,
@@ -18,6 +19,12 @@ import type {
     PutEmailAddressByIdResponse,
     DeleteEmailAddressByIdResponse
 } from '@/app/api/v2/email-addresses/[id]/route'
+
+// Extended domain response type that includes the new inheritance fields from e2 API
+export interface DomainDetailsResponse extends GetDomainByIdResponse {
+    inheritsFromParent?: boolean
+    parentDomain?: string | null
+}
 
 // Query keys for v2 domain API
 export const domainV2Keys = {
@@ -52,20 +59,20 @@ export const useDomainsListV2Query = (params?: GetDomainsRequest) => {
     })
 }
 
-// Hook for domain details query
+// Hook for domain details query - uses Elysia e2 API via Eden
 export const useDomainDetailsV2Query = (domainId: string, options?: { check?: boolean }) => {
-    return useQuery<GetDomainByIdResponse>({
+    return useQuery<DomainDetailsResponse>({
         queryKey: options?.check ? [...domainV2Keys.detail(domainId), 'check'] : domainV2Keys.detail(domainId),
         queryFn: async () => {
-            const url = options?.check 
-                ? `/api/v2/domains/${domainId}?check=true`
-                : `/api/v2/domains/${domainId}`
-            const response = await fetch(url)
-            if (!response.ok) {
-                const error = await response.json()
-                throw new Error(error.error || `HTTP error! status: ${response.status}`)
+            const { data, error } = await client.api.e2.domains({ id: domainId }).get({
+                query: options?.check ? { check: 'true' } : undefined
+            })
+            
+            if (error) {
+                throw new Error((error as any)?.error || 'Failed to fetch domain details')
             }
-            return response.json()
+            
+            return data as DomainDetailsResponse
         },
         enabled: !!domainId,
         staleTime: options?.check ? 30 * 1000 : 2 * 60 * 1000, // 30s for check, 2min for regular
@@ -117,20 +124,19 @@ export const useDomainAuthVerifyV2Mutation = () => {
     })
 }
 
-// Hook for domain deletion
+// Hook for domain deletion - uses Elysia e2 API via Eden
 export const useDeleteDomainV2Mutation = () => {
     const queryClient = useQueryClient()
 
     return useMutation({
         mutationFn: async (domainId: string) => {
-            const response = await fetch(`/api/v2/domains/${domainId}`, {
-                method: 'DELETE',
-            })
-            if (!response.ok) {
-                const error = await response.json()
-                throw new Error(error.error || 'Failed to delete domain')
+            const { data, error } = await client.api.e2.domains({ id: domainId }).delete()
+            
+            if (error) {
+                throw new Error((error as any)?.error || 'Failed to delete domain')
             }
-            return response.json()
+            
+            return data
         },
         onMutate: async (domainId: string) => {
             console.log('🗑️ Starting optimistic domain deletion for:', domainId)

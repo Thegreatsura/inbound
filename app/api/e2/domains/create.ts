@@ -1,13 +1,14 @@
 import { Elysia, t } from "elysia"
 import { validateAndRateLimit } from "../lib/auth"
 import { db } from "@/lib/db"
-import { emailDomains } from "@/lib/db/schema"
+import { emailDomains, domainDnsRecords } from "@/lib/db/schema"
 import { eq } from "drizzle-orm"
 import { checkDomainCanReceiveEmails } from "@/lib/domains-and-dns/dns"
 import { createDomainVerification, getVerifiedParentDomain } from "@/lib/db/domains"
 import { initiateDomainVerification } from "@/lib/domains-and-dns/domain-verification"
 import { Autumn as autumn } from "autumn-js"
 import { isSubdomain } from "@/lib/domains-and-dns/domain-utils"
+import { nanoid } from "nanoid"
 
 // AWS Region for MX record
 const awsRegion = process.env.AWS_REGION || "us-east-2"
@@ -222,6 +223,20 @@ export const createDomain = new Elysia().post(
           })
           .where(eq(emailDomains.id, domainRecord.id))
 
+        // Save the MX record to database so it shows in DNS records
+        const mxRecordValue = `10 inbound-smtp.${awsRegion}.amazonaws.com`
+        await db.insert(domainDnsRecords).values({
+          id: `dns_${nanoid()}`,
+          domainId: domainRecord.id,
+          recordType: "MX",
+          name: domain,
+          value: mxRecordValue,
+          isRequired: true,
+          isVerified: false,
+          createdAt: new Date(),
+        })
+        console.log(`💾 Saved MX record to database for subdomain: ${domain}`)
+
         // Return simplified response with only MX record
         const response = {
           id: domainRecord.id,
@@ -235,7 +250,7 @@ export const createDomain = new Elysia().post(
             {
               type: "MX",
               name: domain,
-              value: `10 inbound-smtp.${awsRegion}.amazonaws.com`,
+              value: mxRecordValue,
               description: "Add this MX record to receive emails at this subdomain",
               isRequired: true,
             },

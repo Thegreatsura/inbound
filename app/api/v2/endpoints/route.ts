@@ -171,7 +171,6 @@ export async function GET(request: NextRequest) {
 
                 // Add group emails for email_group endpoints
                 if (endpoint.type === 'email_group') {
-                    console.log('📧 Loading group emails for endpoint:', endpoint.id)
                     const groupEmails = await db
                         .select({ emailAddress: emailGroups.emailAddress })
                         .from(emailGroups)
@@ -182,7 +181,6 @@ export async function GET(request: NextRequest) {
                 }
 
                 // Add delivery statistics
-                console.log('📊 Loading delivery stats for endpoint:', endpoint.id)
                 const deliveryStats = await db
                     .select({
                         total: count(),
