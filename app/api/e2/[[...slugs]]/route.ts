@@ -5,6 +5,12 @@ import { createDomain } from "../domains/create"
 import { getDomain } from "../domains/get"
 import { updateDomain } from "../domains/update"
 import { deleteDomain } from "../domains/delete"
+import { listEndpoints } from "../endpoints/list"
+import { createEndpoint } from "../endpoints/create"
+import { getEndpoint } from "../endpoints/get"
+import { updateEndpoint } from "../endpoints/update"
+import { deleteEndpoint } from "../endpoints/delete"
+import { testEndpoint } from "../endpoints/test"
 import { AuthError } from "../lib/auth"
 
 const app = new Elysia({ prefix: "/api/e2" })
@@ -20,6 +26,10 @@ const app = new Elysia({ prefix: "/api/e2" })
           {
             name: "Domains",
             description: "Domain management endpoints",
+          },
+          {
+            name: "Endpoints",
+            description: "Endpoint management (webhooks, email forwarding)",
           },
         ],
         components: {
@@ -89,6 +99,13 @@ const app = new Elysia({ prefix: "/api/e2" })
   .use(getDomain)
   .use(updateDomain)
   .use(deleteDomain)
+  // Endpoint routes
+  .use(listEndpoints)
+  .use(createEndpoint)
+  .use(getEndpoint)
+  .use(updateEndpoint)
+  .use(deleteEndpoint)
+  .use(testEndpoint)
 
 export const GET = app.fetch
 export const POST = app.fetch
