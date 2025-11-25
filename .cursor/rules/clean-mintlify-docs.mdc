@@ -1,8 +1,6 @@
 ---
-description: Clean Mintlify Documentation Standards - Guidelines for creating streamlined, functional, and user-friendly API documentation
 alwaysApply: false
 ---
-
 # Clean Mintlify Documentation Standards
 
 This rule provides guidelines for creating clean, functional, and simple Mintlify documentation that prioritizes user experience and maintainability.

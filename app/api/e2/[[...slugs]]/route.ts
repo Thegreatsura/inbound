@@ -12,9 +12,9 @@ const app = new Elysia({ prefix: "/api/e2" })
     openapi({
       documentation: {
         info: {
-          title: "Inbound E2 API",
+          title: "Inbound API",
           version: "2.0.0",
-          description: "Elysia-powered API for Inbound email management",
+          description: "API for Inbound email management",
         },
         tags: [
           {

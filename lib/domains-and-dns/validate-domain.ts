@@ -4,8 +4,7 @@
  * Works on both client and server side
  */
 
-// @ts-expect-error - psl package has type definitions but they're not properly exported in package.json
-import { parse } from 'psl'
+import { parse } from 'tldts'
 
 export interface DomainValidationResult {
   isValid: boolean
@@ -116,21 +115,21 @@ export function validateDomain(domain: string): DomainValidationResult {
   try {
     const parsed = parse(normalizedDomain)
     
-    // Check for PSL errors
-    if ('error' in parsed) {
+    // Check if it's an IP address (not a valid domain)
+    if (parsed.isIp) {
       return {
         isValid: false,
         domain,
         normalizedDomain,
-        error: getReadableError(parsed.error),
+        error: 'IP addresses are not valid domain names',
         rootDomain: null,
         isSubdomain: false,
       }
     }
 
-    // Check if TLD is recognized AND listed in the Public Suffix List
-    // The `listed` property indicates if the TLD is actually in the PSL
-    if (!parsed.tld || parsed.listed === false) {
+    // Check if TLD is recognized AND listed in the Public Suffix List (ICANN)
+    // isIcann indicates if the TLD is in the ICANN part of the PSL
+    if (!parsed.publicSuffix || parsed.isIcann === false) {
       return {
         isValid: false,
         domain,
@@ -174,22 +173,6 @@ export function validateDomain(domain: string): DomainValidationResult {
       isSubdomain: false,
     }
   }
-}
-
-/**
- * Convert PSL error codes to readable messages
- */
-function getReadableError(errorCode: string): string {
-  const errorMap: Record<string, string> = {
-    'DOMAIN_TOO_SHORT': 'Domain name is too short',
-    'DOMAIN_TOO_LONG': 'Domain name is too long',
-    'LABEL_STARTS_WITH_DASH': 'Domain labels cannot start with a hyphen',
-    'LABEL_ENDS_WITH_DASH': 'Domain labels cannot end with a hyphen',
-    'LABEL_TOO_LONG': 'Domain label is too long (max 63 characters)',
-    'LABEL_TOO_SHORT': 'Domain label is too short',
-    'LABEL_INVALID_CHARS': 'Domain contains invalid characters',
-  }
-  return errorMap[errorCode] || 'Invalid domain format'
 }
 
 /**

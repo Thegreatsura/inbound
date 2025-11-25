@@ -1,8 +1,6 @@
 ---
-description: Unified v2 API endpoint coding rules and structure for all endpoints going forward
-globs: inbound-app/app/api/**/*.ts
+alwaysApply: false
 ---
-
 # v2 API Endpoint Coding Rules
 
 This rule establishes consistent structure, typing, auth, logging, error handling, and pagination patterns for all API endpoints. It is based on existing implementations under `inbound-app/app/api/v2/` and complements the more concise spec in [v2-api-spec.mdc](mdc:inbound-app/app/api/v2/.cursor/v2-api-spec.mdc).

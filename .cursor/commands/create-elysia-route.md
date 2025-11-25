@@ -89,6 +89,12 @@ import { validateAndRateLimit } from "../lib/auth"
 import { db } from "@/lib/db"
 import { yourTable } from "@/lib/db/schema"
 
+// Error response schema (reusable)
+const ErrorResponse = t.Object({
+  error: t.String(),
+  code: t.Optional(t.String()),
+})
+
 export const listItems = new Elysia().get(
   "/items",
   async ({ request, query, set }) => {
@@ -128,7 +134,12 @@ export const listItems = new Elysia().get(
   {
     // Step 6: Attach schemas and documentation
     query: QuerySchema,
-    response: ListResponseSchema,
+    // ⚠️ IMPORTANT: Use status-code keyed object, NOT t.Union()
+    response: {
+      200: ListResponseSchema,
+      401: ErrorResponse,
+      500: ErrorResponse,
+    },
     detail: {
       tags: ["Feature Name"],
       summary: "List all items",
@@ -184,7 +195,15 @@ export const createItem = new Elysia().post(
   },
   {
     body: CreateSchema,
-    response: ItemSchema,
+    // ⚠️ IMPORTANT: Use status-code keyed object for OpenAPI docs
+    response: {
+      201: ItemSchema,
+      400: ErrorResponse,
+      401: ErrorResponse,
+      403: ErrorResponse,
+      409: ErrorResponse,
+      500: ErrorResponse,
+    },
     detail: {
       tags: ["Feature Name"],
       summary: "Create new item",
@@ -215,7 +234,7 @@ export const updateItem = new Elysia().patch(
     
     if (!existing) {
       set.status = 404
-      throw new Error("Item not found")
+      return { error: "Item not found" }
     }
     
     const [updated] = await db
@@ -231,7 +250,14 @@ export const updateItem = new Elysia().patch(
       id: t.String(),
     }),
     body: t.Partial(CreateSchema),
-    response: ItemSchema,
+    // ⚠️ IMPORTANT: Use status-code keyed object for OpenAPI docs
+    response: {
+      200: ItemSchema,
+      400: ErrorResponse,
+      401: ErrorResponse,
+      404: ErrorResponse,
+      500: ErrorResponse,
+    },
     detail: {
       tags: ["Feature Name"],
       summary: "Update item",
@@ -244,6 +270,15 @@ export const updateItem = new Elysia().patch(
 ### DELETE Routes
 
 ```typescript
+// Delete success response
+const DeleteResponse = t.Object({
+  success: t.Boolean(),
+  message: t.String(),
+  deletedResources: t.Optional(t.Object({
+    // Add relevant deletion stats here
+  })),
+})
+
 export const deleteItem = new Elysia().delete(
   "/items/:id",
   async ({ request, params, set }) => {
@@ -261,17 +296,26 @@ export const deleteItem = new Elysia().delete(
     
     if (!deleted) {
       set.status = 404
-      throw new Error("Item not found")
+      return { error: "Item not found" }
     }
     
-    set.status = 204 // No Content
-    return
+    return {
+      success: true,
+      message: `Successfully deleted item ${params.id}`,
+    }
   },
   {
     params: t.Object({
       id: t.String(),
     }),
-    response: t.Void(),
+    // ⚠️ IMPORTANT: Use status-code keyed object for OpenAPI docs
+    response: {
+      200: DeleteResponse,
+      401: ErrorResponse,
+      404: ErrorResponse,
+      409: ErrorResponse,
+      500: ErrorResponse,
+    },
     detail: {
       tags: ["Feature Name"],
       summary: "Delete item",
@@ -337,6 +381,40 @@ Make sure to provide:
 - `tags` - Category for grouping endpoints
 - `summary` - Short title (< 50 chars)
 - `description` - Detailed explanation
+
+### ⚠️ CRITICAL: Response Schema Format
+
+**ALWAYS use status-code keyed objects for response schemas.**
+
+Using `t.Union([SuccessResponse, ErrorResponse])` will NOT show responses in OpenAPI docs!
+
+```typescript
+// ❌ WRONG - Response won't show in OpenAPI docs
+{
+  response: t.Union([SuccessResponse, ErrorResponse]),
+}
+
+// ✅ CORRECT - All responses properly documented
+{
+  response: {
+    200: SuccessResponse,
+    400: ErrorResponse,
+    401: ErrorResponse,
+    404: ErrorResponse,
+    500: ErrorResponse,
+  },
+}
+```
+
+### Standard Response Patterns
+
+| Method | Success Code | Common Error Codes |
+|--------|-------------|-------------------|
+| GET (list) | 200 | 401, 500 |
+| GET (single) | 200 | 401, 404, 500 |
+| POST | 201 | 400, 401, 403, 409, 500 |
+| PATCH/PUT | 200 | 400, 401, 404, 500 |
+| DELETE | 200 | 401, 404, 409, 500 |
 
 ## Testing
 
@@ -783,6 +861,11 @@ If migrating an existing Next.js route:
 - Check for Date objects (use `t.Date()` in schema)
 - Optional fields must use `t.Optional()` not nullable
 
+### "Response parameters not showing in OpenAPI docs"
+- **DO NOT USE** `t.Union([SuccessResponse, ErrorResponse])`
+- **MUST USE** status-code keyed object: `{ 200: Success, 400: Error, ... }`
+- Each status code must have its own schema definition
+
 ### Rate limit not working
 - Check `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` in `.env`
 - Rate limiting is disabled without these variables
@@ -797,6 +880,7 @@ If migrating an existing Next.js route:
 - Handle pagination consistently
 - Export route as named constant
 - Keep route files focused (one operation per file)
+- **Use status-code keyed objects for response schemas** (e.g., `{ 200: Success, 400: Error }`)
 
 ❌ **DON'T**:
 - Return raw `Response` objects (breaks type system)
@@ -805,12 +889,14 @@ If migrating an existing Next.js route:
 - Skip authentication checks
 - Forget to verify resource ownership
 - Use manual error response objects (use throw)
+- **Use `t.Union()` for response schemas** (responses won't show in OpenAPI docs)
 
 ## Final Verification
 
 Before completing:
 - [ ] Route file created in correct location
 - [ ] TypeBox schemas defined for request/response
+- [ ] **Response uses status-code keyed object (NOT `t.Union()`)**
 - [ ] Authentication added with `validateAndRateLimit()`
 - [ ] Database queries verified
 - [ ] OpenAPI documentation complete
@@ -818,6 +904,7 @@ Before completing:
 - [ ] No TypeScript linting errors
 - [ ] Tested via OpenAPI docs or cURL
 - [ ] Rate limit headers present in response
+- [ ] **All response parameters visible in `/api/e2/docs`**
 
 ---
 

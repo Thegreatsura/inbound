@@ -1,8 +1,93 @@
 ---
-alwaysApply: true
+alwaysApply: false
 ---
-
 When working with elysiaJS, here are reference guides:
+
+## ⚠️ CRITICAL: OpenAPI Response Schemas
+
+**ALWAYS use status-code keyed objects for response schemas, NOT `t.Union()`.**
+
+This ensures OpenAPI documentation properly displays all response parameters.
+
+### ❌ WRONG - Response won't show in OpenAPI docs:
+```typescript
+{
+  response: t.Union([SuccessResponse, ErrorResponse]),
+}
+```
+
+### ✅ CORRECT - All responses properly documented:
+```typescript
+{
+  response: {
+    200: SuccessResponse,        // Success
+    201: CreateResponse,         // Created (for POST)
+    400: ErrorResponse,          // Bad Request
+    401: ErrorResponse,          // Unauthorized
+    403: ErrorResponse,          // Forbidden
+    404: ErrorResponse,          // Not Found
+    409: ErrorResponse,          // Conflict
+    500: ErrorResponse,          // Server Error
+  },
+}
+```
+
+### Standard Response Patterns by HTTP Method:
+
+**GET (single item)**
+```typescript
+response: {
+  200: ItemResponse,
+  401: ErrorResponse,
+  404: ErrorResponse,
+  500: ErrorResponse,
+}
+```
+
+**GET (list)**
+```typescript
+response: {
+  200: ListResponse,
+  401: ErrorResponse,
+  500: ErrorResponse,
+}
+```
+
+**POST (create)**
+```typescript
+response: {
+  201: CreateResponse,
+  400: ErrorResponse,
+  401: ErrorResponse,
+  403: ErrorResponse,
+  409: ErrorResponse,
+  500: ErrorResponse,
+}
+```
+
+**PATCH/PUT (update)**
+```typescript
+response: {
+  200: UpdateResponse,
+  400: ErrorResponse,
+  401: ErrorResponse,
+  404: ErrorResponse,
+  500: ErrorResponse,
+}
+```
+
+**DELETE**
+```typescript
+response: {
+  200: DeleteResponse,
+  401: ErrorResponse,
+  404: ErrorResponse,
+  409: ErrorResponse,
+  500: ErrorResponse,
+}
+```
+
+---
 
 # Elysia - Ergonomic Framework for Humans
 
