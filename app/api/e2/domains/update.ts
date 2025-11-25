@@ -221,7 +221,13 @@ export const updateDomain = new Elysia().patch(
       id: t.String(),
     }),
     body: UpdateDomainBody,
-    response: t.Union([UpdateDomainResponse, UpdateDomainErrorResponse]),
+    response: {
+      200: UpdateDomainResponse,
+      400: UpdateDomainErrorResponse,
+      401: UpdateDomainErrorResponse,
+      404: UpdateDomainErrorResponse,
+      500: UpdateDomainErrorResponse,
+    },
     detail: {
       tags: ["Domains"],
       summary: "Update domain catch-all settings",

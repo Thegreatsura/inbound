@@ -323,7 +323,14 @@ export const createDomain = new Elysia().post(
   },
   {
     body: CreateDomainBody,
-    response: t.Union([CreateDomainResponse, CreateDomainErrorResponse]),
+    response: {
+      201: CreateDomainResponse,
+      400: CreateDomainErrorResponse,
+      401: CreateDomainErrorResponse,
+      403: CreateDomainErrorResponse,
+      409: CreateDomainErrorResponse,
+      500: CreateDomainErrorResponse,
+    },
     detail: {
       tags: ["Domains"],
       summary: "Create new domain",

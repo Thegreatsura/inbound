@@ -602,7 +602,12 @@ export const getDomain = new Elysia().get(
       id: t.String(),
     }),
     query: GetDomainQuery,
-    response: t.Union([GetDomainResponse, GetDomainErrorResponse]),
+    response: {
+      200: GetDomainResponse,
+      401: GetDomainErrorResponse,
+      404: GetDomainErrorResponse,
+      500: GetDomainErrorResponse,
+    },
     detail: {
       tags: ["Domains"],
       summary: "Get domain by ID",

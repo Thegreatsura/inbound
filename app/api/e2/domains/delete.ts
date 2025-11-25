@@ -232,7 +232,13 @@ export const deleteDomain = new Elysia().delete(
     params: t.Object({
       id: t.String(),
     }),
-    response: t.Union([DeleteDomainResponse, DeleteDomainErrorResponse]),
+    response: {
+      200: DeleteDomainResponse,
+      401: DeleteDomainErrorResponse,
+      404: DeleteDomainErrorResponse,
+      409: DeleteDomainErrorResponse,
+      500: DeleteDomainErrorResponse,
+    },
     detail: {
       tags: ["Domains"],
       summary: "Delete domain",
