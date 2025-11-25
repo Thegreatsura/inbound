@@ -48,12 +48,14 @@ const DomainStatsSchema = t.Object({
 })
 
 const CatchAllEndpointSchema = t.Optional(
-  t.Object({
-    id: t.String(),
-    name: t.String(),
-    type: t.String(),
-    isActive: t.Boolean(),
-  })
+  t.Nullable(
+    t.Object({
+      id: t.String(),
+      name: t.String(),
+      type: t.String(),
+      isActive: t.Boolean(),
+    })
+  )
 )
 
 const VerificationDnsRecordSchema = t.Object({
@@ -220,7 +222,7 @@ export const listDomains = new Elysia().get(
         const activeEmailCount = activeEmailCountResult[0]?.count || 0
 
         // Get catch-all endpoint info if configured
-        let catchAllEndpoint: { id: string; name: string; type: string; isActive: boolean } | undefined = undefined
+        let catchAllEndpoint: { id: string; name: string; type: string; isActive: boolean } | null = null
         if (domain.catchAllEndpointId) {
           const endpointResult = await db
             .select({
@@ -240,7 +242,7 @@ export const listDomains = new Elysia().get(
                 type: endpointResult[0].type,
                 isActive: endpointResult[0].isActive || false,
               }
-            : undefined
+            : null
         }
 
         const enhancedDomain: any = {

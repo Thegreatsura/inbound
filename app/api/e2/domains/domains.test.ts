@@ -20,13 +20,34 @@ if (!API_KEY) {
 // Store domain ID for tests
 let testDomainId: string
 
+// Rate limit handling configuration
+const RATE_LIMIT_CONFIG = {
+  maxRetries: 3,
+  baseDelayMs: 150, // Base delay between requests to stay under 10 req/s
+  retryDelayMs: 1000, // Delay when rate limited
+}
+
+// Track last request time to self-throttle
+let lastRequestTime = 0
+
 /**
- * Helper function to make authenticated requests
+ * Helper function to make authenticated requests with rate limit handling
+ * - Self-throttles to stay under rate limit
+ * - Retries on 429 responses with exponential backoff
  */
 async function apiRequest(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  retryCount = 0
 ): Promise<Response> {
+  // Self-throttle: ensure minimum delay between requests
+  const now = Date.now()
+  const timeSinceLastRequest = now - lastRequestTime
+  if (timeSinceLastRequest < RATE_LIMIT_CONFIG.baseDelayMs) {
+    await sleep(RATE_LIMIT_CONFIG.baseDelayMs - timeSinceLastRequest)
+  }
+  lastRequestTime = Date.now()
+
   const url = `${API_URL}${endpoint}`
   const headers = {
     Authorization: `Bearer ${API_KEY}`,
@@ -34,10 +55,33 @@ async function apiRequest(
     ...options.headers,
   }
 
-  return fetch(url, {
+  const response = await fetch(url, {
     ...options,
     headers,
   })
+
+  // Handle rate limiting with retry
+  if (response.status === 429 && retryCount < RATE_LIMIT_CONFIG.maxRetries) {
+    const retryAfter = response.headers.get("Retry-After")
+    const delayMs = retryAfter
+      ? parseInt(retryAfter, 10) * 1000
+      : RATE_LIMIT_CONFIG.retryDelayMs * Math.pow(2, retryCount) // Exponential backoff
+
+    console.log(
+      `⏳ Rate limited, retrying in ${delayMs}ms (attempt ${retryCount + 1}/${RATE_LIMIT_CONFIG.maxRetries})`
+    )
+    await sleep(delayMs)
+    return apiRequest(endpoint, options, retryCount + 1)
+  }
+
+  return response
+}
+
+/**
+ * Sleep helper for delays
+ */
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 describe("E2 API - Domains Endpoint", () => {
@@ -142,13 +186,16 @@ describe("E2 API - Domains Endpoint", () => {
         expect(typeof domain.stats.activeEmailAddresses).toBe("number")
         expect(typeof domain.stats.hasCatchAll).toBe("boolean")
 
-        // catchAllEndpoint should be object or undefined (not null)
-        if (domain.catchAllEndpoint !== undefined) {
+        // catchAllEndpoint should be object or null (when not configured)
+        if (domain.catchAllEndpoint) {
           expect(typeof domain.catchAllEndpoint).toBe("object")
           expect(domain.catchAllEndpoint.id).toBeDefined()
           expect(domain.catchAllEndpoint.name).toBeDefined()
           expect(domain.catchAllEndpoint.type).toBeDefined()
           expect(typeof domain.catchAllEndpoint.isActive).toBe("boolean")
+        } else {
+          // When not configured, should be null (t.Nullable in schema)
+          expect(domain.catchAllEndpoint).toBeNull()
         }
 
         console.log("✅ Found", data.data.length, "domain(s)")
@@ -548,7 +595,7 @@ describe("E2 API - Domains Endpoint", () => {
       }
     })
 
-    it("should use undefined for optional fields (not null)", async () => {
+    it("should use null for nullable optional fields", async () => {
       const response = await apiRequest("/domains")
       expect(response.status).toBe(200)
 
@@ -557,17 +604,17 @@ describe("E2 API - Domains Endpoint", () => {
       if (data.data.length > 0) {
         const domain = data.data[0]
 
-        // Optional fields should be undefined or have a value, not null
+        // catchAllEndpoint uses t.Optional(t.Nullable(...)) - should be object or null
         if (!domain.catchAllEndpoint) {
-          expect(domain.catchAllEndpoint).toBeUndefined()
+          expect(domain.catchAllEndpoint).toBeNull()
         }
 
+        // domainProvider is t.Nullable - should be string or null
         if (!domain.domainProvider) {
-          // This field is nullable in schema, so null is okay
-          expect([null, undefined]).toContain(domain.domainProvider)
+          expect(domain.domainProvider).toBeNull()
         }
 
-        console.log("✅ Optional fields handled correctly")
+        console.log("✅ Nullable fields handled correctly")
       }
     })
 

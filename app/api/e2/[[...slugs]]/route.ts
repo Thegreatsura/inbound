@@ -22,6 +22,22 @@ const app = new Elysia({ prefix: "/api/e2" })
             description: "Domain management endpoints",
           },
         ],
+        components: {
+          securitySchemes: {
+            bearerAuth: {
+              type: "http",
+              scheme: "bearer",
+              bearerFormat: "API Key",
+              description:
+                "Your Inbound API key. Include it in the Authorization header as: Bearer <your-api-key>",
+            },
+          },
+        },
+        security: [
+          {
+            bearerAuth: [],
+          },
+        ],
       },
       path: "/docs", // OpenAPI documentation UI endpoint (becomes /api/e2/docs with prefix)
       specPath: "/openapi.json", // OpenAPI JSON spec endpoint (becomes /api/e2/openapi.json with prefix)

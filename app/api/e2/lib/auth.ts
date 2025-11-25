@@ -89,11 +89,13 @@ export async function validateAndRateLimit(
       request.headers.get("Authorization")?.replace("Bearer ", "") || ""
 
     // Verify API key if provided
-    const apiSession = await auth.api.verifyApiKey({
-      body: { 
-        key: apiKey,
-      },
-    })
+    const apiSession = apiKey
+      ? await auth.api.verifyApiKey({
+          body: {
+            key: apiKey,
+          },
+        })
+      : null
 
     // Determine userId from either session or API key
     let userId: string
@@ -101,7 +103,7 @@ export async function validateAndRateLimit(
     if (session?.user?.id) {
       userId = session.user.id
       console.log("✅ Session authentication successful for userId:", userId)
-    } else if (apiSession?.key?.userId) {
+    } else if (apiSession?.valid && !apiSession?.error && apiSession?.key?.userId) {
       userId = apiSession.key.userId
       console.log("✅ API key authentication successful for userId:", userId)
     } else {
