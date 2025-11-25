@@ -25,6 +25,16 @@ const DnsRecordSchema = t.Object({
   isRequired: t.Boolean(),
 })
 
+const DnsConflictSchema = t.Object({
+  hasConflict: t.Boolean(),
+  conflictType: t.Optional(t.Union([t.Literal("mx"), t.Literal("cname"), t.Literal("both")])),
+  message: t.String(),
+  existingRecords: t.Optional(t.Array(t.Object({
+    type: t.String(),
+    value: t.String(),
+  }))),
+})
+
 const CreateDomainResponse = t.Object({
   id: t.String(),
   domain: t.String(),
@@ -36,6 +46,7 @@ const CreateDomainResponse = t.Object({
   mailFromDomain: t.Optional(t.String()),
   mailFromDomainStatus: t.Optional(t.String()),
   dnsRecords: t.Array(DnsRecordSchema),
+  dnsConflict: t.Optional(DnsConflictSchema),
   createdAt: t.Date(),
   updatedAt: t.Date(),
   parentDomain: t.Optional(t.String()),
@@ -137,25 +148,53 @@ export const createDomain = new Elysia().post(
       unlimited: domainCheck.unlimited,
     })
 
-    // Check DNS for conflicts (MX/CNAME records)
+    // Check DNS for conflicts (MX/CNAME records) - non-blocking
     console.log("🔍 Checking DNS records for conflicts")
     const dnsResult = await checkDomainCanReceiveEmails(domain)
 
-    if (!dnsResult.canReceiveEmails) {
-      console.log("❌ Domain cannot receive emails:", dnsResult.error)
-      set.status = 400
-      return {
-        error:
-          dnsResult.error ||
-          "Domain has conflicting DNS records (MX or CNAME). Please remove them before adding this domain.",
-      }
-    }
+    // Build DNS conflict info if there are conflicts (but don't block)
+    let dnsConflict: {
+      hasConflict: boolean
+      conflictType?: "mx" | "cname" | "both"
+      message: string
+      existingRecords?: Array<{ type: string; value: string }>
+    } | undefined
 
-    console.log("✅ DNS check passed:", {
-      canReceiveEmails: dnsResult.canReceiveEmails,
-      hasMxRecords: dnsResult.hasMxRecords,
-      provider: dnsResult.provider?.name,
-    })
+    if (!dnsResult.canReceiveEmails) {
+      console.log("⚠️ DNS conflict detected (non-blocking):", dnsResult.error)
+      
+      // Determine conflict type and build existing records list
+      const existingRecords: Array<{ type: string; value: string }> = []
+      let conflictType: "mx" | "cname" | "both" | undefined
+      
+      if (dnsResult.hasMxRecords && dnsResult.mxRecords && dnsResult.mxRecords.length > 0) {
+        for (const mx of dnsResult.mxRecords) {
+          existingRecords.push({
+            type: "MX",
+            value: `${mx.priority} ${mx.exchange}`,
+          })
+        }
+        conflictType = "mx"
+      }
+      
+      // Check if error mentions CNAME
+      if (dnsResult.error?.toLowerCase().includes("cname")) {
+        conflictType = conflictType === "mx" ? "both" : "cname"
+      }
+      
+      dnsConflict = {
+        hasConflict: true,
+        conflictType,
+        message: dnsResult.error || "Domain has existing DNS records that may conflict with email receiving. You'll need to update these records.",
+        existingRecords: existingRecords.length > 0 ? existingRecords : undefined,
+      }
+    } else {
+      console.log("✅ DNS check passed:", {
+        canReceiveEmails: dnsResult.canReceiveEmails,
+        hasMxRecords: dnsResult.hasMxRecords,
+        provider: dnsResult.provider?.name,
+      })
+    }
 
     // Create domain record in database
     console.log("💾 Creating domain record in database")
@@ -201,10 +240,13 @@ export const createDomain = new Elysia().post(
               isRequired: true,
             },
           ],
+          dnsConflict,
           createdAt: domainRecord.createdAt || new Date(),
           updatedAt: new Date(),
           parentDomain: parent.domain,
-          message: `Subdomain inherits verification from ${parent.domain}. Only MX record needed for receiving.`,
+          message: dnsConflict 
+            ? `Subdomain inherits verification from ${parent.domain}. Note: ${dnsConflict.message}`
+            : `Subdomain inherits verification from ${parent.domain}. Only MX record needed for receiving.`,
         }
 
         console.log(
@@ -252,8 +294,12 @@ export const createDomain = new Elysia().post(
         description: record.description,
         isRequired: true,
       })),
+      dnsConflict,
       createdAt: domainRecord.createdAt || new Date(),
       updatedAt: domainRecord.updatedAt || new Date(),
+      message: dnsConflict 
+        ? `Domain created with DNS conflict warning: ${dnsConflict.message}`
+        : undefined,
     }
 
     console.log("✅ Successfully created domain:", domainRecord.id)

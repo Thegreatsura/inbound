@@ -50,7 +50,7 @@ const nextConfig: NextConfig = {
           {
             key: 'Access-Control-Allow-Origin',
             value: process.env.NODE_ENV === 'development'
-              ? 'http://localhost:3000'
+              ? 'https://dev.inbound.new'
               : process.env.VERCEL_URL
                 ? `https://${process.env.VERCEL_URL}`
                 : 'https://inbound.new',
