@@ -2,7 +2,7 @@ import { Elysia, t } from "elysia"
 import { validateAndRateLimit } from "../lib/auth"
 import { db } from "@/lib/db"
 import { endpoints, emailGroups, endpointDeliveries } from "@/lib/db/schema"
-import { eq, and, desc, asc, count } from "drizzle-orm"
+import { eq, and, desc, asc, count, ilike } from "drizzle-orm"
 
 // Request/Response Types (OpenAPI-compatible)
 const ListEndpointsQuery = t.Object({
@@ -17,6 +17,7 @@ const ListEndpointsQuery = t.Object({
   ),
   active: t.Optional(t.Union([t.Literal("true"), t.Literal("false")])),
   sortBy: t.Optional(t.Union([t.Literal("newest"), t.Literal("oldest")])),
+  search: t.Optional(t.String({ maxLength: 100 })),
 })
 
 const EndpointConfigSchema = t.Any()
@@ -79,6 +80,7 @@ export const listEndpoints = new Elysia().get(
     const type = query.type
     const active = query.active
     const sortBy = query.sortBy
+    const search = query.search?.trim()
 
     console.log("📊 Query parameters:", {
       limit,
@@ -86,6 +88,7 @@ export const listEndpoints = new Elysia().get(
       type,
       active,
       sortBy,
+      search,
     })
 
     // Build where conditions
@@ -100,6 +103,11 @@ export const listEndpoints = new Elysia().get(
       const isActive = active === "true"
       conditions.push(eq(endpoints.isActive, isActive))
       console.log("🔍 Filtering by active status:", isActive)
+    }
+
+    if (search) {
+      conditions.push(ilike(endpoints.name, `%${search}%`))
+      console.log("🔍 Searching by name:", search)
     }
 
     const whereConditions =
@@ -237,7 +245,7 @@ export const listEndpoints = new Elysia().get(
       tags: ["Endpoints"],
       summary: "List all endpoints",
       description:
-        "Get paginated list of endpoints for authenticated user with optional filtering by type, active status, and sort order",
+        "Get paginated list of endpoints for authenticated user with optional filtering by type, active status, sort order, and search by name",
     },
   }
 )

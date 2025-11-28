@@ -49,7 +49,7 @@ export default function AddDomainPage() {
     // Show checking state
     setValidationState("checking")
 
-    // Debounce: wait 300ms before validating
+    // Debounce: wait 350ms before validating
     debounceTimerRef.current = setTimeout(() => {
       // Only validate if this is still the latest value
       if (latestValueRef.current === trimmedValue) {
@@ -57,7 +57,7 @@ export default function AddDomainPage() {
         setValidationResult(result)
         setValidationState(result.isValid ? "valid" : "invalid")
       }
-    }, 300)
+    }, 350)
   }, [])
 
   // Clean up timer on unmount
@@ -268,45 +268,49 @@ export default function AddDomainPage() {
             )}
           </Button>
 
-          {/* Footer area: error > subdomain hint > keyboard hint */}
-          <div className="mt-3 h-5">
-            <AnimatePresence mode="wait">
-              {displayError ? (
-                <motion.p
-                  key="error"
-                  id="domain-error"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.15 }}
-                  className="text-xs text-destructive"
-                >
-                  {displayError}
-                </motion.p>
-              ) : validationState === "valid" && validationResult?.isSubdomain ? (
-                <motion.p
-                  key="subdomain-hint"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.15 }}
-                  className="text-xs text-muted-foreground"
-                >
-                  Subdomain of {validationResult.rootDomain}
-                </motion.p>
-              ) : (
-                <motion.p
-                  key="hint"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.15 }}
-                  className="text-xs text-muted-foreground"
-                >
-                  Press <kbd className="px-1.5 py-0.5 text-[10px] font-mono bg-muted rounded border">⌘</kbd> + <kbd className="px-1.5 py-0.5 text-[10px] font-mono bg-muted rounded border">Enter</kbd> to submit
-                </motion.p>
+          {/* Footer area: error/subdomain left, hotkey right */}
+          <div className="mt-3 h-5 flex items-center justify-between">
+            {/* Left side: error or subdomain hint */}
+            <div className="flex-1 min-w-0">
+              <AnimatePresence mode="wait">
+                {displayError ? (
+                  <motion.p
+                    key="error"
+                    id="domain-error"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.15 }}
+                    className="text-xs text-destructive truncate"
+                  >
+                    {displayError}
+                  </motion.p>
+                ) : validationState === "valid" && validationResult?.isSubdomain ? (
+                  <motion.p
+                    key="subdomain-hint"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.15 }}
+                    className="text-xs text-muted-foreground truncate"
+                  >
+                    Subdomain of {validationResult.rootDomain}
+                  </motion.p>
+                ) : null}
+              </AnimatePresence>
+            </div>
+            
+            {/* Right side: hotkey hint (always visible, dimmed when disabled) */}
+            <p 
+              className={cn(
+                "text-xs text-muted-foreground flex-shrink-0 ml-3 transition-opacity duration-150",
+                !canSubmit && "opacity-40"
               )}
-            </AnimatePresence>
+            >
+              <kbd className="px-1.5 py-0.5 text-[10px] font-mono bg-muted rounded border">⌘</kbd>
+              {" + "}
+              <kbd className="px-1.5 py-0.5 text-[10px] font-mono bg-muted rounded border">Enter</kbd>
+            </p>
           </div>
         </form>
       </motion.div>

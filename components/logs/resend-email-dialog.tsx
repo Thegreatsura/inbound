@@ -32,6 +32,7 @@ import Webhook from '@/components/icons/webhook'
 import Envelope2 from '@/components/icons/envelope-2'
 import UserGroup from '@/components/icons/user-group'
 import { ResendStatusLog } from './resend-status-log'
+import { client } from '@/lib/api/client'
 
 interface ResendEmailDialogProps {
   emailId: string
@@ -53,14 +54,15 @@ interface Endpoint {
   description?: string | null
 }
 
-// Fetch user endpoints
+// Fetch user endpoints using Eden
 async function fetchEndpoints(): Promise<Endpoint[]> {
-  const response = await fetch('/api/v2/endpoints')
-  if (!response.ok) {
-    throw new Error('Failed to fetch endpoints')
+  const { data, error } = await client.api.e2.endpoints.get()
+  
+  if (error) {
+    throw new Error((error as any)?.error || 'Failed to fetch endpoints')
   }
-  const result = await response.json()
-  return result.data || []
+  
+  return (data?.data || []) as Endpoint[]
 }
 
 // Resend email to specific endpoint

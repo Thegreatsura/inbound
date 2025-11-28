@@ -35,24 +35,26 @@ export const domainV2Keys = {
     emailAddresses: (domainId: string) => [...domainV2Keys.all, domainId, 'email-addresses'] as const,
 }
 
-// Hook for domains list (replacement for useDomainStatsQuery)
+// Hook for domains list (replacement for useDomainStatsQuery) - uses Elysia e2 API via Eden
 export const useDomainsListV2Query = (params?: GetDomainsRequest) => {
     return useQuery<GetDomainsResponse>({
         queryKey: domainV2Keys.list(params),
         queryFn: async () => {
-            const searchParams = new URLSearchParams()
-            if (params?.limit) searchParams.set('limit', params.limit.toString())
-            if (params?.offset) searchParams.set('offset', params.offset.toString())
-            if (params?.status) searchParams.set('status', params.status)
-            if (params?.canReceive) searchParams.set('canReceive', params.canReceive)
-            if (params?.check) searchParams.set('check', params.check)
+            const { data, error } = await client.api.e2.domains.get({
+                query: {
+                    limit: params?.limit,
+                    offset: params?.offset,
+                    status: params?.status as 'pending' | 'verified' | 'failed' | undefined,
+                    canReceive: params?.canReceive as 'true' | 'false' | undefined,
+                    check: params?.check as 'true' | undefined,
+                }
+            })
 
-            const response = await fetch(`/api/v2/domains?${searchParams}`)
-            if (!response.ok) {
-                const error = await response.json()
-                throw new Error(error.error || `HTTP error! status: ${response.status}`)
+            if (error) {
+                throw new Error((error as any)?.error || 'Failed to fetch domains')
             }
-            return response.json()
+
+            return data as GetDomainsResponse
         },
         staleTime: 2 * 60 * 1000, // 2 minutes
         gcTime: 5 * 60 * 1000, // 5 minutes
@@ -304,24 +306,22 @@ export const useUpdateEmailEndpointV2Mutation = () => {
     })
 }
 
-// Hook for updating domain catch-all settings
+// Hook for updating domain catch-all settings - uses Elysia e2 API via Eden
 export const useUpdateDomainCatchAllV2Mutation = () => {
     const queryClient = useQueryClient()
 
     return useMutation<any, Error, PutDomainByIdRequest & { domainId: string }>({
-        mutationFn: async ({ domainId, ...data }) => {
-            const response = await fetch(`/api/v2/domains/${domainId}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(data),
+        mutationFn: async ({ domainId, isCatchAllEnabled, catchAllEndpointId }) => {
+            const { data, error } = await client.api.e2.domains({ id: domainId }).patch({
+                isCatchAllEnabled: isCatchAllEnabled ?? false,
+                catchAllEndpointId: catchAllEndpointId ?? null,
             })
-            if (!response.ok) {
-                const error = await response.json()
-                throw new Error(error.error || 'Failed to update catch-all settings')
+
+            if (error) {
+                throw new Error((error as any)?.error || 'Failed to update catch-all settings')
             }
-            return response.json()
+
+            return data
         },
         onSuccess: (_, { domainId, isCatchAllEnabled, catchAllEndpointId }) => {
             // Track catch-all toggle

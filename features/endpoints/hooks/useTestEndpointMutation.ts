@@ -1,4 +1,5 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation } from '@tanstack/react-query'
+import { client } from '@/lib/api/client'
 import type { WebhookFormat } from '@/lib/db/schema'
 
 export type TestEndpointRequest = {
@@ -22,31 +23,21 @@ export type TestEndpointResponse = {
 async function testEndpoint(params: TestEndpointRequest): Promise<TestEndpointResponse> {
   const { id, webhookFormat, overrideUrl } = params
   
-  // Use v2 API endpoint
-  const response = await fetch(`/api/v2/endpoints/${id}/test`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      ...(webhookFormat ? { webhookFormat } : {}),
-      ...(overrideUrl ? { overrideUrl } : {}),
-    }),
+  const { data, error } = await client.api.e2.endpoints({ id }).test.post({
+    webhookFormat,
+    overrideUrl,
   })
   
-  if (!response.ok) {
-    let message = 'Failed to test endpoint'
-    try {
-      const err = await response.json()
-      message = err.error || message
-    } catch {
-      const text = await response.text().catch(() => '')
-      message = text || message
+  if (error) {
+    // Handle error responses - they might have success: false
+    const errorData = error as any
+    if (errorData?.success === false) {
+      return errorData as TestEndpointResponse
     }
-    throw new Error(message)
+    throw new Error(errorData?.error || errorData?.message || 'Failed to test endpoint')
   }
   
-  return await response.json()
+  return data as TestEndpointResponse
 }
 
 export const useTestEndpointMutation = () => {

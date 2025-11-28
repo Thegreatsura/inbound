@@ -31,7 +31,8 @@
     "migrate:batch-catchall:force": "FORCE_MIGRATE=true bun run scripts/migrate-to-batch-catchall.ts",
     "migrate:batch-catchall:force:dry": "DRY_RUN=true FORCE_MIGRATE=true bun run scripts/migrate-to-batch-catchall.ts",
     "check": "tsc --noEmit && prettier --check . --ignore-path .gitignore || true",
-    "registry:build": "shadcn build"
+    "registry:build": "shadcn build",
+    "neon:reset": "neon branches reset development --parent --project-id curly-king-52150024"
   },
   "dependencies": {
     "@ai-sdk/openai": "1.0.2",
