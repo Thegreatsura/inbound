@@ -893,7 +893,9 @@ export async function POST(
       }
 
       // Get the identity ARN for tenant-level tracking
-      const identityArn = await getIdentityArnForDomainOrParent(userId, fromDomain);
+      // Check if sending from a subdomain and get parent if needed (mirrors logic from main email route)
+      const parentDomain = isSubdomain(fromDomain) ? getRootDomain(fromDomain) : undefined;
+      const identityArn = await getIdentityArnForDomainOrParent(userId, fromDomain, parentDomain || undefined);
       if (!identityArn) {
         console.error(`❌ Failed to get identity ARN for ${fromAddress}. Cannot send reply email.`);
         await db
