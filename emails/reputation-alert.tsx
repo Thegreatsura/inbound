@@ -25,6 +25,7 @@ interface ReputationAlertEmailProps {
   tenantName?: string;
   triggeredAt?: string;
   recommendations?: string[];
+  sendingPaused?: boolean;
 }
 
 export const ReputationAlertEmail = ({
@@ -41,6 +42,7 @@ export const ReputationAlertEmail = ({
     'Check your email content for spam triggers',
     'Consider implementing double opt-in'
   ],
+  sendingPaused = false,
 }: ReputationAlertEmailProps) => {
   const alertEmoji = severity === 'critical' ? '🚨' : '⚠️';
   const alertColorClass = severity === 'critical' ? 'text-red-600' : 'text-amber-500';
@@ -97,6 +99,18 @@ export const ReputationAlertEmail = ({
               <Img src={INBOUND_WORDMARK} height="32" alt="inbound" />
             </Section>
             <Heading className="mx-0 my-7 p-0 text-2xl font-semibold text-black">{alertTitle}</Heading>
+            {sendingPaused && (
+              <Section className="my-4">
+                <div className="rounded-lg border-2 border-red-500 bg-red-50 p-4">
+                  <Text className="text-sm font-semibold leading-6 text-red-700">
+                    🛑 EMAIL SENDING HAS BEEN PAUSED
+                  </Text>
+                  <Text className="text-sm leading-6 text-red-600">
+                    Due to the critical threshold breach, email sending has been automatically paused for your account to protect your sender reputation. Contact support to discuss resuming service after addressing the issues below.
+                  </Text>
+                </div>
+              </Section>
+            )}
             <Text className="text-sm leading-6 text-black">Hi {userFirstname},</Text>
             <Text className="text-sm leading-6 text-black">
               We detected that your <strong>{tenantName}</strong> configuration set exceeded the {metricName.toLowerCase()} threshold and needs attention.
@@ -125,8 +139,10 @@ export const ReputationAlertEmail = ({
             <Section className="my-6">
               <div className="rounded-lg border border-[#e6ebf1] bg-slate-50 p-4">
                 <Text className="text-sm leading-6 text-black">
-                {severity === 'critical' ? (
-                    '🚨 Critical: Email sending may be automatically paused if rates do not improve. Take immediate action.'
+                {sendingPaused ? (
+                    '🛑 Your email sending has been paused. Contact support@inbound.new to discuss resuming service after addressing the issues above.'
+                ) : severity === 'critical' ? (
+                    '🚨 Critical: Email sending will be automatically paused if rates do not improve. Take immediate action.'
                 ) : (
                   '⚠️ Warning: Monitor your reputation closely. Continued high rates may trigger automatic restrictions.'
                 )}

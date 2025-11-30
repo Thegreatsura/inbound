@@ -24,6 +24,7 @@ import {
   GetConfigurationSetCommand,
   DeleteConfigurationSetCommand,
   CreateConfigurationSetEventDestinationCommand,
+  PutConfigurationSetSendingOptionsCommand,
   EventType
 } from '@aws-sdk/client-sesv2'
 import { 
@@ -895,6 +896,123 @@ export async function associateIdentityWithUserTenant(userId: string, identity: 
     })
 
   } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    }
+  }
+}
+
+/**
+ * Pause sending for a tenant's configuration set
+ * Used when critical reputation thresholds are breached
+ * 
+ * @param configurationSetName - The configuration set name to pause
+ * @param reason - Reason for pausing (logged and stored)
+ * @returns Success status and any error message
+ */
+export async function pauseTenantSending(
+  configurationSetName: string,
+  reason: string
+): Promise<{ success: boolean; error?: string }> {
+  if (!sesv2Client) {
+    console.error('❌ pauseTenantSending - AWS SES not configured');
+    return { success: false, error: 'AWS SES not configured' }
+  }
+
+  try {
+    console.log(`🛑 pauseTenantSending - Pausing sending for: ${configurationSetName}`)
+    console.log(`   Reason: ${reason}`)
+
+    // Disable sending for this configuration set
+    const command = new PutConfigurationSetSendingOptionsCommand({
+      ConfigurationSetName: configurationSetName,
+      SendingEnabled: false
+    })
+
+    await sesv2Client.send(command)
+
+    // Update database to reflect paused status
+    const [tenant] = await db
+      .select()
+      .from(sesTenants)
+      .where(eq(sesTenants.configurationSetName, configurationSetName))
+      .limit(1)
+
+    if (tenant) {
+      await db
+        .update(sesTenants)
+        .set({
+          status: 'paused',
+          updatedAt: new Date()
+        })
+        .where(eq(sesTenants.id, tenant.id))
+      
+      console.log(`✅ pauseTenantSending - Tenant status updated to 'paused' in database`)
+    }
+
+    console.log(`✅ pauseTenantSending - Sending disabled for: ${configurationSetName}`)
+    return { success: true }
+
+  } catch (error) {
+    console.error(`❌ pauseTenantSending - Failed to pause sending:`, error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    }
+  }
+}
+
+/**
+ * Resume sending for a tenant's configuration set
+ * Used to re-enable sending after issues are resolved
+ * 
+ * @param configurationSetName - The configuration set name to resume
+ * @returns Success status and any error message
+ */
+export async function resumeTenantSending(
+  configurationSetName: string
+): Promise<{ success: boolean; error?: string }> {
+  if (!sesv2Client) {
+    console.error('❌ resumeTenantSending - AWS SES not configured')
+    return { success: false, error: 'AWS SES not configured' }
+  }
+
+  try {
+    console.log(`▶️ resumeTenantSending - Resuming sending for: ${configurationSetName}`)
+
+    // Enable sending for this configuration set
+    const command = new PutConfigurationSetSendingOptionsCommand({
+      ConfigurationSetName: configurationSetName,
+      SendingEnabled: true
+    })
+
+    await sesv2Client.send(command)
+
+    // Update database to reflect active status
+    const [tenant] = await db
+      .select()
+      .from(sesTenants)
+      .where(eq(sesTenants.configurationSetName, configurationSetName))
+      .limit(1)
+
+    if (tenant) {
+      await db
+        .update(sesTenants)
+        .set({
+          status: 'active',
+          updatedAt: new Date()
+        })
+        .where(eq(sesTenants.id, tenant.id))
+      
+      console.log(`✅ resumeTenantSending - Tenant status updated to 'active' in database`)
+    }
+
+    console.log(`✅ resumeTenantSending - Sending enabled for: ${configurationSetName}`)
+    return { success: true }
+
+  } catch (error) {
+    console.error(`❌ resumeTenantSending - Failed to resume sending:`, error)
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error'

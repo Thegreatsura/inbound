@@ -26,6 +26,7 @@ export interface ReputationAlertNotificationData {
   tenantName: string;
   triggeredAt: Date;
   recommendations?: string[];
+  sendingPaused?: boolean; // True if sending was auto-paused due to critical threshold
 }
 
 /**
@@ -179,7 +180,8 @@ export async function sendReputationAlertNotification(
         minute: '2-digit',
         timeZoneName: 'short'
       }),
-      recommendations: data.recommendations || defaultRecommendations[data.alertType]
+      recommendations: data.recommendations || defaultRecommendations[data.alertType],
+      sendingPaused: data.sendingPaused || false
     };
 
     // Render the email template
