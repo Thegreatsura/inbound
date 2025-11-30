@@ -5,7 +5,7 @@ import {
   attachmentsToStorageFormat,
   type AttachmentInput,
 } from "../../../helper/attachment-processor";
-import { SESClient, SendRawEmailCommand } from "@aws-sdk/client-ses";
+import { SESv2Client, SendEmailCommand } from "@aws-sdk/client-sesv2";
 import { db } from "@/lib/db";
 import {
   sentEmails,
@@ -26,7 +26,7 @@ import { waitUntil } from "@vercel/functions";
 import { evaluateSending } from "@/lib/email-management/email-evaluation";
 import { EmailThreader } from "@/lib/email-management/email-threader";
 import { isSubdomain, getRootDomain } from "@/lib/domains-and-dns/domain-utils";
-import { getIdentityArnForDomainOrParent } from "@/lib/aws-ses/identity-arn-helper";
+import { getTenantSendingInfoForDomainOrParent, type TenantSendingInfo } from "@/lib/aws-ses/identity-arn-helper";
 
 /**
  * POST /api/v2/emails/[id]/reply-new
@@ -187,10 +187,10 @@ const awsRegion = process.env.AWS_REGION || "us-east-2";
 const awsAccessKeyId = process.env.AWS_ACCESS_KEY_ID;
 const awsSecretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
 
-let sesClient: SESClient | null = null;
+let sesClient: SESv2Client | null = null;
 
 if (awsAccessKeyId && awsSecretAccessKey) {
-  sesClient = new SESClient({
+  sesClient = new SESv2Client({
     region: awsRegion,
     credentials: {
       accessKeyId: awsAccessKeyId,
@@ -892,11 +892,11 @@ export async function POST(
         }
       }
 
-      // Get the identity ARN for tenant-level tracking
-      // Check if sending from a subdomain and get parent if needed (mirrors logic from main email route)
+      // Get the tenant sending info (identity ARN, configuration set, and tenant name) for tenant-level tracking
+      // Per AWS docs: https://docs.aws.amazon.com/ses/latest/dg/tenants.html
       const parentDomain = isSubdomain(fromDomain) ? getRootDomain(fromDomain) : undefined;
-      const identityArn = await getIdentityArnForDomainOrParent(userId, fromDomain, parentDomain || undefined);
-      if (!identityArn) {
+      const tenantSendingInfo: TenantSendingInfo = await getTenantSendingInfoForDomainOrParent(userId, fromDomain, parentDomain || undefined);
+      if (!tenantSendingInfo.identityArn) {
         console.error(`❌ Failed to get identity ARN for ${fromAddress}. Cannot send reply email.`);
         await db
           .update(sentEmails)
@@ -911,15 +911,34 @@ export async function POST(
           { status: 500 }
         );
       }
+      
+      if (tenantSendingInfo.configurationSetName) {
+        console.log(`📋 Using ConfigurationSet for reply email: ${tenantSendingInfo.configurationSetName}`);
+      } else {
+        console.warn('⚠️ No ConfigurationSet available - reply email metrics may not be tracked correctly');
+      }
+      
+      if (tenantSendingInfo.tenantName) {
+        console.log(`🏠 Using TenantName for reply email AWS SES tracking: ${tenantSendingInfo.tenantName}`);
+      } else {
+        console.warn('⚠️ No TenantName available - reply email will NOT appear in tenant dashboard!');
+      }
 
-      // Send via SES
-      const sesCommand = new SendRawEmailCommand({
-        RawMessage: {
-          Data: Buffer.from(rawMessage),
+      // Send via SES using SESv2 SendEmailCommand with TenantName
+      // Per AWS docs: https://docs.aws.amazon.com/ses/latest/dg/tenants.html
+      const sesCommand = new SendEmailCommand({
+        FromEmailAddress: fromAddress,
+        ...(tenantSendingInfo.identityArn && { FromEmailAddressIdentityArn: tenantSendingInfo.identityArn }),
+        Destination: {
+          ToAddresses: toAddresses.map(extractEmailAddress),
         },
-        Source: fromAddress,
-        Destinations: toAddresses.map(extractEmailAddress),
-        SourceArn: identityArn,
+        Content: {
+          Raw: {
+            Data: Buffer.from(rawMessage),
+          },
+        },
+        ...(tenantSendingInfo.configurationSetName && { ConfigurationSetName: tenantSendingInfo.configurationSetName }),
+        ...(tenantSendingInfo.tenantName && { TenantName: tenantSendingInfo.tenantName }),
       });
 
       const sesResponse = await sesClient.send(sesCommand);

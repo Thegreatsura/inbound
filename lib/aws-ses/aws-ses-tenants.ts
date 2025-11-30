@@ -26,10 +26,24 @@ import {
   CreateConfigurationSetEventDestinationCommand,
   EventType
 } from '@aws-sdk/client-sesv2'
+import { 
+  SNSClient, 
+  CreateTopicCommand, 
+  SubscribeCommand,
+  SetTopicAttributesCommand
+} from '@aws-sdk/client-sns'
+import { 
+  CloudWatchClient, 
+  PutMetricAlarmCommand 
+} from '@aws-sdk/client-cloudwatch'
 import { db } from '@/lib/db'
 import { sesTenants } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
+
+// Webhook URL for receiving SES events
+const WEBHOOK_URL = process.env.SES_WEBHOOK_URL || 'https://inbound.new/api/inbound/health/tenant'
+const AWS_ACCOUNT_ID = process.env.AWS_ACCOUNT_ID
 
 // Types
 export interface CreateTenantParams {
@@ -64,14 +78,28 @@ const awsAccessKeyId = process.env.AWS_ACCESS_KEY_ID
 const awsSecretAccessKey = process.env.AWS_SECRET_ACCESS_KEY
 
 let sesv2Client: SESv2Client | null = null
+let snsClient: SNSClient | null = null
+let cloudWatchClient: CloudWatchClient | null = null
 
 if (awsAccessKeyId && awsSecretAccessKey) {
+  const awsCredentials = {
+    accessKeyId: awsAccessKeyId,
+    secretAccessKey: awsSecretAccessKey,
+  }
+  
   sesv2Client = new SESv2Client({
     region: awsRegion,
-    credentials: {
-      accessKeyId: awsAccessKeyId,
-      secretAccessKey: awsSecretAccessKey,
-    }
+    credentials: awsCredentials
+  })
+  
+  snsClient = new SNSClient({
+    region: awsRegion,
+    credentials: awsCredentials
+  })
+  
+  cloudWatchClient = new CloudWatchClient({
+    region: awsRegion,
+    credentials: awsCredentials
   })
 }
 
@@ -81,12 +109,222 @@ if (awsAccessKeyId && awsSecretAccessKey) {
  */
 export class SESTenantManager {
   private sesv2Client: SESv2Client
+  private snsClient: SNSClient | null
+  private cloudWatchClient: CloudWatchClient | null
 
   constructor(client?: SESv2Client) {
     if (!client && !sesv2Client) {
       throw new Error('AWS SES not configured. Please set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables.')
     }
     this.sesv2Client = client || sesv2Client!
+    this.snsClient = snsClient
+    this.cloudWatchClient = cloudWatchClient
+  }
+
+  /**
+   * Setup SNS topics and CloudWatch alarms for a tenant's configuration set
+   * This enables real-time notifications for bounces/complaints and automated alerting
+   */
+  async setupTenantMonitoring(configSetName: string, options?: { skipSns?: boolean; skipAlarms?: boolean }): Promise<{ 
+    success: boolean; 
+    snsTopicArn?: string; 
+    alertTopicArn?: string; 
+    error?: string 
+  }> {
+    if (!this.snsClient || !this.cloudWatchClient) {
+      console.warn('⚠️ SNS/CloudWatch clients not configured, skipping monitoring setup')
+      return { success: false, error: 'SNS/CloudWatch clients not configured' }
+    }
+
+    if (!AWS_ACCOUNT_ID) {
+      console.warn('⚠️ AWS_ACCOUNT_ID not set, skipping monitoring setup')
+      return { success: false, error: 'AWS_ACCOUNT_ID environment variable not set' }
+    }
+
+    const region = awsRegion
+    let eventsTopicArn: string | undefined
+    let alertsTopicArn: string | undefined
+
+    try {
+      // Step 1: Create SNS topic for SES events (bounces, complaints, etc.)
+      if (!options?.skipSns) {
+        console.log(`📢 Creating SNS topics for: ${configSetName}`)
+        
+        // Events topic
+        const eventsTopicName = `ses-${configSetName}-events`
+        const createEventsTopicCommand = new CreateTopicCommand({
+          Name: eventsTopicName,
+          Tags: [
+            { Key: 'ConfigurationSet', Value: configSetName },
+            { Key: 'Purpose', Value: 'SES event notifications' },
+            { Key: 'CreatedBy', Value: 'inbound-tenant-manager' }
+          ]
+        })
+        
+        const eventsTopicResult = await this.snsClient.send(createEventsTopicCommand)
+        eventsTopicArn = eventsTopicResult.TopicArn
+        console.log(`✅ Events topic created: ${eventsTopicArn}`)
+
+        // Alerts topic (for CloudWatch alarms)
+        const alertsTopicName = `ses-${configSetName}-alerts`
+        const createAlertsTopicCommand = new CreateTopicCommand({
+          Name: alertsTopicName,
+          Tags: [
+            { Key: 'ConfigurationSet', Value: configSetName },
+            { Key: 'Purpose', Value: 'SES reputation alerts' },
+            { Key: 'CreatedBy', Value: 'inbound-tenant-manager' }
+          ]
+        })
+        
+        const alertsTopicResult = await this.snsClient.send(createAlertsTopicCommand)
+        alertsTopicArn = alertsTopicResult.TopicArn
+        console.log(`✅ Alerts topic created: ${alertsTopicArn}`)
+
+        // Subscribe webhook to both topics
+        if (WEBHOOK_URL) {
+          console.log(`🔗 Subscribing webhook to SNS topics: ${WEBHOOK_URL}`)
+          
+          // Subscribe to events topic
+          const subscribeEventsCommand = new SubscribeCommand({
+            TopicArn: eventsTopicArn,
+            Protocol: 'https',
+            Endpoint: WEBHOOK_URL
+          })
+          await this.snsClient.send(subscribeEventsCommand)
+          console.log(`✅ Webhook subscribed to events topic`)
+
+          // Subscribe to alerts topic
+          const subscribeAlertsCommand = new SubscribeCommand({
+            TopicArn: alertsTopicArn,
+            Protocol: 'https',
+            Endpoint: WEBHOOK_URL
+          })
+          await this.snsClient.send(subscribeAlertsCommand)
+          console.log(`✅ Webhook subscribed to alerts topic`)
+        }
+
+        // Add SES → SNS event destination for bounces/complaints
+        console.log(`📧 Creating SES → SNS event destination`)
+        try {
+          const snsEventDestinationCommand = new CreateConfigurationSetEventDestinationCommand({
+            ConfigurationSetName: configSetName,
+            EventDestinationName: `${configSetName}-sns-events`,
+            EventDestination: {
+              Enabled: true,
+              MatchingEventTypes: [
+                EventType.BOUNCE,
+                EventType.COMPLAINT,
+                EventType.DELIVERY,
+                EventType.SEND,
+                EventType.REJECT
+              ],
+              SnsDestination: {
+                TopicArn: eventsTopicArn
+              }
+            }
+          })
+          await this.sesv2Client.send(snsEventDestinationCommand)
+          console.log(`✅ SES → SNS event destination created`)
+        } catch (snsDestError: any) {
+          if (snsDestError?.name === 'AlreadyExistsException' || snsDestError?.message?.includes('already exists')) {
+            console.log(`📋 SES → SNS event destination already exists`)
+          } else {
+            console.warn(`⚠️ Failed to create SES → SNS event destination:`, snsDestError)
+          }
+        }
+      }
+
+      // Step 2: Create CloudWatch alarms for reputation metrics
+      if (!options?.skipAlarms && alertsTopicArn) {
+        console.log(`⏰ Creating CloudWatch alarms for: ${configSetName}`)
+
+        // Bounce rate warning at 5%
+        await this.cloudWatchClient.send(new PutMetricAlarmCommand({
+          AlarmName: `SES-BounceRate-5%-${configSetName}`,
+          AlarmDescription: `Bounce rate >= 5% for configuration set ${configSetName}`,
+          Namespace: 'AWS/SES',
+          MetricName: 'Reputation.BounceRate',
+          Dimensions: [{ Name: 'ConfigurationSet', Value: configSetName }],
+          Statistic: 'Maximum',
+          Period: 300,
+          EvaluationPeriods: 2,
+          DatapointsToAlarm: 2,
+          Threshold: 0.05,
+          ComparisonOperator: 'GreaterThanOrEqualToThreshold',
+          TreatMissingData: 'notBreaching',
+          AlarmActions: [alertsTopicArn]
+        }))
+        console.log(`✅ Bounce rate 5% warning alarm created`)
+
+        // Bounce rate critical at 7%
+        await this.cloudWatchClient.send(new PutMetricAlarmCommand({
+          AlarmName: `SES-BounceRate-7%-${configSetName}`,
+          AlarmDescription: `CRITICAL: Bounce rate >= 7% for configuration set ${configSetName}`,
+          Namespace: 'AWS/SES',
+          MetricName: 'Reputation.BounceRate',
+          Dimensions: [{ Name: 'ConfigurationSet', Value: configSetName }],
+          Statistic: 'Maximum',
+          Period: 300,
+          EvaluationPeriods: 1,
+          DatapointsToAlarm: 1,
+          Threshold: 0.07,
+          ComparisonOperator: 'GreaterThanOrEqualToThreshold',
+          TreatMissingData: 'notBreaching',
+          AlarmActions: [alertsTopicArn]
+        }))
+        console.log(`✅ Bounce rate 7% critical alarm created`)
+
+        // Complaint rate warning at 0.1%
+        await this.cloudWatchClient.send(new PutMetricAlarmCommand({
+          AlarmName: `SES-ComplaintRate-0.1%-${configSetName}`,
+          AlarmDescription: `Complaint rate >= 0.1% for configuration set ${configSetName}`,
+          Namespace: 'AWS/SES',
+          MetricName: 'Reputation.ComplaintRate',
+          Dimensions: [{ Name: 'ConfigurationSet', Value: configSetName }],
+          Statistic: 'Maximum',
+          Period: 300,
+          EvaluationPeriods: 2,
+          DatapointsToAlarm: 2,
+          Threshold: 0.001,
+          ComparisonOperator: 'GreaterThanOrEqualToThreshold',
+          TreatMissingData: 'notBreaching',
+          AlarmActions: [alertsTopicArn]
+        }))
+        console.log(`✅ Complaint rate 0.1% warning alarm created`)
+
+        // Complaint rate critical at 0.3%
+        await this.cloudWatchClient.send(new PutMetricAlarmCommand({
+          AlarmName: `SES-ComplaintRate-0.3%-${configSetName}`,
+          AlarmDescription: `CRITICAL: Complaint rate >= 0.3% for configuration set ${configSetName}`,
+          Namespace: 'AWS/SES',
+          MetricName: 'Reputation.ComplaintRate',
+          Dimensions: [{ Name: 'ConfigurationSet', Value: configSetName }],
+          Statistic: 'Maximum',
+          Period: 300,
+          EvaluationPeriods: 1,
+          DatapointsToAlarm: 1,
+          Threshold: 0.003,
+          ComparisonOperator: 'GreaterThanOrEqualToThreshold',
+          TreatMissingData: 'notBreaching',
+          AlarmActions: [alertsTopicArn]
+        }))
+        console.log(`✅ Complaint rate 0.3% critical alarm created`)
+      }
+
+      console.log(`✅ Tenant monitoring setup complete for: ${configSetName}`)
+      return { 
+        success: true, 
+        snsTopicArn: eventsTopicArn, 
+        alertTopicArn: alertsTopicArn 
+      }
+
+    } catch (error) {
+      console.error(`❌ Failed to setup tenant monitoring for ${configSetName}:`, error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      }
+    }
   }
 
   /**
@@ -284,6 +522,16 @@ export class SESTenantManager {
         .returning()
 
       console.log(`✅ SES tenant created successfully: ${tenantId} -> ${awsTenantId} (config set: ${configSetCreated ? configSetName : 'none'})`)
+
+      // Step 5: Setup SNS topics and CloudWatch alarms for monitoring
+      if (configSetCreated) {
+        console.log(`📊 Setting up monitoring for tenant: ${configSetName}`)
+        const monitoringResult = await this.setupTenantMonitoring(configSetName)
+        if (!monitoringResult.success) {
+          console.warn(`⚠️ Monitoring setup incomplete for ${configSetName}: ${monitoringResult.error}`)
+          // Don't fail tenant creation if monitoring setup fails - it can be backfilled later
+        }
+      }
 
       return {
         tenant: newTenant,

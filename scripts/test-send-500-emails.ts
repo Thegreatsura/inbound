@@ -9,7 +9,7 @@
  */
 
 const API_KEY = process.env.INBOUND_API_KEY
-const API_BASE_URL = process.env.INBOUND_API_URL || 'http://localhost:3000'
+const API_BASE_URL = process.env.INBOUND_API_URL || 'https://inbound.new'
 
 const TO_EMAIL = 'inboundemaildotnew@gmail.com'
 const FROM_EMAIL = 'test@development.inbound.new'
