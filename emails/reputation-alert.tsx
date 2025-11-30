@@ -79,7 +79,7 @@ export const ReputationAlertEmail = ({
           fontStyle="normal"
         />
       </Head>
-      <Preview>{alertEmoji} SES {alertTitle}: {metricName} reached {percentageDisplay}</Preview>
+      <Preview>{alertEmoji} {alertTitle}: {metricName} reached {percentageDisplay}</Preview>
       <Tailwind
         config={{
           theme: {
