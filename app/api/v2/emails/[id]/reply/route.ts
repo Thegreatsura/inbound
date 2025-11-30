@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { validateRequest } from "../../../helper/main";
+import { validateRequest, checkNewAccountWarmupLimits } from "../../../helper/main";
 import {
   processAttachments,
   attachmentsToStorageFormat,
@@ -251,6 +251,21 @@ export async function POST(
       return NextResponse.json({ error: error }, { status: 401 });
     }
     console.log("✅ Authentication successful for userId:", userId);
+
+    // Check new account warmup limits (100 emails/day for first 7 days)
+    const warmupCheck = await checkNewAccountWarmupLimits(userId);
+    if (!warmupCheck.allowed) {
+      console.log(`🚫 Warmup limit exceeded for user ${userId}`);
+      return NextResponse.json(
+        {
+          error: warmupCheck.error,
+          emailsSentToday: warmupCheck.emailsSentToday,
+          dailyLimit: warmupCheck.dailyLimit,
+          daysRemaining: warmupCheck.daysRemaining,
+        },
+        { status: 429 }
+      );
+    }
 
     const { id } = await params;
     console.log("📨 Replying to ID:", id);

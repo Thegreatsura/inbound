@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { validateRequest } from '../../helper/main'
+import { validateRequest, checkNewAccountWarmupLimits } from '../../helper/main'
 import { processAttachments, attachmentsToStorageFormat, type AttachmentInput } from '../../helper/attachment-processor'
 import { db } from '@/lib/db'
 import { sentEmails, emailDomains, SENT_EMAIL_STATUS } from '@/lib/db/schema'
@@ -208,6 +208,21 @@ export async function POST(request: NextRequest) {
             )
         }
         console.log('✅ Authentication successful for userId:', userId)
+
+        // Check new account warmup limits (100 emails/day for first 7 days)
+        const warmupCheck = await checkNewAccountWarmupLimits(userId)
+        if (!warmupCheck.allowed) {
+            console.log(`🚫 Warmup limit exceeded for user ${userId}`)
+            return NextResponse.json(
+                { 
+                    error: warmupCheck.error,
+                    emailsSentToday: warmupCheck.emailsSentToday,
+                    dailyLimit: warmupCheck.dailyLimit,
+                    daysRemaining: warmupCheck.daysRemaining
+                },
+                { status: 429 }
+            )
+        }
 
         // Get validation mode from header
         const validationMode = request.headers.get('x-batch-validation') || 'strict'

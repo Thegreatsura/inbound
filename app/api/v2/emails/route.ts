@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { validateRequest } from '../helper/main'
+import { validateRequest, checkNewAccountWarmupLimits } from '../helper/main'
 import { processAttachments, attachmentsToStorageFormat, type AttachmentInput } from '../helper/attachment-processor'
 import { buildRawEmailMessage } from '../helper/email-builder'
 import { SESClient, SendRawEmailCommand } from '@aws-sdk/client-ses'
@@ -117,6 +117,21 @@ export async function POST(request: NextRequest) {
             )
         }
         console.log('✅ Authentication successful for userId:', userId)
+
+        // Check new account warmup limits (100 emails/day for first 7 days)
+        const warmupCheck = await checkNewAccountWarmupLimits(userId)
+        if (!warmupCheck.allowed) {
+            console.log(`🚫 Warmup limit exceeded for user ${userId}`)
+            return NextResponse.json(
+                { 
+                    error: warmupCheck.error,
+                    emailsSentToday: warmupCheck.emailsSentToday,
+                    dailyLimit: warmupCheck.dailyLimit,
+                    daysRemaining: warmupCheck.daysRemaining
+                },
+                { status: 429 }
+            )
+        }
 
         // Check for idempotency key
         const idempotencyKey = request.headers.get('Idempotency-Key')
