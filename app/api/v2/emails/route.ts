@@ -14,6 +14,7 @@ import { Client as QStashClient } from '@upstash/qstash'
 import { waitUntil } from '@vercel/functions'
 import { evaluateSending } from '@/lib/email-management/email-evaluation'
 import { isSubdomain, getRootDomain } from '@/lib/domains-and-dns/domain-utils'
+import { getIdentityArnForDomainOrParent, getAgentIdentityArn } from '@/lib/aws-ses/identity-arn-helper'
 
 /**
  * POST /api/v2/emails
@@ -487,6 +488,22 @@ export async function POST(request: NextRequest) {
             const sourceEmail = fromParsed.email
             const formattedFromAddress = formatEmailWithName(sourceEmail, fromParsed.name)
             
+            // Get the identity ARN for tenant-level tracking
+            let sourceArn: string | null = null
+            if (isAgentEmail) {
+                sourceArn = getAgentIdentityArn()
+            } else {
+                // Check if sending from a subdomain and get parent if needed
+                const parentDomain = isSubdomain(fromDomain) ? getRootDomain(fromDomain) : undefined
+                sourceArn = await getIdentityArnForDomainOrParent(userId, fromDomain, parentDomain || undefined)
+            }
+            
+            if (sourceArn) {
+                console.log(`🏢 Using SourceArn for tenant tracking: ${sourceArn}`)
+            } else {
+                console.warn('⚠️ No SourceArn available - email will not be tracked at tenant level')
+            }
+            
             // Always use SendRawEmailCommand for full MIME support (attachments, display names, etc.)
             console.log('📧 Building raw email message with full MIME support')
             
@@ -509,7 +526,10 @@ export async function POST(request: NextRequest) {
                     Data: Buffer.from(rawMessage)
                 },
                 Source: sourceEmail,
-                Destinations: [...toAddresses, ...ccAddresses, ...bccAddresses].map(extractEmailAddress)
+                Destinations: [...toAddresses, ...ccAddresses, ...bccAddresses].map(extractEmailAddress),
+                // SourceArn associates the email with the tenant's identity for tracking
+                // This enables per-tenant metrics for sends, bounces, and complaints
+                ...(sourceArn && { SourceArn: sourceArn })
             })
             
             const sesResponse = await sesClient.send(rawCommand)

@@ -1,0 +1,1 @@
+ALTER TABLE "ses_tenants" ADD COLUMN "configuration_set_name" varchar(255);

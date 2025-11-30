@@ -3,13 +3,15 @@ import { Receiver } from '@upstash/qstash'
 import { db } from '@/lib/db'
 import { scheduledEmails, sentEmails, SCHEDULED_EMAIL_STATUS, SENT_EMAIL_STATUS } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
-import { SESClient, SendRawEmailCommand } from '@aws-sdk/client-ses'
+import { SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2'
 import { buildRawEmailMessage } from '../../v2/helper/email-builder'
-import { extractEmailAddress } from '@/lib/email-management/agent-email-helper'
+import { extractEmailAddress, extractDomain, canUserSendFromEmail } from '@/lib/email-management/agent-email-helper'
 import { nanoid } from 'nanoid'
 import { waitUntil } from '@vercel/functions'
 import { evaluateSending } from '@/lib/email-management/email-evaluation'
 import type { PostEmailsRequest } from '../../v2/emails/route'
+import { getTenantSendingInfoForDomainOrParent, getAgentIdentityArn, type TenantSendingInfo } from '@/lib/aws-ses/identity-arn-helper'
+import { isSubdomain, getRootDomain } from '@/lib/domains-and-dns/domain-utils'
 
 /**
  * POST /api/webhooks/send-email
@@ -28,10 +30,10 @@ const awsRegion = process.env.AWS_REGION || 'us-east-2'
 const awsAccessKeyId = process.env.AWS_ACCESS_KEY_ID
 const awsSecretAccessKey = process.env.AWS_SECRET_ACCESS_KEY
 
-let sesClient: SESClient | null = null
+let sesClient: SESv2Client | null = null
 
 if (awsAccessKeyId && awsSecretAccessKey) {
-    sesClient = new SESClient({
+    sesClient = new SESv2Client({
         region: awsRegion,
         credentials: {
             accessKeyId: awsAccessKeyId,
@@ -247,13 +249,53 @@ async function handleScheduledEmail(payload: QStashPayload) {
             date: new Date()
         })
 
-        // Send via AWS SES
-        const rawCommand = new SendRawEmailCommand({
-            RawMessage: {
-                Data: Buffer.from(rawMessage)
+        // Get the tenant sending info (identity ARN, configuration set, and tenant name) for tenant-level tracking
+        const fromDomain = scheduledEmail.fromDomain
+        const { isAgentEmail } = canUserSendFromEmail(scheduledEmail.fromAddress)
+        
+        let tenantSendingInfo: TenantSendingInfo = { identityArn: null, configurationSetName: null, tenantName: null }
+        if (isAgentEmail) {
+            tenantSendingInfo = { identityArn: getAgentIdentityArn(), configurationSetName: null, tenantName: null }
+        } else {
+            const parentDomain = isSubdomain(fromDomain) ? getRootDomain(fromDomain) : undefined
+            tenantSendingInfo = await getTenantSendingInfoForDomainOrParent(scheduledEmail.userId, fromDomain, parentDomain || undefined)
+        }
+        
+        if (tenantSendingInfo.identityArn) {
+            console.log(`🏢 Using SourceArn for scheduled email tenant tracking: ${tenantSendingInfo.identityArn}`)
+        } else {
+            console.warn('⚠️ No SourceArn available - scheduled email will not be tracked at tenant level')
+        }
+        
+        if (tenantSendingInfo.configurationSetName) {
+            console.log(`📋 Using ConfigurationSet for scheduled email tenant tracking: ${tenantSendingInfo.configurationSetName}`)
+        } else {
+            console.warn('⚠️ No ConfigurationSet available - scheduled email metrics may not be tracked correctly')
+        }
+        
+        if (tenantSendingInfo.tenantName) {
+            console.log(`🏠 Using TenantName for scheduled email AWS SES tracking: ${tenantSendingInfo.tenantName}`)
+        } else {
+            console.warn('⚠️ No TenantName available - scheduled email will NOT appear in tenant dashboard!')
+        }
+
+        // Send via AWS SES using SESv2 SendEmailCommand with TenantName
+        // Per AWS docs: https://docs.aws.amazon.com/ses/latest/dg/tenants.html
+        const rawCommand = new SendEmailCommand({
+            FromEmailAddress: extractEmailAddress(scheduledEmail.fromAddress),
+            ...(tenantSendingInfo.identityArn && { FromEmailAddressIdentityArn: tenantSendingInfo.identityArn }),
+            Destination: {
+                ToAddresses: toAddresses.map(extractEmailAddress),
+                CcAddresses: ccAddresses.length > 0 ? ccAddresses.map(extractEmailAddress) : undefined,
+                BccAddresses: bccAddresses.length > 0 ? bccAddresses.map(extractEmailAddress) : undefined
             },
-            Source: extractEmailAddress(scheduledEmail.fromAddress),
-            Destinations: [...toAddresses, ...ccAddresses, ...bccAddresses].map(extractEmailAddress)
+            Content: {
+                Raw: {
+                    Data: Buffer.from(rawMessage)
+                }
+            },
+            ...(tenantSendingInfo.configurationSetName && { ConfigurationSetName: tenantSendingInfo.configurationSetName }),
+            ...(tenantSendingInfo.tenantName && { TenantName: tenantSendingInfo.tenantName })
         })
 
         const sesResponse = await sesClient.send(rawCommand)
@@ -436,13 +478,53 @@ async function handleBatchEmail(
             date: new Date()
         })
 
-        // Send via AWS SES
-        const rawCommand = new SendRawEmailCommand({
-            RawMessage: {
-                Data: Buffer.from(rawMessage)
+        // Get the tenant sending info (identity ARN, configuration set, and tenant name) for tenant-level tracking
+        const batchFromDomain = sentEmail.fromDomain
+        const { isAgentEmail: batchIsAgentEmail } = canUserSendFromEmail(sentEmail.from)
+        
+        let batchTenantInfo: TenantSendingInfo = { identityArn: null, configurationSetName: null, tenantName: null }
+        if (batchIsAgentEmail) {
+            batchTenantInfo = { identityArn: getAgentIdentityArn(), configurationSetName: null, tenantName: null }
+        } else {
+            const batchParentDomain = isSubdomain(batchFromDomain) ? getRootDomain(batchFromDomain) : undefined
+            batchTenantInfo = await getTenantSendingInfoForDomainOrParent(userId, batchFromDomain, batchParentDomain || undefined)
+        }
+        
+        if (batchTenantInfo.identityArn) {
+            console.log(`🏢 Using SourceArn for batch email tenant tracking: ${batchTenantInfo.identityArn}`)
+        } else {
+            console.warn('⚠️ No SourceArn available - batch email will not be tracked at tenant level')
+        }
+        
+        if (batchTenantInfo.configurationSetName) {
+            console.log(`📋 Using ConfigurationSet for batch email tenant tracking: ${batchTenantInfo.configurationSetName}`)
+        } else {
+            console.warn('⚠️ No ConfigurationSet available - batch email metrics may not be tracked correctly')
+        }
+        
+        if (batchTenantInfo.tenantName) {
+            console.log(`🏠 Using TenantName for batch email AWS SES tracking: ${batchTenantInfo.tenantName}`)
+        } else {
+            console.warn('⚠️ No TenantName available - batch email will NOT appear in tenant dashboard!')
+        }
+
+        // Send via AWS SES using SESv2 SendEmailCommand with TenantName
+        // Per AWS docs: https://docs.aws.amazon.com/ses/latest/dg/tenants.html
+        const rawCommand = new SendEmailCommand({
+            FromEmailAddress: sentEmail.fromAddress,
+            ...(batchTenantInfo.identityArn && { FromEmailAddressIdentityArn: batchTenantInfo.identityArn }),
+            Destination: {
+                ToAddresses: toAddresses.map(extractEmailAddress),
+                CcAddresses: ccAddresses.length > 0 ? ccAddresses.map(extractEmailAddress) : undefined,
+                BccAddresses: bccAddresses.length > 0 ? bccAddresses.map(extractEmailAddress) : undefined
             },
-            Source: sentEmail.fromAddress,
-            Destinations: [...toAddresses, ...ccAddresses, ...bccAddresses].map(extractEmailAddress)
+            Content: {
+                Raw: {
+                    Data: Buffer.from(rawMessage)
+                }
+            },
+            ...(batchTenantInfo.configurationSetName && { ConfigurationSetName: batchTenantInfo.configurationSetName }),
+            ...(batchTenantInfo.tenantName && { TenantName: batchTenantInfo.tenantName })
         })
 
         const sesResponse = await sesClient.send(rawCommand)

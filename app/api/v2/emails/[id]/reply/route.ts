@@ -26,6 +26,7 @@ import { waitUntil } from "@vercel/functions";
 import { evaluateSending } from "@/lib/email-management/email-evaluation";
 import { EmailThreader } from "@/lib/email-management/email-threader";
 import { isSubdomain, getRootDomain } from "@/lib/domains-and-dns/domain-utils";
+import { getIdentityArnForDomainOrParent } from "@/lib/aws-ses/identity-arn-helper";
 
 /**
  * POST /api/v2/emails/[id]/reply-new
@@ -891,6 +892,24 @@ export async function POST(
         }
       }
 
+      // Get the identity ARN for tenant-level tracking
+      const identityArn = await getIdentityArnForDomainOrParent(userId, fromDomain);
+      if (!identityArn) {
+        console.error(`❌ Failed to get identity ARN for ${fromAddress}. Cannot send reply email.`);
+        await db
+          .update(sentEmails)
+          .set({
+            status: SENT_EMAIL_STATUS.FAILED,
+            failureReason: `Failed to get identity ARN for ${fromAddress}`,
+            updatedAt: new Date(),
+          })
+          .where(eq(sentEmails.id, replyEmailId));
+        return NextResponse.json(
+          { error: `Failed to get identity ARN for ${fromAddress}. Please ensure the email is verified and associated with a tenant.` },
+          { status: 500 }
+        );
+      }
+
       // Send via SES
       const sesCommand = new SendRawEmailCommand({
         RawMessage: {
@@ -898,6 +917,7 @@ export async function POST(
         },
         Source: fromAddress,
         Destinations: toAddresses.map(extractEmailAddress),
+        SourceArn: identityArn,
       });
 
       const sesResponse = await sesClient.send(sesCommand);

@@ -8,6 +8,7 @@ import { nanoid } from 'nanoid'
 import { EmailForwarder } from '@/lib/email-management/email-forwarder'
 import { sanitizeHtml, type ParsedEmailData } from '@/lib/email-management/email-parser'
 import { getOrCreateVerificationToken } from '@/lib/webhooks/verification'
+import { getTenantSendingInfoForDomainOrParent } from '@/lib/aws-ses/identity-arn-helper'
 
 // Maximum webhook payload size (5MB safety margin)
 const MAX_WEBHOOK_PAYLOAD_SIZE = 1_000_000
@@ -717,6 +718,33 @@ async function handleEmailForwardEndpoint(
     
     console.log(`📤 handleEmailForwardEndpoint - Forwarding to ${toAddresses.length} recipients from ${fromAddress}`)
 
+    // Get tenant sending info (identity ARN, configuration set, and tenant name) for tenant-level tracking
+    const fromDomain = fromAddress.split('@')[1]
+    let sourceArn: string | null = null
+    let configurationSetName: string | null = null
+    let tenantName: string | null = null
+    if (fromDomain && emailData.userId) {
+      const tenantInfo = await getTenantSendingInfoForDomainOrParent(emailData.userId, fromDomain)
+      sourceArn = tenantInfo.identityArn
+      configurationSetName = tenantInfo.configurationSetName
+      tenantName = tenantInfo.tenantName
+      if (sourceArn) {
+        console.log(`✅ handleEmailForwardEndpoint - Got identity ARN for ${fromDomain}: ${sourceArn}`)
+      } else {
+        console.warn(`⚠️ handleEmailForwardEndpoint - Could not get identity ARN for ${fromDomain}, email will be sent without tenant tracking`)
+      }
+      if (configurationSetName) {
+        console.log(`📋 handleEmailForwardEndpoint - Using configuration set: ${configurationSetName}`)
+      } else {
+        console.warn(`⚠️ handleEmailForwardEndpoint - No configuration set available for ${fromDomain}`)
+      }
+      if (tenantName) {
+        console.log(`🏠 handleEmailForwardEndpoint - Using TenantName: ${tenantName}`)
+      } else {
+        console.warn(`⚠️ handleEmailForwardEndpoint - No TenantName available - email will NOT appear in tenant dashboard!`)
+      }
+    }
+
     // Forward the email
     await forwarder.forwardEmail(
       parsedEmailData,
@@ -726,7 +754,10 @@ async function handleEmailForwardEndpoint(
         subjectPrefix: config.subjectPrefix,
         includeAttachments: config.includeAttachments,
         recipientEmail: emailData.recipient,
-        senderName: config.senderName
+        senderName: config.senderName,
+        sourceArn: sourceArn || undefined,
+        configurationSetName: configurationSetName || undefined,
+        tenantName: tenantName || undefined
       }
     )
     

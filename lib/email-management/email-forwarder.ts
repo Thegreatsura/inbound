@@ -1,12 +1,12 @@
-import { SESClient, SendRawEmailCommand } from '@aws-sdk/client-ses'
+import { SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2'
 import type { ParsedEmailData } from './email-parser'
 import { generateEmailBannerHTML } from '@/components/email-banner'
 
 export class EmailForwarder {
-  private sesClient: SESClient
+  private sesClient: SESv2Client
 
   constructor() {
-    this.sesClient = new SESClient({ 
+    this.sesClient = new SESv2Client({ 
       region: process.env.AWS_REGION || 'us-east-2' 
     })
   }
@@ -20,6 +20,9 @@ export class EmailForwarder {
       includeAttachments?: boolean
       recipientEmail?: string // The original recipient email (e.g., user@domain.com)
       senderName?: string // Custom sender name for the from field
+      sourceArn?: string // AWS SES Identity ARN for tenant-level tracking
+      configurationSetName?: string // AWS SES Configuration Set for tenant-level metrics
+      tenantName?: string // AWS SES Tenant Name - REQUIRED for tenant dashboard metrics!
     }
   ): Promise<void> {
     console.log(`📨 EmailForwarder - Forwarding email from ${fromAddress} to ${toAddresses.length} recipients`)
@@ -52,13 +55,28 @@ export class EmailForwarder {
     })
 
     console.log(`📤 EmailForwarder - Sending email message (${rawMessage.length} bytes) with ${originalEmail.htmlBody ? 'HTML' : 'text'} content and ${originalEmail.attachments?.length || 0} attachments`)
+    
+    if (options?.tenantName) {
+      console.log(`🏠 EmailForwarder - Using TenantName for AWS SES tracking: ${options.tenantName}`)
+    } else {
+      console.warn('⚠️ EmailForwarder - No TenantName available - forwarded email will NOT appear in tenant dashboard!')
+    }
 
-    const command = new SendRawEmailCommand({
-      RawMessage: {
-        Data: Buffer.from(rawMessage)
+    // Use SESv2 SendEmailCommand with TenantName for proper tenant-level tracking
+    // Per AWS docs: https://docs.aws.amazon.com/ses/latest/dg/tenants.html
+    const command = new SendEmailCommand({
+      FromEmailAddress: fromAddress,
+      ...(options?.sourceArn && { FromEmailAddressIdentityArn: options.sourceArn }),
+      Destination: {
+        ToAddresses: toAddresses,
       },
-      Source: fromAddress, // SES Source must be just the email address
-      Destinations: toAddresses
+      Content: {
+        Raw: {
+          Data: Buffer.from(rawMessage)
+        }
+      },
+      ...(options?.configurationSetName && { ConfigurationSetName: options.configurationSetName }),
+      ...(options?.tenantName && { TenantName: options.tenantName })
     })
 
     try {

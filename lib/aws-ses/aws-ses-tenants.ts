@@ -19,7 +19,12 @@ import {
   ListTenantsCommand,
   CreateTenantResourceAssociationCommand,
   DeleteTenantResourceAssociationCommand,
-  ListTenantResourcesCommand
+  ListTenantResourcesCommand,
+  CreateConfigurationSetCommand,
+  GetConfigurationSetCommand,
+  DeleteConfigurationSetCommand,
+  CreateConfigurationSetEventDestinationCommand,
+  EventType
 } from '@aws-sdk/client-sesv2'
 import { db } from '@/lib/db'
 import { sesTenants } from '@/lib/db/schema'
@@ -39,6 +44,7 @@ export interface CreateTenantResult {
     userId: string
     awsTenantId: string
     tenantName: string
+    configurationSetName: string | null
     status: string
     reputationPolicy: string
   }
@@ -85,7 +91,7 @@ export class SESTenantManager {
 
   /**
    * Create a new tenant for a user
-   * This creates both the AWS SES tenant and local database record
+   * This creates the AWS SES tenant, configuration set, associates them, and creates the local database record
    */
   async createTenant({ userId, tenantName, reputationPolicy = 'standard' }: CreateTenantParams): Promise<CreateTenantResult> {
     try {
@@ -108,6 +114,8 @@ export class SESTenantManager {
 
       // Generate tenant name if not provided
       const finalTenantName = tenantName || `user-${userId}`
+      // Configuration set name based on tenant name
+      const configSetName = `tenant-${finalTenantName}`
       
       // Create AWS SES tenant
       const createCommand = new CreateTenantCommand({
@@ -152,6 +160,112 @@ export class SESTenantManager {
         }
       }
 
+      // Step 2: Create Configuration Set for this tenant
+      console.log(`📋 Creating configuration set: ${configSetName}`)
+      let configSetCreated = false
+      
+      try {
+        const createConfigSetCommand = new CreateConfigurationSetCommand({
+          ConfigurationSetName: configSetName,
+          Tags: [
+            { Key: 'UserId', Value: userId },
+            { Key: 'TenantId', Value: awsTenantId },
+            { Key: 'TenantName', Value: finalTenantName },
+            { Key: 'Environment', Value: process.env.NODE_ENV || 'development' },
+            { Key: 'CreatedBy', Value: 'inbound-tenant-manager' }
+          ],
+          // Enable reputation metrics tracking
+          ReputationOptions: {
+            ReputationMetricsEnabled: true
+          },
+          // Enable sending
+          SendingOptions: {
+            SendingEnabled: true
+          }
+        })
+        
+        await this.sesv2Client.send(createConfigSetCommand)
+        configSetCreated = true
+        console.log(`✅ Configuration set created: ${configSetName}`)
+      } catch (configError: any) {
+        // Handle case where config set already exists
+        if (configError?.name === 'AlreadyExistsException' || configError?.message?.includes('already exists')) {
+          console.log(`📋 Configuration set already exists: ${configSetName}`)
+          configSetCreated = true
+        } else {
+          console.error(`⚠️ Failed to create configuration set, continuing without it:`, configError)
+          // Don't fail tenant creation if config set fails - we can backfill later
+        }
+      }
+
+      // Step 3: Add CloudWatch Event Destination for metrics tracking
+      if (configSetCreated) {
+        console.log(`📊 Adding CloudWatch event destination to configuration set: ${configSetName}`)
+        try {
+          const eventDestinationCommand = new CreateConfigurationSetEventDestinationCommand({
+            ConfigurationSetName: configSetName,
+            EventDestinationName: `${configSetName}-cloudwatch`,
+            EventDestination: {
+              Enabled: true,
+              // Track all event types for comprehensive metrics
+              MatchingEventTypes: [
+                EventType.SEND,
+                EventType.DELIVERY,
+                EventType.BOUNCE,
+                EventType.COMPLAINT,
+                EventType.REJECT,
+                EventType.RENDERING_FAILURE
+              ],
+              CloudWatchDestination: {
+                DimensionConfigurations: [
+                  {
+                    DimensionName: 'TenantId',
+                    DimensionValueSource: 'MESSAGE_TAG',
+                    DefaultDimensionValue: awsTenantId
+                  },
+                  {
+                    DimensionName: 'ConfigurationSet',
+                    DimensionValueSource: 'MESSAGE_TAG',
+                    DefaultDimensionValue: configSetName
+                  }
+                ]
+              }
+            }
+          })
+          
+          await this.sesv2Client.send(eventDestinationCommand)
+          console.log(`✅ CloudWatch event destination added to configuration set`)
+        } catch (eventDestError: any) {
+          if (eventDestError?.name === 'AlreadyExistsException' || eventDestError?.message?.includes('already exists')) {
+            console.log(`📋 CloudWatch event destination already exists for: ${configSetName}`)
+          } else {
+            console.warn(`⚠️ Failed to add CloudWatch event destination:`, eventDestError)
+            // Continue - the configuration set will still work, just without CloudWatch metrics
+          }
+        }
+      }
+
+      // Step 4: Associate Configuration Set with Tenant
+      if (configSetCreated) {
+        console.log(`🔗 Associating configuration set ${configSetName} with tenant ${finalTenantName}`)
+        try {
+          const associateConfigSetCommand = new CreateTenantResourceAssociationCommand({
+            TenantName: finalTenantName,
+            ResourceArn: `arn:aws:ses:${process.env.AWS_REGION || 'us-east-2'}:${process.env.AWS_ACCOUNT_ID}:configuration-set/${configSetName}`
+          })
+          
+          await this.sesv2Client.send(associateConfigSetCommand)
+          console.log(`✅ Configuration set associated with tenant`)
+        } catch (assocError: any) {
+          if (assocError?.name === 'AlreadyExistsException' || assocError?.message?.includes('already exists')) {
+            console.log(`📋 Configuration set already associated with tenant`)
+          } else {
+            console.error(`⚠️ Failed to associate configuration set with tenant:`, assocError)
+            // Don't fail tenant creation if association fails
+          }
+        }
+      }
+
       // Store in local database
       const tenantId = `tenant_${nanoid()}`
       const [newTenant] = await db
@@ -161,6 +275,7 @@ export class SESTenantManager {
           userId,
           awsTenantId,
           tenantName: finalTenantName,
+          configurationSetName: configSetCreated ? configSetName : null,
           status: 'active',
           reputationPolicy,
           createdAt: new Date(),
@@ -168,7 +283,7 @@ export class SESTenantManager {
         })
         .returning()
 
-      console.log(`✅ SES tenant created successfully: ${tenantId} -> ${awsTenantId}`)
+      console.log(`✅ SES tenant created successfully: ${tenantId} -> ${awsTenantId} (config set: ${configSetCreated ? configSetName : 'none'})`)
 
       return {
         tenant: newTenant,
@@ -181,6 +296,148 @@ export class SESTenantManager {
         tenant: null as any,
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error creating tenant'
+      }
+    }
+  }
+
+  /**
+   * Create and associate a configuration set for an existing tenant
+   * Used for backfilling tenants that were created before config set support
+   */
+  async createConfigurationSetForTenant(tenantId: string): Promise<{ success: boolean; configSetName?: string; error?: string }> {
+    try {
+      // Get tenant info from database
+      const tenant = await db
+        .select()
+        .from(sesTenants)
+        .where(eq(sesTenants.id, tenantId))
+        .limit(1)
+
+      if (tenant.length === 0) {
+        return { success: false, error: `Tenant not found: ${tenantId}` }
+      }
+
+      const tenantRecord = tenant[0]
+      
+      // Check if tenant already has a configuration set
+      if (tenantRecord.configurationSetName) {
+        console.log(`📋 Tenant ${tenantId} already has configuration set: ${tenantRecord.configurationSetName}`)
+        return { success: true, configSetName: tenantRecord.configurationSetName }
+      }
+
+      const configSetName = `tenant-${tenantRecord.tenantName}`
+      
+      console.log(`📋 Creating configuration set for existing tenant: ${configSetName}`)
+      
+      // Create Configuration Set
+      try {
+        const createConfigSetCommand = new CreateConfigurationSetCommand({
+          ConfigurationSetName: configSetName,
+          Tags: [
+            { Key: 'UserId', Value: tenantRecord.userId },
+            { Key: 'TenantId', Value: tenantRecord.awsTenantId },
+            { Key: 'TenantName', Value: tenantRecord.tenantName },
+            { Key: 'Environment', Value: process.env.NODE_ENV || 'development' },
+            { Key: 'CreatedBy', Value: 'inbound-tenant-backfill' }
+          ],
+          ReputationOptions: {
+            ReputationMetricsEnabled: true
+          },
+          SendingOptions: {
+            SendingEnabled: true
+          }
+        })
+        
+        await this.sesv2Client.send(createConfigSetCommand)
+        console.log(`✅ Configuration set created: ${configSetName}`)
+      } catch (configError: any) {
+        if (configError?.name === 'AlreadyExistsException' || configError?.message?.includes('already exists')) {
+          console.log(`📋 Configuration set already exists: ${configSetName}`)
+        } else {
+          throw configError
+        }
+      }
+
+      // Add CloudWatch Event Destination for metrics tracking
+      console.log(`📊 Adding CloudWatch event destination to configuration set: ${configSetName}`)
+      try {
+        const eventDestinationCommand = new CreateConfigurationSetEventDestinationCommand({
+          ConfigurationSetName: configSetName,
+          EventDestinationName: `${configSetName}-cloudwatch`,
+          EventDestination: {
+            Enabled: true,
+            MatchingEventTypes: [
+              EventType.SEND,
+              EventType.DELIVERY,
+              EventType.BOUNCE,
+              EventType.COMPLAINT,
+              EventType.REJECT,
+              EventType.RENDERING_FAILURE
+            ],
+            CloudWatchDestination: {
+              DimensionConfigurations: [
+                {
+                  DimensionName: 'TenantId',
+                  DimensionValueSource: 'MESSAGE_TAG',
+                  DefaultDimensionValue: tenantRecord.awsTenantId
+                },
+                {
+                  DimensionName: 'ConfigurationSet',
+                  DimensionValueSource: 'MESSAGE_TAG',
+                  DefaultDimensionValue: configSetName
+                }
+              ]
+            }
+          }
+        })
+        
+        await this.sesv2Client.send(eventDestinationCommand)
+        console.log(`✅ CloudWatch event destination added to configuration set`)
+      } catch (eventDestError: any) {
+        if (eventDestError?.name === 'AlreadyExistsException' || eventDestError?.message?.includes('already exists')) {
+          console.log(`📋 CloudWatch event destination already exists for: ${configSetName}`)
+        } else {
+          console.warn(`⚠️ Failed to add CloudWatch event destination:`, eventDestError)
+          // Continue - the configuration set will still work
+        }
+      }
+
+      // Associate Configuration Set with Tenant
+      console.log(`🔗 Associating configuration set ${configSetName} with tenant ${tenantRecord.tenantName}`)
+      try {
+        const associateConfigSetCommand = new CreateTenantResourceAssociationCommand({
+          TenantName: tenantRecord.tenantName,
+          ResourceArn: `arn:aws:ses:${process.env.AWS_REGION || 'us-east-2'}:${process.env.AWS_ACCOUNT_ID}:configuration-set/${configSetName}`
+        })
+        
+        await this.sesv2Client.send(associateConfigSetCommand)
+        console.log(`✅ Configuration set associated with tenant`)
+      } catch (assocError: any) {
+        if (assocError?.name === 'AlreadyExistsException' || assocError?.message?.includes('already exists')) {
+          console.log(`📋 Configuration set already associated with tenant`)
+        } else {
+          throw assocError
+        }
+      }
+
+      // Update database record
+      await db
+        .update(sesTenants)
+        .set({
+          configurationSetName: configSetName,
+          updatedAt: new Date()
+        })
+        .where(eq(sesTenants.id, tenantId))
+
+      console.log(`✅ Database updated with configuration set name`)
+
+      return { success: true, configSetName }
+
+    } catch (error) {
+      console.error(`❌ Failed to create configuration set for tenant ${tenantId}:`, error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
       }
     }
   }
