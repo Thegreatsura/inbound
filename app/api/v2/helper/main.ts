@@ -40,7 +40,7 @@ export async function validateRequest(request: NextRequest) {
             return { error: "Unauthorized" }
         }
 
-        // Check if user is banned
+        // Check if user exists and is banned
         const [userRecord] = await db
             .select({
                 banned: user.banned,
@@ -51,7 +51,14 @@ export async function validateRequest(request: NextRequest) {
             .where(eq(user.id, userId))
             .limit(1)
 
-        if (userRecord?.banned) {
+        // User must exist in database
+        if (!userRecord) {
+            console.log(`❌ User ${userId} not found in database`)
+            return { error: "User not found" }
+        }
+
+        // Check if user is banned
+        if (userRecord.banned) {
             // Check if ban has expired
             if (userRecord.banExpires && new Date(userRecord.banExpires) < new Date()) {
                 // Ban has expired, allow through (could also auto-unban here)
@@ -120,9 +127,9 @@ export async function checkNewAccountWarmupLimits(userId: string): Promise<{
             }
         }
 
-        // Account is in warmup period - check today's email count
+        // Account is in warmup period - check today's email count (UTC)
         const todayStart = new Date()
-        todayStart.setHours(0, 0, 0, 0)
+        todayStart.setUTCHours(0, 0, 0, 0)
 
         const [emailCount] = await db
             .select({
