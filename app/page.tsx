@@ -1,503 +1,444 @@
 "use client";
 
-import { SiteHeader } from "@/components/site-header";
-import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import { Copy, Check, RefreshCw, BookOpen, X } from "lucide-react";
+import { sonare } from "sonare";
 import Link from "next/link";
-import { cn } from "@/lib/utils";
+import { MarketingNav, MarketingFooter } from "@/components/marketing-nav";
+import { PricingTable } from "@/components/pricing-table";
+import EnvelopeSparkle from "@/components/icons/envelope-sparkle";
+import DatabaseCloud from "@/components/icons/database-cloud";
 
-// Word pools for generating random email addresses
-const adjectives = ["swift", "bright", "quick", "smart", "bold", "calm", "fresh", "keen", "neat", "pure"];
-const nouns = ["fox", "owl", "bear", "hawk", "wolf", "deer", "dove", "lion", "seal", "wren"];
-
-function generateEmailAddress() {
-  const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
-  const noun = nouns[Math.floor(Math.random() * nouns.length)];
-  const num = Math.floor(Math.random() * 100);
-  return `${adj}-${noun}-${num}@ehook.app`;
-}
-
-// Sample email that would be "received"
-interface DemoEmail {
-  id: string;
-  from: string;
-  fromName: string;
-  subject: string;
-  preview: string;
-  time: string;
-  avatar: string;
-  read: boolean;
-}
-
-const sampleEmails: Omit<DemoEmail, "id" | "time">[] = [
-  {
-    from: "sarah@startup.io",
-    fromName: "Sarah Chen",
-    subject: "Quick question about the API",
-    preview: "Hey! I was looking at your documentation and wanted to ask about the webhook...",
-    avatar: "SC",
-    read: false,
-  },
-  {
-    from: "mike@acme.com",
-    fromName: "Mike Johnson",
-    subject: "Partnership opportunity",
-    preview: "Hi there, I'm reaching out because I think there's a great opportunity for us to...",
-    avatar: "MJ",
-    read: true,
-  },
-  {
-    from: "support@notion.so",
-    fromName: "Notion Support",
-    subject: "Your ticket has been resolved",
-    preview: "Thank you for contacting Notion Support. We've resolved your issue regarding...",
-    avatar: "N",
-    read: true,
-  },
-  {
-    from: "billing@aws.com",
-    fromName: "AWS Billing",
-    subject: "Invoice available",
-    preview: "Your invoice for the billing period of August is now available...",
-    avatar: "AB",
-    read: true,
-  },
-];
-
-export default function HomePage() {
-  const [demoEmail, setDemoEmail] = useState<string>("");
+const Page = () => {
+  const [email, setEmail] = useState("");
   const [copied, setCopied] = useState(false);
-  const [emails, setEmails] = useState<DemoEmail[]>([]);
-  const [showNewEmail, setShowNewEmail] = useState(false);
+  const [emails, setEmails] = useState<
+    { from: string; subject: string; preview: string; timestamp: Date }[]
+  >([]);
+  const [activeTab, setActiveTab] = useState<"send" | "receive" | "threads">(
+    "send"
+  );
+
+  const generateEmail = () => {
+    const word = sonare({ minLength: 6, maxLength: 10 });
+    setEmail(`${word}@inbox.inbound.new`);
+    setCopied(false);
+    setEmails([]);
+  };
 
   useEffect(() => {
-    setDemoEmail(generateEmailAddress());
-    
-    // Initialize with sample emails
-    const initialEmails: DemoEmail[] = sampleEmails.slice(0, 3).map((email, i) => ({
-      ...email,
-      id: `email-${Date.now()}-${i}`,
-      time: i === 0 ? "2 min ago" : i === 1 ? "1 hr ago" : "Yesterday",
-    }));
-    setEmails(initialEmails);
+    generateEmail();
   }, []);
 
   const copyToClipboard = async () => {
-    try {
-      await navigator.clipboard.writeText(demoEmail);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // Fallback for older browsers
-      const textArea = document.createElement("textarea");
-      textArea.value = demoEmail;
-      document.body.appendChild(textArea);
-      textArea.select();
-      document.execCommand("copy");
-      document.body.removeChild(textArea);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
+    await navigator.clipboard.writeText(email);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
-  // Simulate receiving a new email when user "sends" one
-  const simulateEmailReceived = () => {
-    setShowNewEmail(true);
-    
-    const randomTemplate = sampleEmails[Math.floor(Math.random() * sampleEmails.length)];
-    const newEmail: DemoEmail = {
-      ...randomTemplate,
-      id: `email-${Date.now()}`,
-      time: "Just now",
-      read: false,
+  const simulateIncomingEmail = () => {
+    const newEmail = {
+      from: "team@acme.com",
+      subject: "Your API key is ready",
+      preview:
+        "Welcome to Inbound. Your API key has been generated and is ready to use. Get started by installing the SDK...",
+      timestamp: new Date(),
     };
-    
-    setTimeout(() => {
-      setEmails((prev) => [newEmail, ...prev].slice(0, 6));
-      setShowNewEmail(false);
-    }, 800);
+    setEmails((prev) => [newEmail, ...prev]);
+  };
+
+  const dismissEmail = (index: number) => {
+    setEmails((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const codeExamples = {
+    send: {
+      comment: "// Send an email",
+      code: `const { data, error } = await inbound.email.send({
+  from: 'Acme <hello@acme.com>',
+  to: ['customer@example.com'],
+  subject: 'Welcome to Acme!',
+  html: '<p>Thanks for signing up.</p>'
+})
+
+console.log('Email sent:', data.id)`,
+    },
+    receive: {
+      comment: "// Receive emails via webhook",
+      code: `export async function POST(req) {
+  const { from, subject, body } = await req.json()
+
+  // Process the email
+  await handleEmail({ from, subject, body })
+
+  // Reply to the thread
+  await inbound.reply(from, 'Got it, thanks!')
+}`,
+    },
+    threads: {
+      comment: "// List conversation threads",
+      code: `const { data: threads } = await inbound.thread.list({
+  unread: true,
+  limit: 10
+})
+
+threads.forEach(thread => {
+  console.log(thread.normalizedSubject)
+  console.log(\`\${thread.messageCount} messages\`)
+})`,
+    },
   };
 
   return (
-    <div className="min-h-screen relative bg-white selection:bg-purple-100 selection:text-purple-900">
-      <SiteHeader />
-      
-      {/* Enhanced Background Gradient */}
-      <div className="absolute top-0 left-0 right-0 h-[80vh] bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(120,119,198,0.15),rgba(255,255,255,0))]" />
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] pointer-events-none" />
-      
-      <main className="relative">
-        {/* Hero Section */}
-        <section className="max-w-5xl mx-auto px-4 pt-12 pb-12 md:pt-24 md:pb-20 relative z-10">
-          <div className="flex flex-col items-center text-center gap-6">
-            {/* Headline */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
-              className="relative"
-            >
-              <h1 className="text-5xl md:text-7xl font-semibold tracking-tighter text-foreground max-w-4xl leading-[1.1] md:leading-[1.1]">
-                <span className="text-transparent bg-clip-text bg-gradient-to-br from-foreground to-foreground/70">
-                  Email infrastructure
+    <div className="min-h-screen bg-[#fafaf9] text-[#1c1917] selection:bg-[#8161FF]/20">
+      <div className="max-w-2xl mx-auto px-6">
+        <MarketingNav />
+
+        {/* Hero */}
+        <section className="pt-20 pb-16">
+          <h1 className="font-heading text-[32px] leading-[1.2] tracking-tight max-w-2xl">
+            <span className="text-[##1B1917]">Programmable</span>{" "}
+            <span className="text-[#8161FF]">email</span>{" "}
+            <span className="whitespace-nowrap text-[#8161FF]">
+              <DatabaseCloud className="w-8 h-8 inline-block align-middle" />{" "}
+              infrastructure.
+            </span>{" "}
+            <span className="text-[##1B1917]">
+              Send, receive, reply, and thread
+            </span>{" "}
+            <span className="text-[#8161FF]">within</span>{" "}
+            <span className="whitespace-nowrap text-[#8161FF]">
+              <EnvelopeSparkle className="w-8 h-8 inline-block align-middle" />{" "}
+              mailboxes.
+            </span>
+          </h1>
+
+          {/* Email Generator */}
+          <div className="mt-12">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+              <div className="flex-1 bg-white border border-[#e7e5e4] rounded-lg px-3 py-2 flex items-center gap-3 min-w-0">
+                <span className="font-mono text-sm text-[#3f3f46] truncate">
+                  {email}
                 </span>
-                <br />
-                for builders
-              </h1>
-              {/* Glow behind text */}
-              <div className="absolute -inset-x-20 -inset-y-10 bg-purple-200/20 blur-3xl -z-10 rounded-[100%]" />
-            </motion.div>
-
-            {/* Subline */}
-            <motion.p
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.1 }}
-              className="text-lg md:text-xl text-muted-foreground/80 max-w-xl tracking-tight leading-relaxed font-medium"
-            >
-              Send an email to your inbox and watch it arrive in real-time. 
-              Complete email infrastructure with zero setup.
-            </motion.p>
-
-            {/* Command Bar Style Input */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-              className="w-full max-w-md mt-4"
-            >
-              <div className="relative group">
-                {/* Glow Effect */}
-                <div className="absolute -inset-0.5 bg-gradient-to-r from-purple-500/20 to-blue-500/20 rounded-xl blur opacity-50 group-hover:opacity-100 transition duration-500" />
-                
                 <button
                   onClick={copyToClipboard}
-                  className="relative w-full flex items-center justify-between gap-3 px-2 py-2 bg-white/80 backdrop-blur-xl border border-black/5 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 group-hover:border-purple-500/20"
+                  className="ml-auto text-[#52525b] hover:text-[#1c1917] transition-colors flex-shrink-0"
                 >
-                  <div className="flex items-center gap-3 pl-2 flex-1 min-w-0">
-                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center border border-white/50 shadow-sm shrink-0">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-600">
-                        <rect width="20" height="16" x="2" y="4" rx="2" />
-                        <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
-                      </svg>
-                    </div>
-                    <div className="flex flex-col items-start text-left min-w-0">
-                      <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">Demo Email Address</span>
-                      <code className="text-sm font-mono text-foreground/90 tracking-tight truncate w-full">
-                        {demoEmail || "generating..."}
-                      </code>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-2 pr-2">
-                    <div className={cn(
-                      "px-2.5 py-1.5 rounded-md text-xs font-medium transition-all duration-200 flex items-center gap-1.5",
-                      copied 
-                        ? "bg-green-50 text-green-600 border border-green-200/50" 
-                        : "bg-gray-50 text-gray-600 border border-gray-200/50 group-hover:bg-white group-hover:shadow-sm"
-                    )}>
-                      {copied ? (
-                        <>
-                          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="20 6 9 17 4 12" />
-                          </svg>
-                          <span>Copied</span>
-                        </>
-                      ) : (
-                        <>
-                          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
-                            <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
-                          </svg>
-                          <span>Copy</span>
-                        </>
-                      )}
-                    </div>
-                  </div>
+                  {copied ? (
+                    <Check className="w-4 h-4 text-[#8161FF]" />
+                  ) : (
+                    <Copy className="w-4 h-4" />
+                  )}
                 </button>
               </div>
-            </motion.div>
-
-            {/* CTA Buttons */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.3 }}
-              className="flex items-center gap-3 mt-4"
-            >
-              <Button variant="primary" size="lg" asChild className="h-10 px-6 text-sm font-medium shadow-lg shadow-purple-500/20 hover:shadow-purple-500/30 transition-all duration-300">
-                <Link href="/login">Get Started Free</Link>
-              </Button>
-              <Button variant="outline" size="lg" asChild className="h-10 px-6 text-sm font-medium bg-white/50 hover:bg-white/80 backdrop-blur-sm border-gray-200 hover:border-gray-300 transition-all duration-300">
-                <Link href="/docs">Read Documentation</Link>
-              </Button>
-            </motion.div>
-          </div>
-        </section>
-
-        {/* App-Like Inbox Preview */}
-        <section className="max-w-6xl mx-auto px-4 pb-20 md:pb-32">
-          <motion.div
-            initial={{ opacity: 0, y: 40 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.5 }}
-            className="relative"
-          >
-            {/* Background Glows */}
-            <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-[600px] h-[400px] bg-purple-200/30 blur-[100px] opacity-50 rounded-full pointer-events-none" />
-            
-            {/* Inbox Window */}
-            <div className="relative bg-white/80 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl shadow-black/5 overflow-hidden ring-1 ring-black/5">
-              <div className="flex h-[500px]">
-                
-                {/* Sidebar */}
-                <div className="w-64 bg-gray-50/50 border-r border-gray-100 p-4 hidden md:flex flex-col gap-6">
-                  {/* Window Controls */}
-                  <div className="flex items-center gap-1.5 px-2">
-                    <div className="w-3 h-3 rounded-full bg-[#FF5F57] border border-black/5" />
-                    <div className="w-3 h-3 rounded-full bg-[#FEBC2E] border border-black/5" />
-                    <div className="w-3 h-3 rounded-full bg-[#28C840] border border-black/5" />
-                  </div>
-
-                  {/* Navigation */}
-                  <div className="space-y-1">
-                    <div className="px-3 py-2 bg-white rounded-lg shadow-sm border border-gray-100 text-sm font-medium text-gray-900 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-500">
-                          <rect width="20" height="16" x="2" y="4" rx="2" />
-                          <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
-                        </svg>
-                        Inbox
-                      </div>
-                      <span className="text-xs font-semibold text-gray-500">{emails.length}</span>
-                    </div>
-                    <div className="px-3 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100/50 rounded-lg flex items-center gap-2 transition-colors">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="m22 2-7 20-4-9-9-4Z" />
-                        <path d="M22 2 11 13" />
-                      </svg>
-                      Sent
-                    </div>
-                    <div className="px-3 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100/50 rounded-lg flex items-center gap-2 transition-colors">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M12.5 22H18a2 2 0 0 0 2-2V7l-5-5H6a2 2 0 0 0-2 2v9.5" />
-                        <path d="M14 2v4a2 2 0 0 0 2 2h4" />
-                        <path d="M13.3 14.4 9 17.5l-4.3-3.1" />
-                        <path d="M9 17.5V22" />
-                      </svg>
-                      Drafts
-                    </div>
-                  </div>
-                </div>
-
-                {/* Main Content */}
-                <div className="flex-1 flex flex-col bg-white">
-                  {/* Header */}
-                  <div className="h-14 border-b border-gray-100 flex items-center justify-between px-6 bg-white/80 backdrop-blur-sm sticky top-0 z-10">
-                    <h2 className="font-semibold text-gray-900">Inbox</h2>
-                    <button
-                      onClick={simulateEmailReceived}
-                      className="text-xs font-medium text-purple-600 hover:text-purple-700 bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-full transition-colors flex items-center gap-1.5"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                        <polyline points="7 10 12 15 17 10" />
-                        <line x1="12" x2="12" y1="15" y2="3" />
-                      </svg>
-                      Simulate Incoming Email
-                    </button>
-                  </div>
-
-                  {/* Email List */}
-                  <div className="flex-1 overflow-y-auto">
-                    <AnimatePresence mode="popLayout">
-                      {showNewEmail && (
-                        <motion.div
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: "auto", opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          className="overflow-hidden border-b border-purple-100 bg-purple-50/30"
-                        >
-                          <div className="px-6 py-4 flex items-center gap-3">
-                            <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
-                            <span className="text-sm text-purple-700 font-medium">Receiving new message...</span>
-                          </div>
-                        </motion.div>
-                      )}
-                      
-                      {emails.map((email) => (
-                        <motion.div
-                          key={email.id}
-                          layout
-                          initial={{ opacity: 0, y: -20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          className={cn(
-                            "px-6 py-4 border-b border-gray-50 hover:bg-gray-50/50 transition-colors cursor-pointer group relative",
-                            !email.read && "bg-blue-50/10"
-                          )}
-                        >
-                          {!email.read && (
-                            <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-blue-500" />
-                          )}
-                          <div className="flex items-start gap-4">
-                            <div className={cn(
-                              "w-9 h-9 rounded-full flex items-center justify-center text-xs font-medium text-white shrink-0 shadow-sm",
-                              email.read ? "bg-gray-200 text-gray-500" : "bg-gradient-to-br from-blue-500 to-indigo-600"
-                            )}>
-                              {email.avatar}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center justify-between mb-1">
-                                <span className={cn("text-sm", !email.read ? "font-semibold text-gray-900" : "font-medium text-gray-700")}>
-                                  {email.fromName}
-                                </span>
-                                <span className="text-xs text-gray-400 tabular-nums">{email.time}</span>
-                              </div>
-                              <h3 className={cn("text-sm mb-1 truncate", !email.read ? "font-medium text-gray-900" : "text-gray-600")}>
-                                {email.subject}
-                              </h3>
-                              <p className="text-sm text-gray-500 truncate">
-                                {email.preview}
-                              </p>
-                            </div>
-                          </div>
-                        </motion.div>
-                      ))}
-                    </AnimatePresence>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        </section>
-
-        {/* Features Grid */}
-        <section className="max-w-6xl mx-auto px-4 py-20 md:py-28">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-            className="text-center mb-16"
-          >
-            <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-4 text-gray-900">
-              Everything you need for email
-            </h2>
-            <p className="text-lg text-gray-500 max-w-2xl mx-auto tracking-tight">
-              A complete email platform for developers to send, receive, and reply—all with a simple API.
-            </p>
-          </motion.div>
-
-          <div className="grid md:grid-cols-3 gap-6">
-            {[
-              {
-                title: "Receive Emails",
-                description: "Get emails at your custom domain, parsed and delivered to your webhook in real-time.",
-                icon: (
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                    <polyline points="7 10 12 15 17 10" />
-                    <line x1="12" x2="12" y1="15" y2="3" />
-                  </svg>
-                ),
-              },
-              {
-                title: "Send Emails",
-                description: "Transactional emails that land in the inbox, not spam. With detailed delivery analytics.",
-                icon: (
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="m3 3 3 9-3 9 19-9Z" />
-                    <path d="M6 12h16" />
-                  </svg>
-                ),
-              },
-              {
-                title: "Reply & Threads",
-                description: "Maintain conversation threads automatically. Reply to any email programmatically.",
-                icon: (
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5Z" />
-                  </svg>
-                ),
-              },
-            ].map((feature, index) => (
-              <motion.div
-                key={feature.title}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: index * 0.1 }}
-                className="group p-8 bg-white border border-gray-200/60 rounded-2xl hover:border-purple-200/80 hover:shadow-xl hover:shadow-purple-500/5 transition-all duration-300 relative overflow-hidden"
+              <button
+                onClick={generateEmail}
+                className="bg-[#8161FF] hover:bg-[#6b4fd9] text-white px-3 py-2 rounded-lg transition-colors flex items-center justify-center gap-2 flex-shrink-0"
               >
-                 <div className="absolute inset-0 bg-gradient-to-br from-transparent via-transparent to-purple-50/30 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                <div className="w-12 h-12 rounded-xl bg-gray-50 border border-gray-200 flex items-center justify-center text-gray-600 mb-6 group-hover:bg-purple-600 group-hover:border-purple-600 group-hover:text-white transition-all duration-300 shadow-sm">
-                  {feature.icon}
-                </div>
-                <h3 className="text-xl font-semibold mb-3 tracking-tight text-gray-900">{feature.title}</h3>
-                <p className="text-gray-500 text-base leading-relaxed">
-                  {feature.description}
-                </p>
-              </motion.div>
-            ))}
+                <RefreshCw className="w-4 h-4" />
+                <span className="text-sm font-medium">New</span>
+              </button>
+            </div>
+            <p className="mt-3 text-sm text-[#52525b]">
+              This is a real inbox.{" "}
+              <button
+                onClick={simulateIncomingEmail}
+                className="text-[#8161FF] hover:underline"
+              >
+                Send a test email
+              </button>{" "}
+              to see it arrive.
+            </p>
+
+            {emails.length > 0 && (
+              <div className="mt-4 space-y-2">
+                {emails.map((mail, i) => (
+                  <div
+                    key={i}
+                    className="bg-white border border-[#e7e5e4] rounded-xl p-4 animate-in slide-in-from-top-2 fade-in duration-300 relative group"
+                  >
+                    <button
+                      onClick={() => dismissEmail(i)}
+                      className="absolute top-3 right-3 text-[#a8a29e] hover:text-[#1c1917] transition-colors opacity-0 group-hover:opacity-100"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-sm font-medium text-[#1c1917]">
+                        {mail.from}
+                      </span>
+                      <span className="text-xs text-[#a8a29e]">just now</span>
+                    </div>
+                    <p className="text-sm text-[#3f3f46]">{mail.subject}</p>
+                    <p className="text-xs text-[#78716c] mt-1 line-clamp-1">
+                      {mail.preview}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </section>
 
-        {/* Final CTA */}
-        <section className="border-t border-gray-100">
-          <div className="max-w-3xl mx-auto px-4 py-24 text-center">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6 }}
-              className="flex flex-col items-center gap-8"
+        {/* Code Block - Light Monaco-style theme */}
+        <section className="py-12 border-t border-[#e7e5e4]">
+          <div className="bg-[#f8f8f8] border border-[#e5e5e5] rounded-xl px-4 py-3 mb-4 flex items-center gap-3">
+            <span className="text-[#16a34a] font-mono text-sm font-medium">
+              $
+            </span>
+            <code className="font-mono text-sm text-[#1c1917]">
+              bun install inboundemail
+            </code>
+          </div>
+          <div className="bg-[#f8f8f8] border border-[#e5e5e5] rounded-xl overflow-hidden">
+            {/* Tab bar with macOS dots */}
+            <div className="flex items-center justify-between px-4 border-b border-[#e5e5e5] bg-[#f0f0f0] py-2">
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 rounded-full bg-[#ff5f57]" />
+                <div className="w-3 h-3 rounded-full bg-[#febc2e]" />
+                <div className="w-3 h-3 rounded-full bg-[#28c840]" />
+              </div>
+              <div className="flex items-center gap-1 text-xs font-mono">
+                <button
+                  onClick={() => setActiveTab("send")}
+                  className={`px-3 py-1 rounded-md transition-colors ${
+                    activeTab === "send"
+                      ? "bg-white text-[#1c1917] shadow-sm"
+                      : "text-[#52525b] hover:text-[#1c1917]"
+                  }`}
+                >
+                  send
+                </button>
+                <button
+                  onClick={() => setActiveTab("receive")}
+                  className={`px-3 py-1 rounded-md transition-colors ${
+                    activeTab === "receive"
+                      ? "bg-white text-[#1c1917] shadow-sm"
+                      : "text-[#52525b] hover:text-[#1c1917]"
+                  }`}
+                >
+                  receive
+                </button>
+                <button
+                  onClick={() => setActiveTab("threads")}
+                  className={`px-3 py-1 rounded-md transition-colors ${
+                    activeTab === "threads"
+                      ? "bg-white text-[#1c1917] shadow-sm"
+                      : "text-[#52525b] hover:text-[#1c1917]"
+                  }`}
+                >
+                  threads
+                </button>
+              </div>
+            </div>
+            <pre className="p-5 font-mono text-[13px] leading-relaxed overflow-x-auto">
+              <code>
+                <span className="text-[#16a34a] italic">
+                  {codeExamples[activeTab].comment}
+                </span>
+                {"\n\n"}
+                {codeExamples[activeTab].code.split("\n").map((line, i) => {
+                  // Simple syntax highlighting
+                  const highlightedLine = line
+                    .replace(
+                      /\b(const|await|async|function|export)\b/g,
+                      "<kw>$1</kw>"
+                    )
+                    .replace(/'([^']*)'/g, "<str>'$1'</str>")
+                    .replace(/`([^`]*)`/g, "<str>`$1`</str>")
+                    .replace(/\/\/.*/g, "<cmt>$&</cmt>")
+                    .replace(/\b(console)\b/g, "<obj>$1</obj>")
+                    .replace(
+                      /\.(send|email|reply|thread|list|log|json|forEach)\b/g,
+                      ".<fn>$1</fn>"
+                    );
+
+                  return (
+                    <span key={i}>
+                      {highlightedLine
+                        .split(
+                          /(<kw>.*?<\/kw>|<str>.*?<\/str>|<cmt>.*?<\/cmt>|<obj>.*?<\/obj>|<fn>.*?<\/fn>)/
+                        )
+                        .map((part, j) => {
+                          if (part.startsWith("<kw>"))
+                            return (
+                              <span
+                                key={j}
+                                className="text-[#7c3aed] font-medium"
+                              >
+                                {part.replace(/<\/?kw>/g, "")}
+                              </span>
+                            );
+                          if (part.startsWith("<str>"))
+                            return (
+                              <span key={j} className="text-[#c2410c]">
+                                {part.replace(/<\/?str>/g, "")}
+                              </span>
+                            );
+                          if (part.startsWith("<cmt>"))
+                            return (
+                              <span key={j} className="text-[#16a34a] italic">
+                                {part.replace(/<\/?cmt>/g, "")}
+                              </span>
+                            );
+                          if (part.startsWith("<obj>"))
+                            return (
+                              <span key={j} className="text-[#0891b2]">
+                                {part.replace(/<\/?obj>/g, "")}
+                              </span>
+                            );
+                          if (part.startsWith("<fn>"))
+                            return (
+                              <span key={j} className="text-[#0d9488]">
+                                {part.replace(/<\/?fn>/g, "")}
+                              </span>
+                            );
+                          return (
+                            <span key={j} className="text-[#374151]">
+                              {part}
+                            </span>
+                          );
+                        })}
+                      {i <
+                        codeExamples[activeTab].code.split("\n").length - 1 &&
+                        "\n"}
+                    </span>
+                  );
+                })}
+              </code>
+            </pre>
+          </div>
+          <p className="mt-4 text-sm text-[#52525b] flex items-center gap-4">
+            <Link
+              href="/docs"
+              className="text-[#1c1917] hover:underline flex items-center gap-1.5"
             >
-              <h2 className="text-4xl md:text-5xl font-bold tracking-tighter text-gray-900">
-                Ready to build with email?
-              </h2>
-              <p className="text-xl text-gray-500 max-w-xl tracking-tight">
-                Join thousands of developers using inbound to power their email workflows.
-              </p>
-              <div className="flex items-center gap-3">
-                <Button variant="primary" size="lg" asChild className="h-12 px-8 text-base font-medium shadow-xl shadow-purple-500/20">
-                  <Link href="/login">Start Building Free</Link>
-                </Button>
-                <Button variant="ghost" size="lg" asChild className="h-12 px-8 text-base font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-50">
-                  <Link href="/pricing">View Pricing →</Link>
-                </Button>
-              </div>
-            </motion.div>
+              <BookOpen className="w-4 h-4" />
+              Read the docs
+            </Link>
+            <span className="text-[#a8a29e]">or</span>
+            <a
+              href="https://github.com/inbound-org"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[#1c1917] hover:underline flex items-center gap-1.5"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="#000337">
+                <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
+              </svg>
+              view on GitHub
+            </a>
+          </p>
+        </section>
+
+        <section className="py-10 border-t border-[#e7e5e4]">
+          <p className="text-xs text-[#78716c] uppercase tracking-wide mb-6">
+            Trusted by
+          </p>
+          <div className="flex items-center gap-10">
+            <img
+              src="/images/agentuity.png"
+              alt="Agentuity"
+              className="h-5 object-contain opacity-70 grayscale hover:opacity-100 hover:grayscale-0 transition-all"
+            />
+            <img
+              src="/images/mandarin-3d.png"
+              alt="Mandarin 3D"
+              className="h-5 object-contain opacity-70 grayscale hover:opacity-100 hover:grayscale-0 transition-all"
+            />
+            <img
+              src="/images/teslanav.png"
+              alt="TeslaNav"
+              className="h-5 object-contain opacity-70 grayscale hover:opacity-100 hover:grayscale-0 transition-all"
+            />
           </div>
         </section>
 
-        {/* Footer */}
-        <footer className="border-t border-gray-100 bg-gray-50/50">
-          <div className="max-w-6xl mx-auto px-4 py-12">
-            <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-              <div className="flex items-center gap-2">
-                <svg width="24" height="24" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <rect width="32" height="32" rx="8" fill="#8161FF"/>
-                  <path d="M8 12L16 17L24 12" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  <path d="M8 12V20L16 25V17L8 12Z" fill="white" fillOpacity="0.3"/>
-                  <path d="M24 12V20L16 25V17L24 12Z" fill="white" fillOpacity="0.5"/>
-                </svg>
-                <span className="font-bold tracking-tight text-lg text-gray-900">inbound</span>
+        {/* What it does */}
+        <section className="py-12 border-t border-[#e7e5e4]">
+          <h2 className="font-heading text-xl font-semibold tracking-tight mb-6">
+            What is Inbound?
+          </h2>
+          <div className="space-y-4 text-[#3f3f46] leading-relaxed">
+            <p>
+              Inbound lets you send and receive emails programmatically. Add
+              your domain, configure your MX records, and you're ready to go.
+              Unlimited mailboxes on that domain, no setup required for each
+              address.
+            </p>
+            <p>
+              Send from any address on your domain. Receive at any address.
+              Route specific addresses to dedicated endpoints, or set up a
+              catch-all that forwards everything to a single webhook. Perfect
+              for support domains that route all incoming mail to an AI agent.
+            </p>
+            <p>
+              Every email preserves threading automatically. Reply
+              programmatically and we handle all the headers so your responses
+              show up in the right thread. It just works.
+            </p>
+          </div>
+
+          <div className="mt-8 space-y-2">
+            <p className="text-xs text-[#78716c] uppercase tracking-wide mb-3">
+              Example routes
+            </p>
+            <div className="font-mono text-sm space-y-1.5">
+              <div className="flex items-center gap-3">
+                <span className="text-[#52525b]">support@acme.com</span>
+                <span className="text-[#a8a29e]">→</span>
+                <span className="text-[#3f3f46]">/api/support-agent</span>
               </div>
-              <nav className="flex items-center gap-8 text-sm font-medium text-gray-500">
-                <Link href="/docs" className="hover:text-purple-600 transition-colors">Docs</Link>
-                <Link href="/pricing" className="hover:text-purple-600 transition-colors">Pricing</Link>
-                <Link href="/blog" className="hover:text-purple-600 transition-colors">Blog</Link>
-                <a href="https://twitter.com/inboundemail" target="_blank" rel="noopener noreferrer" className="hover:text-purple-600 transition-colors">Twitter</a>
-                <a href="https://github.com/inbound-org" target="_blank" rel="noopener noreferrer" className="hover:text-purple-600 transition-colors">GitHub</a>
-              </nav>
-              <p className="text-sm text-gray-400">
-                © {new Date().getFullYear()} Inbound.
+              <div className="flex items-center gap-3">
+                <span className="text-[#52525b]">billing@acme.com</span>
+                <span className="text-[#a8a29e]">→</span>
+                <span className="text-[#3f3f46]">/api/billing</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-[#52525b]">*@acme.com</span>
+                <span className="text-[#a8a29e]">→</span>
+                <span className="text-[#3f3f46]">/api/catch-all</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <PricingTable />
+
+        {/* FAQ */}
+        <section className="py-12 border-t border-[#e7e5e4]">
+          <h2 className="font-heading text-xl font-semibold tracking-tight mb-6">
+            FAQ
+          </h2>
+          <div className="space-y-6">
+            <div>
+              <p className="text-[#1c1917]">Can I use my own domain?</p>
+              <p className="text-sm text-[#52525b] mt-1">
+                Yes. Configure your MX records to point to our servers and you
+                can receive email at any address on your domain.
+              </p>
+            </div>
+            <div>
+              <p className="text-[#1c1917]">How fast are webhooks delivered?</p>
+              <p className="text-sm text-[#52525b] mt-1">
+                Typically under 100ms from when we receive the email. We retry
+                failed webhooks with exponential backoff.
+              </p>
+            </div>
+            <div>
+              <p className="text-[#1c1917]">What about spam filtering?</p>
+              <p className="text-sm text-[#52525b] mt-1">
+                We run incoming email through spam detection. You can choose to
+                reject, flag, or accept spam in your mailbox settings.
               </p>
             </div>
           </div>
-        </footer>
-      </main>
+        </section>
+
+        <MarketingFooter />
+      </div>
     </div>
   );
-}
+};
+
+export default Page;

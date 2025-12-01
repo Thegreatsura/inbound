@@ -140,35 +140,35 @@ function LoginContent() {
             <InboundIcon width={44} height={44} />
 
             <div className="flex flex-col items-center gap-2 text-center">
-              <p className="text-3xl font-semibold text-foreground">Welcome Back!</p>
+              <p className="text-3xl font-semibold font-outfit text-foreground">Welcome Back!</p>
               <p className="text-sm text-muted-foreground">
-                Enter your email below to login to your account.
+                Sign in to continue to your account
               </p>
             </div>
           </div>
         </Link>
-        {/* Login card */}
-        <div className="w-full">
-          <div className="bg-card rounded-2xl shadow-sm p-6 border border-border z-10 relative">
-            <LoginForm 
-              onMagicLinkSent={(email: string) => {
-                setMagicLinkSent(true);
-                setMagicLinkEmail(email);
-              }}
-            />
-          </div>
-          <div className="flex flex-col items-center gap-2 -mt-4 p-4 pt-6 bg-muted/50 border border-border rounded-b-2xl shadow-[0_4px_10px_0.5px_rgba(0,0,0,0.1),inset_0_0_0_1px_rgba(255,255,255,0.8)] dark:shadow-[0_4px_10px_0.5px_rgba(0,0,0,0.3),inset_0_0_0_1px_rgba(255,255,255,0.1)]">
+        {/* Login form - no card wrapper */}
+        <div className="w-full flex flex-col gap-6">
+          <LoginForm 
+            onMagicLinkSent={(email: string) => {
+              setMagicLinkSent(true);
+              setMagicLinkEmail(email);
+            }}
+          />
+          
+          {/* Footer links */}
+          <div className="flex flex-col items-center gap-3 pt-2">
             <a 
               href="https://youtu.be/MOi19cSQdRI" 
               target="_blank" 
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 text-xs text-primary hover:underline mb-2"
+              className="inline-flex items-center gap-2 text-xs text-primary hover:underline"
             >
               <CirclePlay width={14} height={14} />
               Watch setup tutorial video
             </a>
             <p className="text-xs text-muted-foreground text-center">
-              By clicking signing in , you agree to our{" "}
+              By signing in, you agree to our{" "}
               <Link href="/terms" className="underline underline-offset-2 hover:text-foreground transition-colors">
                 Terms of Service
               </Link>{" "}
@@ -185,25 +185,23 @@ function LoginContent() {
 
   return (
     <div className="min-h-screen w-full lg:grid lg:grid-cols-2">
-      {/* Left Side - Content */}
+      {/* Left Side - Mountain Background */}
+      <div 
+        className="hidden lg:block relative h-full w-full overflow-hidden"
+        style={{
+          backgroundImage: "url('/ghostinfernox_generate_a_mountain_based_login_page_background_23188943-1946-4e43-8d85-1a8d89482214_1.png')",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+        }}
+      />
+
+      {/* Right Side - Content */}
       <div className="flex items-center justify-center p-8 bg-background relative min-h-screen overflow-hidden" style={{ overscrollBehaviorY: "none" }}>
         <BackgroundSvg />
         {/* Content Container */}
         <div className="w-full max-w-[350px] z-10 relative flex flex-col items-center">
           {getContent()}
         </div>
-      </div>
-
-      {/* Right Side - Purple Background with Noise */}
-      <div className="hidden lg:block relative h-full w-full overflow-hidden bg-[#5d3fd3]">
-        <div 
-          className="absolute inset-0 opacity-40 mix-blend-overlay" 
-          style={{ 
-            backgroundImage: "url('/noise-light.png')",
-            backgroundRepeat: "repeat",
-            backgroundSize: "300px 300px" 
-          }}
-        />
       </div>
     </div>
   );

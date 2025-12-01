@@ -1,8 +1,8 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { client } from '@/lib/api/client'
-import type { UpdateEndpointData, Endpoint } from '../types'
+import type { UpdateEndpointData, ApiEndpointUpdateResponse } from '../types'
 
-async function updateEndpoint(params: { id: string; data: UpdateEndpointData }): Promise<Endpoint> {
+async function updateEndpoint(params: { id: string; data: UpdateEndpointData }): Promise<ApiEndpointUpdateResponse> {
   const { id, data } = params
   
   const { data: result, error } = await client.api.e2.endpoints({ id }).put({
@@ -17,7 +17,7 @@ async function updateEndpoint(params: { id: string; data: UpdateEndpointData }):
     throw new Error((error as any)?.error || (error as any)?.details || 'Failed to update endpoint')
   }
   
-  return result as Endpoint
+  return result as ApiEndpointUpdateResponse
 }
 
 export const useUpdateEndpointMutation = () => {

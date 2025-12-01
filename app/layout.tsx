@@ -149,16 +149,14 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        {/* Structured Data for SEO */}
+        {/* React Grab - AI Element Inspector (dev only) */}
         {process.env.NODE_ENV === "development" && (
           <Script
-            src="//unpkg.com/react-grab@0.0.31/dist/index.global.js"
+            src="//unpkg.com/react-grab/dist/index.global.js"
             crossOrigin="anonymous"
             strategy="beforeInteractive"
-            data-enabled="true"
           />
         )}
-
 
         {/* Twitter Conversion Tracking */}
         <Script

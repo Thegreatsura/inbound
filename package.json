@@ -13,7 +13,8 @@
     "test:e2": "bun test app/api/e2/**/*.test.ts",
     "test:e2:domains": "bun test app/api/e2/domains/domains.test.ts",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "biome lint .",
+    "lint:noany": "biome lint . --diagnostic-level=error",
     "db-prepare": "bun run scripts/db-prepare.ts",
     "deploy:email": "bun run scripts/deploy-email-system.ts",
     "deploy:quick": "bun run scripts/quick-deploy.ts",
@@ -139,6 +140,7 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-email": "^4.0.16",
+    "react-grab": "^0.0.54",
     "react-icons": "^5.5.0",
     "react-markdown": "^10.1.0",
     "react-player": "^3.3.1",
@@ -150,6 +152,7 @@
     "resend": "^4.5.2",
     "rough-notation": "^0.5.1",
     "shiki": "^3.12.2",
+    "sonare": "^0.0.1",
     "sonner": "^2.0.3",
     "stripe": "^18.0.0",
     "svix": "^1.81.0",
@@ -159,6 +162,7 @@
     "zod": "^3.25.56"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.3.8",
     "@react-email/preview-server": "4.3.2",
     "@tailwindcss/typography": "^0.5.16",
     "@types/mailparser": "^3.4.6",

@@ -9,7 +9,77 @@ export type NewEmailGroup = typeof emailGroups.$inferInsert
 export type EndpointDelivery = typeof endpointDeliveries.$inferSelect
 export type NewEndpointDelivery = typeof endpointDeliveries.$inferInsert
 
-// Enhanced endpoint type with API-only properties
+// Base API response type (shared fields across API responses)
+export type ApiEndpointBase = {
+  id: string
+  name: string
+  type: 'webhook' | 'email' | 'email_group'
+  config: EndpointConfig
+  isActive: boolean
+  description: string | null
+  userId: string
+  createdAt: string | null
+  updatedAt: string | null
+  groupEmails: string[] | null
+}
+
+// API response type - matches what the POST API returns for creating endpoints
+export type ApiEndpointResponse = ApiEndpointBase & {
+  createdAt: string
+  updatedAt: string
+  deliveryStats: {
+    total: number
+    successful: number
+    failed: number
+    lastDelivery: string | null
+  }
+}
+
+// API response type for PUT (update) endpoint - simpler response without deliveryStats
+export type ApiEndpointUpdateResponse = ApiEndpointBase
+
+// API response type for GET endpoint detail - includes additional fields
+export type ApiEndpointDetailResponse = {
+  id: string
+  name: string
+  type: 'webhook' | 'email' | 'email_group'
+  config: EndpointConfig
+  isActive: boolean
+  description: string | null
+  userId: string
+  createdAt: string | null
+  updatedAt: string | null
+  groupEmails: string[] | null
+  deliveryStats: {
+    total: number
+    successful: number
+    failed: number
+    lastDelivery: string | null
+  }
+  recentDeliveries: Array<{
+    id: string
+    emailId: string | null
+    deliveryType: string
+    status: string
+    attempts: number
+    lastAttemptAt: string | null
+    responseData: unknown
+    createdAt: string | null
+  }>
+  associatedEmails: Array<{
+    id: string
+    address: string
+    isActive: boolean
+    createdAt: string | null
+  }>
+  catchAllDomains: Array<{
+    id: string
+    domain: string
+    status: string
+  }>
+}
+
+// Enhanced endpoint type with API-only properties (legacy, prefer ApiEndpointResponse)
 export type EndpointWithStats = Endpoint & {
   groupEmails?: string[] | null
   deliveryStats?: {

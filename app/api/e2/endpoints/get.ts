@@ -24,7 +24,7 @@ const DeliveryStatsSchema = t.Object({
 
 const DeliveryItemSchema = t.Object({
   id: t.String(),
-  emailId: t.String(),
+  emailId: t.Nullable(t.String()),
   deliveryType: t.String(),
   status: t.String(),
   attempts: t.Number(),

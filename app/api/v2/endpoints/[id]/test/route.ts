@@ -179,6 +179,8 @@ function buildMockInboundWebhookPayload(endpoint: {
         attachments: [],
         headers,
       },
+      threadId: null,
+      threadPosition: 1,
     },
     endpoint: {
       id: endpoint.id,

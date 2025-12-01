@@ -34,6 +34,17 @@ const config: Config = {
           "Arial",
           "sans-serif",
         ],
+        heading: [
+          "var(--font-geist)",
+          "ui-sans-serif",
+          "system-ui",
+          "-apple-system",
+          "BlinkMacSystemFont",
+          "Segoe UI",
+          "Roboto",
+          "Arial",
+          "sans-serif",
+        ],
         outfit: [
           "var(--font-outfit)",
           "ui-sans-serif",
