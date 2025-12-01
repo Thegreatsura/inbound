@@ -956,6 +956,36 @@ async function handleEmailForwardEndpoint(
     // Use the original recipient as the from address (e.g., ryan@inbound.new)
     const fromAddress = config.fromAddress || emailData.recipient
     
+    // 🔄 LOOP DETECTION: Prevent forwarding to the same address that received the email
+    // This prevents infinite forwarding loops where an endpoint forwards to itself
+    const recipientAddress = emailData.recipient?.toLowerCase()
+    const loopingAddresses = toAddresses.filter((addr: string) => 
+      addr?.toLowerCase() === recipientAddress
+    )
+    
+    if (loopingAddresses.length > 0) {
+      console.error(`🚫 LOOP DETECTED! Email ${emailId} would be forwarded to the same address it came from: ${loopingAddresses.join(', ')}`)
+      console.error(`   Recipient: ${recipientAddress}, Forward targets: ${toAddresses.join(', ')}`)
+      
+      // Update delivery record with loop detection failure
+      await db
+        .update(endpointDeliveries)
+        .set({
+          status: 'failed',
+          lastAttemptAt: new Date(),
+          responseData: JSON.stringify({ 
+            error: 'FORWARDING_LOOP_DETECTED',
+            message: `Cannot forward email to the same address it was received at: ${loopingAddresses.join(', ')}`,
+            recipient: recipientAddress,
+            forwardTargets: toAddresses
+          }),
+          updatedAt: new Date()
+        })
+        .where(eq(endpointDeliveries.id, deliveryId))
+      
+      return // Exit without forwarding
+    }
+    
     console.log(`📤 handleEmailForwardEndpoint - Forwarding to ${toAddresses.length} recipients from ${fromAddress}`)
 
     // Get tenant sending info (identity ARN, configuration set, and tenant name) for tenant-level tracking

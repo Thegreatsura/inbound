@@ -291,7 +291,7 @@ async function handleScheduledEmail(payload: QStashPayload) {
             },
             Content: {
                 Raw: {
-                    Data: Buffer.from(rawMessage)
+                Data: Buffer.from(rawMessage)
                 }
             },
             ...(tenantSendingInfo.configurationSetName && { ConfigurationSetName: tenantSendingInfo.configurationSetName }),
@@ -520,7 +520,7 @@ async function handleBatchEmail(
             },
             Content: {
                 Raw: {
-                    Data: Buffer.from(rawMessage)
+                Data: Buffer.from(rawMessage)
                 }
             },
             ...(batchTenantInfo.configurationSetName && { ConfigurationSetName: batchTenantInfo.configurationSetName }),

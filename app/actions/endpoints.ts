@@ -9,6 +9,41 @@ import { nanoid } from 'nanoid'
 import type { CreateEndpointData, UpdateEndpointData } from '@/features/endpoints/types'
 import { migrateUserWebhooksToEndpoints, checkWebhookMigrationNeeded, resetMigrationFlag } from '@/lib/webhooks/webhook-migration'
 
+/**
+ * Validates that an email forwarding endpoint doesn't create a loop
+ * by forwarding to the same address(es) that would receive the email
+ */
+function validateNoForwardingLoop(
+  endpointName: string, 
+  config: any, 
+  type: string
+): { valid: boolean; error?: string } {
+  // Only check email forwarding endpoints
+  if (type !== 'email' && type !== 'email_group') {
+    return { valid: true }
+  }
+  
+  // Get the forward targets
+  const forwardTargets = type === 'email_group' 
+    ? (config.emails || []) 
+    : [config.forwardTo].filter(Boolean)
+  
+  // Check if endpoint name looks like an email (it often is the receiving address)
+  const endpointNameLower = endpointName.toLowerCase()
+  
+  for (const target of forwardTargets) {
+    const targetLower = target?.toLowerCase()
+    if (targetLower && targetLower === endpointNameLower) {
+      return {
+        valid: false,
+        error: `Cannot forward emails to the same address that receives them (${target}). This would create an infinite loop.`
+      }
+    }
+  }
+  
+  return { valid: true }
+}
+
 export async function createEndpoint(data: CreateEndpointData) {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session?.user?.id) {
@@ -17,6 +52,13 @@ export async function createEndpoint(data: CreateEndpointData) {
 
   try {
     console.log(`📝 createEndpoint - Creating ${data.type} endpoint: ${data.name}`)
+
+    // 🔄 Validate no forwarding loop before creating
+    const loopCheck = validateNoForwardingLoop(data.name, data.config, data.type)
+    if (!loopCheck.valid) {
+      console.error(`🚫 createEndpoint - Loop detected: ${loopCheck.error}`)
+      return { success: false, error: loopCheck.error }
+    }
 
     const newEndpoint = {
       id: nanoid(),
@@ -80,6 +122,17 @@ export async function updateEndpoint(id: string, data: UpdateEndpointData) {
 
     if (!existingEndpoint[0]) {
       return { success: false, error: 'Endpoint not found or access denied' }
+    }
+
+    // 🔄 Validate no forwarding loop if config or name is being updated
+    const effectiveName = data.name ?? existingEndpoint[0].name
+    const effectiveConfig = data.config ?? JSON.parse(existingEndpoint[0].config || '{}')
+    const effectiveType = existingEndpoint[0].type
+    
+    const loopCheck = validateNoForwardingLoop(effectiveName, effectiveConfig, effectiveType)
+    if (!loopCheck.valid) {
+      console.error(`🚫 updateEndpoint - Loop detected: ${loopCheck.error}`)
+      return { success: false, error: loopCheck.error }
     }
 
     // Prepare update data

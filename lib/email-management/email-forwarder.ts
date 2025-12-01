@@ -55,7 +55,7 @@ export class EmailForwarder {
     })
 
     console.log(`📤 EmailForwarder - Sending email message (${rawMessage.length} bytes) with ${originalEmail.htmlBody ? 'HTML' : 'text'} content and ${originalEmail.attachments?.length || 0} attachments`)
-    
+
     if (options?.tenantName) {
       console.log(`🏠 EmailForwarder - Using TenantName for AWS SES tracking: ${options.tenantName}`)
     } else {
@@ -72,7 +72,7 @@ export class EmailForwarder {
       },
       Content: {
         Raw: {
-          Data: Buffer.from(rawMessage)
+        Data: Buffer.from(rawMessage)
         }
       },
       ...(options?.configurationSetName && { ConfigurationSetName: options.configurationSetName }),
