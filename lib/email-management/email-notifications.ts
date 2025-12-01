@@ -26,6 +26,7 @@ export interface ReputationAlertNotificationData {
   tenantName: string;
   triggeredAt: Date;
   recommendations?: string[];
+  sendingPaused?: boolean; // True if sending was auto-paused due to critical threshold
 }
 
 /**
@@ -179,7 +180,8 @@ export async function sendReputationAlertNotification(
         minute: '2-digit',
         timeZoneName: 'short'
       }),
-      recommendations: data.recommendations || defaultRecommendations[data.alertType]
+      recommendations: data.recommendations || defaultRecommendations[data.alertType],
+      sendingPaused: data.sendingPaused || false
     };
 
     // Render the email template
@@ -193,11 +195,11 @@ export async function sendReputationAlertNotification(
       ? `${(data.currentRate * 100).toFixed(2)}%` 
       : `${data.currentRate.toFixed(0)} emails`;
     
-    const subject = `${alertEmoji} SES ${data.severity.toUpperCase()}: ${metricName} Alert (${percentageDisplay}) - ${data.tenantName}`;
+    const subject = `${alertEmoji} ${data.severity.toUpperCase()}: ${metricName} Alert (${percentageDisplay}) - ${data.tenantName}`;
 
     // Determine the from address
     const fromEmail = 'alerts@inbound.new';
-    const fromWithName = `inbound alerts <${fromEmail}>`;
+    const fromWithName = `Inbound Security <${fromEmail}>`;
 
     // Send the email
     const response = await inbound.emails.send({

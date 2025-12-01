@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getTenantOwnerByConfigurationSet } from '@/lib/db/tenants';
 import { sendReputationAlertNotification } from '@/lib/email-management/email-notifications';
+import { pauseTenantSending } from '@/lib/aws-ses/aws-ses-tenants';
+
+// Slack webhook for admin notifications
+const SLACK_ADMIN_WEBHOOK_URL = process.env.SLACK_ADMIN_WEBHOOK_URL;
 
 // Types for AWS SNS notifications
 interface SNSNotification {
@@ -258,8 +262,59 @@ async function handleCloudWatchAlarm(alarm: CloudWatchAlarmMessage) {
     }
     
     console.log(`📊 Alert Info: ${alertInfo.alertType} ${alertInfo.severity} (${alertInfo.currentRate})`);
+
+    // Format rate for display
+    const rateDisplay = alertInfo.alertType !== 'delivery_delay' 
+      ? `${(alertInfo.currentRate * 100).toFixed(2)}%` 
+      : `${alertInfo.currentRate.toFixed(0)} delayed`;
+
+    // Send Slack notification to admin for ALL alerts
+    await sendSlackAdminNotification({
+      alertType: alertInfo.alertType,
+      severity: alertInfo.severity,
+      currentRate: rateDisplay,
+      threshold: alertInfo.alertType !== 'delivery_delay' 
+        ? `${(alarm.Threshold * 100).toFixed(2)}%` 
+        : `${alarm.Threshold}`,
+      configurationSet,
+      tenantName: tenantOwner.tenantName,
+      userEmail: tenantOwner.userEmail,
+      triggeredAt: new Date(alarm.StateChangeTime)
+    });
+
+    // Auto-pause sending on CRITICAL alerts
+    let sendingPaused = false;
+    if (alertInfo.severity === 'critical') {
+      console.log(`🚨 CRITICAL alert - Auto-pausing sending for: ${configurationSet}`);
+      
+      const pauseResult = await pauseTenantSending(configurationSet, 
+        `Auto-paused due to critical ${alertInfo.alertType} rate: ${rateDisplay}`
+      );
+      
+      if (pauseResult.success) {
+        sendingPaused = true;
+        console.log(`✅ Sending paused for configuration set: ${configurationSet}`);
+        
+        // Send additional Slack notification about auto-pause
+        await sendSlackAdminNotification({
+          alertType: alertInfo.alertType,
+          severity: 'critical',
+          currentRate: rateDisplay,
+          threshold: alertInfo.alertType !== 'delivery_delay' 
+            ? `${(alarm.Threshold * 100).toFixed(2)}%` 
+            : `${alarm.Threshold}`,
+          configurationSet,
+          tenantName: tenantOwner.tenantName,
+          userEmail: tenantOwner.userEmail,
+          triggeredAt: new Date(alarm.StateChangeTime),
+          action: 'SENDING_PAUSED'
+        });
+      } else {
+        console.error(`❌ Failed to pause sending: ${pauseResult.error}`);
+      }
+    }
     
-    // Send notification email
+    // Send notification email to user
     const emailResult = await sendReputationAlertNotification({
       userEmail: tenantOwner.userEmail,
       userName: tenantOwner.userName,
@@ -269,7 +324,8 @@ async function handleCloudWatchAlarm(alarm: CloudWatchAlarmMessage) {
       threshold: alarm.Threshold,
       configurationSet: configurationSet,
       tenantName: tenantOwner.tenantName,
-      triggeredAt: new Date(alarm.StateChangeTime)
+      triggeredAt: new Date(alarm.StateChangeTime),
+      sendingPaused // Pass this to the email template
     });
     
     if (emailResult.success) {
@@ -283,6 +339,108 @@ async function handleCloudWatchAlarm(alarm: CloudWatchAlarmMessage) {
     
   } catch (error) {
     console.error('❌ handleCloudWatchAlarm - Unexpected error:', error);
+  }
+}
+
+/**
+ * Send Slack notification to admin about reputation alerts
+ */
+async function sendSlackAdminNotification(data: {
+  alertType: 'bounce' | 'complaint' | 'delivery_delay';
+  severity: 'warning' | 'critical';
+  currentRate: string;
+  threshold: string;
+  configurationSet: string;
+  tenantName: string;
+  userEmail: string;
+  triggeredAt: Date;
+  action?: 'SENDING_PAUSED';
+}) {
+  if (!SLACK_ADMIN_WEBHOOK_URL) {
+    console.log('⚠️ SLACK_ADMIN_WEBHOOK_URL not configured, skipping Slack notification');
+    return;
+  }
+
+  try {
+    const emoji = data.severity === 'critical' ? '🚨' : '⚠️';
+    const alertTypeDisplay = data.alertType === 'bounce' ? 'Bounce Rate' : 
+                             data.alertType === 'complaint' ? 'Complaint Rate' : 'Delivery Delay';
+    
+    const actionText = data.action === 'SENDING_PAUSED' 
+      ? '\n\n🛑 *ACTION TAKEN: Sending has been automatically paused for this tenant*' 
+      : '';
+
+    const slackMessage = {
+      blocks: [
+        {
+          type: 'header',
+          text: {
+            type: 'plain_text',
+            text: `${emoji} SES ${data.severity.toUpperCase()} Alert: ${alertTypeDisplay}`,
+            emoji: true
+          }
+        },
+        {
+          type: 'section',
+          fields: [
+            {
+              type: 'mrkdwn',
+              text: `*Tenant:*\n${data.tenantName}`
+            },
+            {
+              type: 'mrkdwn',
+              text: `*User:*\n${data.userEmail}`
+            },
+            {
+              type: 'mrkdwn',
+              text: `*Current Rate:*\n${data.currentRate}`
+            },
+            {
+              type: 'mrkdwn',
+              text: `*Threshold:*\n${data.threshold}`
+            },
+            {
+              type: 'mrkdwn',
+              text: `*Config Set:*\n\`${data.configurationSet}\``
+            },
+            {
+              type: 'mrkdwn',
+              text: `*Triggered:*\n${data.triggeredAt.toLocaleString()}`
+            }
+          ]
+        },
+        ...(actionText ? [{
+          type: 'section',
+          text: {
+            type: 'mrkdwn',
+            text: actionText
+          }
+        }] : []),
+        {
+          type: 'context',
+          elements: [
+            {
+              type: 'mrkdwn',
+              text: `View in <https://inbound.new/admin/tenants|Admin Dashboard>`
+            }
+          ]
+        }
+      ]
+    };
+
+    const response = await fetch(SLACK_ADMIN_WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(slackMessage)
+    });
+
+    if (!response.ok) {
+      console.error(`❌ Slack notification failed: ${response.status} ${response.statusText}`);
+    } else {
+      console.log(`✅ Slack admin notification sent for ${data.configurationSet}`);
+    }
+  } catch (error) {
+    console.error('❌ Failed to send Slack notification:', error);
   }
 }
 

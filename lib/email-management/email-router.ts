@@ -18,6 +18,7 @@ import type { Endpoint } from '@/features/endpoints/types'
 import { evaluateGuardRules } from '../guard/rule-matcher'
 import { Autumn as autumn } from 'autumn-js'
 import { getOrCreateVerificationToken } from '@/lib/webhooks/verification'
+import { getTenantSendingInfoForDomainOrParent } from '@/lib/aws-ses/identity-arn-helper'
 
 // Maximum webhook payload size (5MB safety margin)
 const MAX_WEBHOOK_PAYLOAD_SIZE = 1_000_000
@@ -955,7 +956,70 @@ async function handleEmailForwardEndpoint(
     // Use the original recipient as the from address (e.g., ryan@inbound.new)
     const fromAddress = config.fromAddress || emailData.recipient
     
+    // 🔄 LOOP DETECTION: Prevent forwarding to the same address that received the email
+    // This prevents infinite forwarding loops where an endpoint forwards to itself
+    const recipientAddress = emailData.recipient?.toLowerCase()?.trim()
+    
+    // Only check for loops if we have a valid recipient address
+    const loopingAddresses = recipientAddress 
+      ? toAddresses.filter((addr: string) => {
+          const targetAddr = addr?.toLowerCase()?.trim()
+          // Both must be valid non-empty strings for a match
+          return targetAddr && targetAddr === recipientAddress
+        })
+      : []
+    
+    if (loopingAddresses.length > 0) {
+      console.error(`🚫 LOOP DETECTED! Email ${emailId} would be forwarded to the same address it came from: ${loopingAddresses.join(', ')}`)
+      console.error(`   Recipient: ${recipientAddress}, Forward targets: ${toAddresses.join(', ')}`)
+      
+      // Update delivery record with loop detection failure
+      await db
+        .update(endpointDeliveries)
+        .set({
+          status: 'failed',
+          lastAttemptAt: new Date(),
+          responseData: JSON.stringify({ 
+            error: 'FORWARDING_LOOP_DETECTED',
+            message: `Cannot forward email to the same address it was received at: ${loopingAddresses.join(', ')}`,
+            recipient: recipientAddress,
+            forwardTargets: toAddresses
+          }),
+          updatedAt: new Date()
+        })
+        .where(eq(endpointDeliveries.id, deliveryId))
+      
+      return // Exit without forwarding
+    }
+    
     console.log(`📤 handleEmailForwardEndpoint - Forwarding to ${toAddresses.length} recipients from ${fromAddress}`)
+
+    // Get tenant sending info (identity ARN, configuration set, and tenant name) for tenant-level tracking
+    const fromDomain = fromAddress.split('@')[1]
+    let sourceArn: string | null = null
+    let configurationSetName: string | null = null
+    let tenantName: string | null = null
+    if (fromDomain && emailData.userId) {
+      const tenantInfo = await getTenantSendingInfoForDomainOrParent(emailData.userId, fromDomain)
+      sourceArn = tenantInfo.identityArn
+      configurationSetName = tenantInfo.configurationSetName
+      tenantName = tenantInfo.tenantName
+      if (sourceArn) {
+        console.log(`✅ handleEmailForwardEndpoint - Got identity ARN for ${fromDomain}: ${sourceArn}`)
+      } else {
+        console.warn(`⚠️ handleEmailForwardEndpoint - Could not get identity ARN for ${fromDomain}, email will be sent without tenant tracking`)
+      }
+      if (configurationSetName) {
+        console.log(`📋 handleEmailForwardEndpoint - Using configuration set: ${configurationSetName}`)
+      } else {
+        console.warn(`⚠️ handleEmailForwardEndpoint - No configuration set available for ${fromDomain}`)
+      }
+      if (tenantName) {
+        console.log(`🏠 handleEmailForwardEndpoint - Using TenantName: ${tenantName}`)
+      } else {
+        console.warn(`⚠️ handleEmailForwardEndpoint - No TenantName available - email will NOT appear in tenant dashboard!`)
+      }
+    }
 
     // Forward the email
     await forwarder.forwardEmail(
@@ -966,7 +1030,10 @@ async function handleEmailForwardEndpoint(
         subjectPrefix: config.subjectPrefix,
         includeAttachments: config.includeAttachments,
         recipientEmail: emailData.recipient,
-        senderName: config.senderName // Pass custom sender name if configured
+        senderName: config.senderName, // Pass custom sender name if configured
+        sourceArn: sourceArn || undefined,
+        configurationSetName: configurationSetName || undefined,
+        tenantName: tenantName || undefined
       }
     )
     

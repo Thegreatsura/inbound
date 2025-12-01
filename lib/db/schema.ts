@@ -62,6 +62,7 @@ export const sesTenants = pgTable('ses_tenants', {
   userId: varchar('user_id', { length: 255 }).notNull().unique(), // 1:1 relationship with users
   awsTenantId: varchar('aws_tenant_id', { length: 255 }).notNull().unique(), // AWS SES tenant ID
   tenantName: varchar('tenant_name', { length: 255 }).notNull(), // Human-readable name
+  configurationSetName: varchar('configuration_set_name', { length: 255 }), // AWS SES configuration set for tenant-level tracking
   status: varchar('status', { length: 50 }).notNull().default('active'), // 'active', 'paused', 'suspended'
   reputationPolicy: varchar('reputation_policy', { length: 20 }).notNull().default('standard'), // 'standard', 'strict', 'none'
   createdAt: timestamp('created_at').defaultNow(),

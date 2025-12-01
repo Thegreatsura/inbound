@@ -24,9 +24,138 @@ const dub = new Dub({
 
 const RESEND_AUTUMN_AUDIENCE_ID = "515e5071-4d0e-4117-9c12-e8ddd29b807e"
 
+// Blocked email domains - users cannot sign up with these domains
+const BLOCKED_SIGNUP_DOMAINS = [
+    // Mail.ru Group domains
+    'mail.ru',
+    'bk.ru',
+    'inbox.ru',
+    'list.ru',
+    
+    // Disposable/temp email services
+    'trashmail.win',
+    'bipochub.com',
+    'fermiro.com',
+    'dropeso.com',
+    'nyfhk.com',
+    'byom.de',
+    'yopmail.com',
+    'drmail.in',
+    'protonza.com',
+    'bitmens.com',
+    'reuseme.info',
+    'passmail.com',
+    'mvpmedix.com',
+    'tempmail.com',
+    'guerrillamail.com',
+    'mailinator.com',
+    '10minutemail.com',
+    'throwaway.email',
+    'fakeinbox.com',
+    'sharklasers.com',
+    'guerrillamail.info',
+    'grr.la',
+    'guerrillamail.biz',
+    'guerrillamail.de',
+    'guerrillamail.net',
+    'guerrillamail.org',
+    'spam4.me',
+    'temp-mail.org',
+    'dispostable.com',
+    'mailnesia.com',
+    'getairmail.com',
+    'mohmal.com',
+    'tempail.com',
+    'emailondeck.com',
+    
+    // Suspicious .xyz domains often used for spam
+    '05050101.xyz',
+    '621688.xyz',
+];
+
 const stripeClient = new Stripe(process.env.STRIPE_SECRET_KEY as string);
 const resend = new Resend(process.env.RESEND_API_KEY);
 const inbound = new Inbound(process.env.INBOUND_API_KEY!);
+
+const SLACK_ADMIN_WEBHOOK_URL = process.env.SLACK_ADMIN_WEBHOOK_URL;
+
+/**
+ * Send Slack notification when a new user signs up
+ */
+async function sendNewUserSlackNotification(user: { email: string; name?: string | null; id: string; createdAt: Date }) {
+    if (!SLACK_ADMIN_WEBHOOK_URL) {
+        console.log('⚠️ SLACK_ADMIN_WEBHOOK_URL not configured, skipping new user Slack notification');
+        return;
+    }
+
+    try {
+        const slackMessage = {
+            blocks: [
+                {
+                    type: 'header',
+                    text: {
+                        type: 'plain_text',
+                        text: '🎉 New User Signup',
+                        emoji: true
+                    }
+                },
+                {
+                    type: 'section',
+                    fields: [
+                        {
+                            type: 'mrkdwn',
+                            text: `*Email:*\n${user.email}`
+                        },
+                        {
+                            type: 'mrkdwn',
+                            text: `*Name:*\n${user.name || 'Not provided'}`
+                        },
+                        {
+                            type: 'mrkdwn',
+                            text: `*User ID:*\n\`${user.id}\``
+                        },
+                        {
+                            type: 'mrkdwn',
+                            text: `*Signed up:*\n${new Date(user.createdAt).toLocaleString()}`
+                        }
+                    ]
+                },
+                {
+                    type: 'context',
+                    elements: [
+                        {
+                            type: 'mrkdwn',
+                            text: `View in <https://inbound.new/admin|Admin Dashboard>`
+                        }
+                    ]
+                }
+            ]
+        };
+
+        const response = await fetch(SLACK_ADMIN_WEBHOOK_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(slackMessage)
+        });
+
+        if (!response.ok) {
+            console.error(`❌ Slack new user notification failed: ${response.status} ${response.statusText}`);
+        } else {
+            console.log(`✅ Slack notification sent for new user: ${user.email}`);
+        }
+    } catch (error) {
+        console.error('❌ Failed to send Slack new user notification:', error);
+    }
+}
+
+/**
+ * Check if an email domain is blocked from signing up
+ */
+function isBlockedEmailDomain(email: string): boolean {
+    const domain = email.split('@')[1]?.toLowerCase();
+    if (!domain) return false;
+    return BLOCKED_SIGNUP_DOMAINS.includes(domain);
+}
 
 export const auth = betterAuth({
     baseURL: process.env.NODE_ENV === 'development'
@@ -97,7 +226,7 @@ export const auth = betterAuth({
         admin(),
         magicLink({
             expiresIn: 300, // 5 minutes
-            disableSignUp: false, // Allow new user creation via magic link
+            disableSignUp: true, // Only allow magic link for existing accounts - new users must use Google OAuth
             sendMagicLink: async ({ email, url, token }, request) => {
                 console.log(`📧 Sending magic link to ${email}`);
                 
@@ -136,6 +265,14 @@ export const auth = betterAuth({
         })
     ],
     hooks: {
+        before: createAuthMiddleware(async (ctx) => {
+            // Block signups from banned email domains
+            const body = ctx.body as { email?: string } | undefined;
+            if (body?.email && isBlockedEmailDomain(body.email)) {
+                console.log(`🚫 Blocked signup attempt from banned domain: ${body.email}`);
+                throw new Error('Signups from this email domain are not allowed. Please use a different email address.');
+            }
+        }),
         after: createAuthMiddleware(async (ctx) => {
             // Check if this is actually a new user creation (not just a login)
             if (ctx.context.newSession?.user) {
@@ -149,6 +286,12 @@ export const auth = betterAuth({
                 
                 if (timeDiffSeconds < 10) {
                     console.log('New user signed up with email: ', user.email);
+                    
+                    // Send Slack notification for new signup (don't await to not block redirect)
+                    sendNewUserSlackNotification(user).catch(err => 
+                        console.error('Failed to send new user Slack notification:', err)
+                    );
+                    
                     await resend.contacts.create({
                         audienceId: RESEND_AUTUMN_AUDIENCE_ID,
                         email: user.email,

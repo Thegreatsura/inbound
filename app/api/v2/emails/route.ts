@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { validateRequest } from '../helper/main'
+import { validateRequest, checkNewAccountWarmupLimits } from '../helper/main'
 import { processAttachments, attachmentsToStorageFormat, type AttachmentInput } from '../helper/attachment-processor'
 import { buildRawEmailMessage } from '../helper/email-builder'
-import { SESClient, SendRawEmailCommand } from '@aws-sdk/client-ses'
+import { SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2'
 import { db } from '@/lib/db'
 import { sentEmails, emailDomains, scheduledEmails, SENT_EMAIL_STATUS, SCHEDULED_EMAIL_STATUS } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
@@ -14,6 +14,7 @@ import { Client as QStashClient } from '@upstash/qstash'
 import { waitUntil } from '@vercel/functions'
 import { evaluateSending } from '@/lib/email-management/email-evaluation'
 import { isSubdomain, getRootDomain } from '@/lib/domains-and-dns/domain-utils'
+import { getTenantSendingInfoForDomainOrParent, getAgentIdentityArn, type TenantSendingInfo } from '@/lib/aws-ses/identity-arn-helper'
 
 /**
  * POST /api/v2/emails
@@ -89,10 +90,10 @@ const awsRegion = process.env.AWS_REGION || 'us-east-2'
 const awsAccessKeyId = process.env.AWS_ACCESS_KEY_ID
 const awsSecretAccessKey = process.env.AWS_SECRET_ACCESS_KEY
 
-let sesClient: SESClient | null = null
+let sesClient: SESv2Client | null = null
 
 if (awsAccessKeyId && awsSecretAccessKey) {
-    sesClient = new SESClient({
+    sesClient = new SESv2Client({
         region: awsRegion,
         credentials: {
             accessKeyId: awsAccessKeyId,
@@ -117,6 +118,21 @@ export async function POST(request: NextRequest) {
             )
         }
         console.log('✅ Authentication successful for userId:', userId)
+
+        // Check new account warmup limits (100 emails/day for first 7 days)
+        const warmupCheck = await checkNewAccountWarmupLimits(userId)
+        if (!warmupCheck.allowed) {
+            console.log(`🚫 Warmup limit exceeded for user ${userId}`)
+            return NextResponse.json(
+                { 
+                    error: warmupCheck.error,
+                    emailsSentToday: warmupCheck.emailsSentToday,
+                    dailyLimit: warmupCheck.dailyLimit,
+                    daysRemaining: warmupCheck.daysRemaining
+                },
+                { status: 429 }
+            )
+        }
 
         // Check for idempotency key
         const idempotencyKey = request.headers.get('Idempotency-Key')
@@ -472,7 +488,37 @@ export async function POST(request: NextRequest) {
             const sourceEmail = fromParsed.email
             const formattedFromAddress = formatEmailWithName(sourceEmail, fromParsed.name)
             
-            // Always use SendRawEmailCommand for full MIME support (attachments, display names, etc.)
+            // Get the tenant sending info (identity ARN, configuration set, and tenant name) for tenant-level tracking
+            // Per AWS docs: https://docs.aws.amazon.com/ses/latest/dg/tenants.html
+            let tenantSendingInfo: TenantSendingInfo = { identityArn: null, configurationSetName: null, tenantName: null }
+            if (isAgentEmail) {
+                // Agent emails don't use tenant tracking - they go through the main account
+                tenantSendingInfo = { identityArn: getAgentIdentityArn(), configurationSetName: null, tenantName: null }
+            } else {
+                // Check if sending from a subdomain and get parent if needed
+                const parentDomain = isSubdomain(fromDomain) ? getRootDomain(fromDomain) : undefined
+                tenantSendingInfo = await getTenantSendingInfoForDomainOrParent(userId, fromDomain, parentDomain || undefined)
+            }
+            
+            if (tenantSendingInfo.identityArn) {
+                console.log(`🏢 Using SourceArn for tenant tracking: ${tenantSendingInfo.identityArn}`)
+            } else {
+                console.warn('⚠️ No SourceArn available - email will not be tracked at tenant level')
+            }
+            
+            if (tenantSendingInfo.configurationSetName) {
+                console.log(`📋 Using ConfigurationSet for tenant tracking: ${tenantSendingInfo.configurationSetName}`)
+            } else {
+                console.warn('⚠️ No ConfigurationSet available - tenant metrics may not be tracked correctly')
+            }
+            
+            if (tenantSendingInfo.tenantName) {
+                console.log(`🏠 Using TenantName for AWS SES tenant tracking: ${tenantSendingInfo.tenantName}`)
+            } else {
+                console.warn('⚠️ No TenantName available - email will NOT appear in tenant dashboard!')
+            }
+            
+            // Use SESv2 SendEmailCommand with Raw content for full MIME support (attachments, display names, etc.)
             console.log('📧 Building raw email message with full MIME support')
             
             const rawMessage = buildRawEmailMessage({
@@ -489,12 +535,27 @@ export async function POST(request: NextRequest) {
                 date: new Date()
             })
             
-            const rawCommand = new SendRawEmailCommand({
-                RawMessage: {
-                    Data: Buffer.from(rawMessage)
+            // Use SESv2 SendEmailCommand with TenantName for proper tenant-level tracking
+            // Per AWS docs: https://docs.aws.amazon.com/ses/latest/dg/tenants.html
+            const rawCommand = new SendEmailCommand({
+                FromEmailAddress: sourceEmail,
+                // FromEmailAddressIdentityArn associates the email with the tenant's identity
+                ...(tenantSendingInfo.identityArn && { FromEmailAddressIdentityArn: tenantSendingInfo.identityArn }),
+                Destination: {
+                    ToAddresses: toAddresses.map(extractEmailAddress),
+                    CcAddresses: ccAddresses.length > 0 ? ccAddresses.map(extractEmailAddress) : undefined,
+                    BccAddresses: bccAddresses.length > 0 ? bccAddresses.map(extractEmailAddress) : undefined
                 },
-                Source: sourceEmail,
-                Destinations: [...toAddresses, ...ccAddresses, ...bccAddresses].map(extractEmailAddress)
+                Content: {
+                    Raw: {
+                        Data: Buffer.from(rawMessage)
+                    }
+                },
+                // ConfigurationSetName is REQUIRED for tenant-level metrics tracking
+                ...(tenantSendingInfo.configurationSetName && { ConfigurationSetName: tenantSendingInfo.configurationSetName }),
+                // TenantName is REQUIRED for AWS SES to track this email under the tenant
+                // Without this, metrics won't appear in the tenant dashboard!
+                ...(tenantSendingInfo.tenantName && { TenantName: tenantSendingInfo.tenantName })
             })
             
             const sesResponse = await sesClient.send(rawCommand)

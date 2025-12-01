@@ -99,6 +99,12 @@ export const navigationConfig: NavigationConfig = {
       icon: Code2,
       description: "Lambda function monitoring and logs"
     },
+    {
+      title: "Tenant Metrics",
+      url: "/admin/tenants",
+      icon: Cloud2,
+      description: "SES tenant monitoring, bounces and complaints"
+    },
   ],
 }
 
