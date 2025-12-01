@@ -958,10 +958,16 @@ async function handleEmailForwardEndpoint(
     
     // 🔄 LOOP DETECTION: Prevent forwarding to the same address that received the email
     // This prevents infinite forwarding loops where an endpoint forwards to itself
-    const recipientAddress = emailData.recipient?.toLowerCase()
-    const loopingAddresses = toAddresses.filter((addr: string) => 
-      addr?.toLowerCase() === recipientAddress
-    )
+    const recipientAddress = emailData.recipient?.toLowerCase()?.trim()
+    
+    // Only check for loops if we have a valid recipient address
+    const loopingAddresses = recipientAddress 
+      ? toAddresses.filter((addr: string) => {
+          const targetAddr = addr?.toLowerCase()?.trim()
+          // Both must be valid non-empty strings for a match
+          return targetAddr && targetAddr === recipientAddress
+        })
+      : []
     
     if (loopingAddresses.length > 0) {
       console.error(`🚫 LOOP DETECTED! Email ${emailId} would be forwarded to the same address it came from: ${loopingAddresses.join(', ')}`)

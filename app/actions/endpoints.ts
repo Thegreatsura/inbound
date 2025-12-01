@@ -11,7 +11,11 @@ import { migrateUserWebhooksToEndpoints, checkWebhookMigrationNeeded, resetMigra
 
 /**
  * Validates that an email forwarding endpoint doesn't create a loop
- * by forwarding to the same address(es) that would receive the email
+ * by forwarding to the same address(es) that would receive the email.
+ * 
+ * NOTE: This is a heuristic check at creation time. The endpoint name is often
+ * the receiving email address (e.g., "support@example.com"), but not always.
+ * The runtime check in email-router.ts is the authoritative safety net.
  */
 function validateNoForwardingLoop(
   endpointName: string, 
@@ -28,11 +32,20 @@ function validateNoForwardingLoop(
     ? (config.emails || []) 
     : [config.forwardTo].filter(Boolean)
   
-  // Check if endpoint name looks like an email (it often is the receiving address)
-  const endpointNameLower = endpointName.toLowerCase()
+  // Check if endpoint name looks like an email address (contains @)
+  // This is a heuristic - endpoint names are often the receiving email address
+  const endpointNameLower = endpointName?.toLowerCase()?.trim()
+  const endpointLooksLikeEmail = endpointNameLower && endpointNameLower.includes('@')
+  
+  if (!endpointLooksLikeEmail) {
+    // Can't validate if the name doesn't look like an email
+    // Runtime check in email-router will catch any loops
+    return { valid: true }
+  }
   
   for (const target of forwardTargets) {
-    const targetLower = target?.toLowerCase()
+    const targetLower = target?.toLowerCase()?.trim()
+    // Both must be valid non-empty strings for a match
     if (targetLower && targetLower === endpointNameLower) {
       return {
         valid: false,
