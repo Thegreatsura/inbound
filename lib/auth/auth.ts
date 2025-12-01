@@ -77,6 +77,77 @@ const stripeClient = new Stripe(process.env.STRIPE_SECRET_KEY as string);
 const resend = new Resend(process.env.RESEND_API_KEY);
 const inbound = new Inbound(process.env.INBOUND_API_KEY!);
 
+const SLACK_ADMIN_WEBHOOK_URL = process.env.SLACK_ADMIN_WEBHOOK_URL;
+
+/**
+ * Send Slack notification when a new user signs up
+ */
+async function sendNewUserSlackNotification(user: { email: string; name?: string | null; id: string; createdAt: Date }) {
+    if (!SLACK_ADMIN_WEBHOOK_URL) {
+        console.log('⚠️ SLACK_ADMIN_WEBHOOK_URL not configured, skipping new user Slack notification');
+        return;
+    }
+
+    try {
+        const slackMessage = {
+            blocks: [
+                {
+                    type: 'header',
+                    text: {
+                        type: 'plain_text',
+                        text: '🎉 New User Signup',
+                        emoji: true
+                    }
+                },
+                {
+                    type: 'section',
+                    fields: [
+                        {
+                            type: 'mrkdwn',
+                            text: `*Email:*\n${user.email}`
+                        },
+                        {
+                            type: 'mrkdwn',
+                            text: `*Name:*\n${user.name || 'Not provided'}`
+                        },
+                        {
+                            type: 'mrkdwn',
+                            text: `*User ID:*\n\`${user.id}\``
+                        },
+                        {
+                            type: 'mrkdwn',
+                            text: `*Signed up:*\n${new Date(user.createdAt).toLocaleString()}`
+                        }
+                    ]
+                },
+                {
+                    type: 'context',
+                    elements: [
+                        {
+                            type: 'mrkdwn',
+                            text: `View in <https://inbound.new/admin|Admin Dashboard>`
+                        }
+                    ]
+                }
+            ]
+        };
+
+        const response = await fetch(SLACK_ADMIN_WEBHOOK_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(slackMessage)
+        });
+
+        if (!response.ok) {
+            console.error(`❌ Slack new user notification failed: ${response.status} ${response.statusText}`);
+        } else {
+            console.log(`✅ Slack notification sent for new user: ${user.email}`);
+        }
+    } catch (error) {
+        console.error('❌ Failed to send Slack new user notification:', error);
+    }
+}
+
 /**
  * Check if an email domain is blocked from signing up
  */
@@ -215,6 +286,12 @@ export const auth = betterAuth({
                 
                 if (timeDiffSeconds < 10) {
                     console.log('New user signed up with email: ', user.email);
+                    
+                    // Send Slack notification for new signup (don't await to not block redirect)
+                    sendNewUserSlackNotification(user).catch(err => 
+                        console.error('Failed to send new user Slack notification:', err)
+                    );
+                    
                     await resend.contacts.create({
                         audienceId: RESEND_AUTUMN_AUDIENCE_ID,
                         email: user.email,
