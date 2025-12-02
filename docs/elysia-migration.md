@@ -43,11 +43,11 @@ This document tracks the migration progress from Next.js API routes (`/api/v2`) 
 
 | Route | Method | v2 Path | e2 Status |
 |-------|--------|---------|-----------|
-| List email addresses | GET | `/api/v2/email-addresses` | ❌ |
-| Create email address | POST | `/api/v2/email-addresses` | ❌ |
-| Get email address | GET | `/api/v2/email-addresses/[id]` | ❌ |
-| Update email address | PUT | `/api/v2/email-addresses/[id]` | ❌ |
-| Delete email address | DELETE | `/api/v2/email-addresses/[id]` | ❌ |
+| List email addresses | GET | `/api/v2/email-addresses` | ✅ `list.ts` |
+| Create email address | POST | `/api/v2/email-addresses` | ✅ `create.ts` |
+| Get email address | GET | `/api/v2/email-addresses/[id]` | ✅ `get.ts` |
+| Update email address | PUT | `/api/v2/email-addresses/[id]` | ✅ `update.ts` |
+| Delete email address | DELETE | `/api/v2/email-addresses/[id]` | ✅ `delete.ts` |
 
 ---
 
@@ -210,7 +210,7 @@ interface UpdateEmailRequest {
 
 | Route | Method | v2 Path | e2 Status |
 |-------|--------|---------|-----------|
-| Get attachment | GET | `/api/v2/attachments/[id]/[filename]` | ❌ → May consolidate into `GET /mail/:id` response |
+| Get attachment | GET | `/api/v2/attachments/[id]/[filename]` | ✅ `get.ts` |
 
 ---
 
@@ -220,10 +220,10 @@ interface UpdateEmailRequest {
 |----------|--------|-----------|-----------|
 | Domains | 9 | 9 | 0 |
 | Endpoints | 6 | 6 | 0 |
-| Email Addresses | 5 | 0 | 5 |
+| Email Addresses | 5 | 5 | 0 |
 | Mail (unified) | 5 | 0 | 5 |
-| Attachments | 1 | 0 | 1 |
-| **Total** | **26** | **15** | **11** |
+| Attachments | 1 | 1 | 0 |
+| **Total** | **26** | **21** | **5** |
 
 ---
 
