@@ -7,4 +7,6 @@ export {
   useDeleteApiKeyMutation 
 } from './useApiKeyMutations'
 export { useBillingPortalMutation } from './useBillingMutation'
-export { useOnboardingStatusQuery } from './useOnboardingStatusQuery' 
+export { useOnboardingStatusQuery } from './useOnboardingStatusQuery'
+export { useReputationMetricsQuery } from './useReputationMetricsQuery'
+export { useWarmupStatusQuery } from './useWarmupStatusQuery'
