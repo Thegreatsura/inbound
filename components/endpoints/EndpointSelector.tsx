@@ -143,11 +143,12 @@ export function EndpointSelector({
     if (selectedInPages) return selectedInPages
     if (fetchedEndpoint) {
       // Convert ApiEndpointDetailResponse to EndpointWithStats
+      // Note: config is stored as JSON string in the DB schema, so serialize the object
       return {
         id: fetchedEndpoint.id,
         name: fetchedEndpoint.name,
         type: fetchedEndpoint.type,
-        config: fetchedEndpoint.config,
+        config: JSON.stringify(fetchedEndpoint.config),
         isActive: fetchedEndpoint.isActive,
         description: fetchedEndpoint.description,
         userId: fetchedEndpoint.userId,

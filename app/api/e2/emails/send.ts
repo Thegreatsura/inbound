@@ -27,8 +27,8 @@ import {
 import {
   processAttachments,
   attachmentsToStorageFormat,
-} from "../../v2-legacy/helper/attachment-processor"
-import { buildRawEmailMessage } from "../../v2-legacy/helper/email-builder"
+} from "../../v2/helper/attachment-processor"
+import { buildRawEmailMessage } from "../../v2/helper/email-builder"
 import { evaluateSending } from "@/lib/email-management/email-evaluation"
 import { isSubdomain, getRootDomain } from "@/lib/domains-and-dns/domain-utils"
 import {

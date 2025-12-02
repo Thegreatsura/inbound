@@ -400,10 +400,12 @@ export async function getAdminTenantList(
       // Sort at database level for non-metric fields
       switch (options?.sortBy) {
         case 'tenantName':
+          // @ts-ignore
           tenantsQuery = tenantsQuery.orderBy(sortOrder === 'asc' ? asc(sesTenants.tenantName) : desc(sesTenants.tenantName))
           break
         case 'createdAt':
         default:
+          // @ts-ignore
           tenantsQuery = tenantsQuery.orderBy(sortOrder === 'asc' ? asc(sesTenants.createdAt) : desc(sesTenants.createdAt))
       }
     }

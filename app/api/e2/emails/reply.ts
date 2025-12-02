@@ -21,7 +21,7 @@ import {
 import {
   processAttachments,
   attachmentsToStorageFormat,
-} from "../../v2-legacy/helper/attachment-processor"
+} from "../../v2/helper/attachment-processor"
 import { evaluateSending } from "@/lib/email-management/email-evaluation"
 import { isSubdomain, getRootDomain } from "@/lib/domains-and-dns/domain-utils"
 import {

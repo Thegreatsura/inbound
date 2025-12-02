@@ -70,8 +70,8 @@ export const listEmailAddresses = new Elysia().get(
     console.log("✅ Authentication successful for userId:", userId)
 
     // Extract and validate query parameters
-    const limit = Math.min(parseInt(query.limit || '50'), 100)
-    const offset = parseInt(query.offset || '0')
+    const limit = Math.min(parseInt(query.limit?.toString() || '50'), 100)
+    const offset = parseInt(query.offset?.toString() || '0')
     const domainId = query.domainId
     const isActive = query.isActive
     const isReceiptRuleConfigured = query.isReceiptRuleConfigured
