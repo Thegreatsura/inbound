@@ -65,7 +65,7 @@ export class EmailForwarder {
     // Use SESv2 SendEmailCommand with TenantName for proper tenant-level tracking
     // Per AWS docs: https://docs.aws.amazon.com/ses/latest/dg/tenants.html
     const command = new SendEmailCommand({
-      FromEmailAddress: fromAddress,
+      FromEmailAddress: fromAddressWithName,
       ...(options?.sourceArn && { FromEmailAddressIdentityArn: options.sourceArn }),
       Destination: {
         ToAddresses: toAddresses,

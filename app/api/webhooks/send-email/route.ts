@@ -281,8 +281,9 @@ async function handleScheduledEmail(payload: QStashPayload) {
 
         // Send via AWS SES using SESv2 SendEmailCommand with TenantName
         // Per AWS docs: https://docs.aws.amazon.com/ses/latest/dg/tenants.html
+        // Use full fromAddress (with display name) for proper sender name display
         const rawCommand = new SendEmailCommand({
-            FromEmailAddress: extractEmailAddress(scheduledEmail.fromAddress),
+            FromEmailAddress: scheduledEmail.fromAddress,
             ...(tenantSendingInfo.identityArn && { FromEmailAddressIdentityArn: tenantSendingInfo.identityArn }),
             Destination: {
                 ToAddresses: toAddresses.map(extractEmailAddress),
@@ -510,8 +511,9 @@ async function handleBatchEmail(
 
         // Send via AWS SES using SESv2 SendEmailCommand with TenantName
         // Per AWS docs: https://docs.aws.amazon.com/ses/latest/dg/tenants.html
+        // Use sentEmail.from (with display name) for proper sender name display
         const rawCommand = new SendEmailCommand({
-            FromEmailAddress: sentEmail.fromAddress,
+            FromEmailAddress: sentEmail.from,
             ...(batchTenantInfo.identityArn && { FromEmailAddressIdentityArn: batchTenantInfo.identityArn }),
             Destination: {
                 ToAddresses: toAddresses.map(extractEmailAddress),

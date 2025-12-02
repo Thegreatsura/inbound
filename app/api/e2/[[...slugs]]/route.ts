@@ -18,6 +18,17 @@ import { updateEmailAddress } from "../email-addresses/update"
 import { deleteEmailAddress } from "../email-addresses/delete"
 import { getAttachment } from "../attachments/get"
 import { AuthError } from "../lib/auth"
+// Email routes
+import { sendEmail } from "../emails/send"
+import { listEmails } from "../emails/list"
+import { getEmail } from "../emails/get"
+import { cancelEmail } from "../emails/cancel"
+import { replyToEmail } from "../emails/reply"
+import { retryEmail } from "../emails/retry"
+// Mail routes
+import { listMail } from "../mail/list"
+import { listThreads } from "../mail/threads-list"
+import { getThread } from "../mail/threads-get"
 
 // Webhook documentation content (rendered as a documentation page)
 const webhookStructureDoc = `
@@ -297,6 +308,14 @@ https://inbound.new/api/v2
             description: "Webhooks sent by Inbound to your configured endpoints when events occur.",
           },
           {
+            name: "Emails",
+            description: "Send, list, and manage emails. Supports immediate sending, scheduling, replies, and retry functionality.",
+          },
+          {
+            name: "Mail",
+            description: "Inbox and thread views for received emails. Filter by domain, address, or search.",
+          },
+          {
             name: "Domains",
             description: "Manage domains for sending and receiving emails. Domains must be verified via DNS before use.",
           },
@@ -395,6 +414,17 @@ https://inbound.new/api/v2
   .use(deleteEmailAddress)
   // Attachment routes
   .use(getAttachment)
+  // Email routes (sending, listing, managing)
+  .use(sendEmail)
+  .use(listEmails)
+  .use(getEmail)
+  .use(cancelEmail)
+  .use(replyToEmail)
+  .use(retryEmail)
+  // Mail routes (inbox and threads)
+  .use(listMail)
+  .use(listThreads)
+  .use(getThread)
 
 export const GET = app.fetch
 export const POST = app.fetch
