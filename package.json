@@ -97,7 +97,8 @@
     "@types/prismjs": "^1.26.5",
     "@upstash/qstash": "^2.8.4",
     "@upstash/ratelimit": "^2.0.7",
-    "@upstash/redis": "^1.35.6",
+    "@upstash/realtime": "^1.0.0",
+    "@upstash/redis": "^1.35.7",
     "@vercel/analytics": "^1.5.0",
     "@vercel/functions": "^3.1.4",
     "@vercel/speed-insights": "^1.2.0",
@@ -159,7 +160,7 @@
     "tailwind-merge": "^3.3.0",
     "tailwindcss-animate": "^1.0.7",
     "vaul": "^1.1.2",
-    "zod": "^3.25.56"
+    "zod": "^4.1.13"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.3.8",

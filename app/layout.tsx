@@ -6,6 +6,7 @@ import { Analytics } from "@vercel/analytics/next"
 import { Analytics as DubAnalytics } from '@dub/analytics/react';
 import { AutumnProvider } from "autumn-js/react";
 import { QueryProvider } from "@/components/providers/query-provider";
+import { RealtimeProvider } from "@/components/providers/realtime-provider";
 import { SpeedInsights } from "@vercel/speed-insights/next"
 import Script from "next/script";
 import { Databuddy } from "@databuddy/sdk"
@@ -277,11 +278,13 @@ export default function RootLayout({
 
         <NuqsAdapter>
           <QueryProvider>
-            <AutumnProvider backendUrl={process.env.BETTER_AUTH_URL || ""}>
-              {children}
-              <Analytics />
-              <SpeedInsights />
-            </AutumnProvider>
+            <RealtimeProvider>
+              <AutumnProvider backendUrl={process.env.BETTER_AUTH_URL || ""}>
+                {children}
+                <Analytics />
+                <SpeedInsights />
+              </AutumnProvider>
+            </RealtimeProvider>
           </QueryProvider>
         </NuqsAdapter>
         <DubAnalytics 

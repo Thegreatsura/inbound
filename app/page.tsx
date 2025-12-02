@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Copy, Check, RefreshCw, BookOpen, X } from "lucide-react";
 import { sonare } from "sonare";
 import Link from "next/link";
@@ -8,43 +8,88 @@ import { MarketingNav, MarketingFooter } from "@/components/marketing-nav";
 import { PricingTable } from "@/components/pricing-table";
 import EnvelopeSparkle from "@/components/icons/envelope-sparkle";
 import DatabaseCloud from "@/components/icons/database-cloud";
+import { useRealtime } from "@/lib/realtime-client";
+
+interface InboxEmail {
+  from: string;
+  subject: string;
+  preview: string;
+  timestamp: Date;
+  emailId?: string;
+}
+
+const INBOX_STORAGE_KEY = "inbound-demo-inbox";
 
 const Page = () => {
   const [email, setEmail] = useState("");
   const [copied, setCopied] = useState(false);
-  const [emails, setEmails] = useState<
-    { from: string; subject: string; preview: string; timestamp: Date }[]
-  >([]);
+  const [emails, setEmails] = useState<InboxEmail[]>([]);
   const [activeTab, setActiveTab] = useState<"send" | "receive" | "threads">(
     "send"
   );
 
-  const generateEmail = () => {
+  // Extract the local part (word) from the email for channel subscription
+  const inboxId = useMemo(() => {
+    if (!email) return null;
+    return email.split("@")[0];
+  }, [email]);
+
+  // Channel name for this inbox
+  const channel = useMemo(() => {
+    return inboxId ? `inbox-${inboxId}` : null;
+  }, [inboxId]);
+
+  // Subscribe to realtime events for this inbox
+  // The hook manages the SSE connection and dispatches events
+  useRealtime({
+    channels: channel ? [channel] : [],
+    events: ["inbox.emailReceived"],
+    onData({ data }) {
+      const emailData = data as { from: string; subject: string; preview: string; timestamp: string; emailId?: string };
+      const newEmail: InboxEmail = {
+        from: emailData.from,
+        subject: emailData.subject,
+        preview: emailData.preview,
+        timestamp: new Date(emailData.timestamp),
+        emailId: emailData.emailId,
+      };
+      setEmails((prev) => [newEmail, ...prev]);
+    },
+  });
+
+  // Generate a new inbox email and persist to localStorage
+  const generateEmail = (forceNew = false) => {
+    // Check localStorage for existing inbox (unless forcing new)
+    if (!forceNew && typeof window !== "undefined") {
+      const stored = localStorage.getItem(INBOX_STORAGE_KEY);
+      if (stored) {
+        setEmail(stored);
+        return;
+      }
+    }
+
+    // Generate new inbox
     const word = sonare({ minLength: 6, maxLength: 10 });
-    setEmail(`${word}@inbox.inbound.new`);
+    const newEmail = `${word}@inbox.inbound.new`;
+    setEmail(newEmail);
     setCopied(false);
     setEmails([]);
+
+    // Persist to localStorage
+    if (typeof window !== "undefined") {
+      localStorage.setItem(INBOX_STORAGE_KEY, newEmail);
+    }
   };
 
+  // Initialize email on mount - restore from localStorage or generate new
   useEffect(() => {
-    generateEmail();
+    generateEmail(false);
   }, []);
 
   const copyToClipboard = async () => {
     await navigator.clipboard.writeText(email);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-  };
-
-  const simulateIncomingEmail = () => {
-    const newEmail = {
-      from: "team@acme.com",
-      subject: "Your API key is ready",
-      preview:
-        "Welcome to Inbound. Your API key has been generated and is ready to use. Get started by installing the SDK...",
-      timestamp: new Date(),
-    };
-    setEmails((prev) => [newEmail, ...prev]);
   };
 
   const dismissEmail = (index: number) => {
@@ -132,7 +177,7 @@ threads.forEach(thread => {
                 </button>
               </div>
               <button
-                onClick={generateEmail}
+                onClick={() => generateEmail(true)}
                 className="bg-[#8161FF] hover:bg-[#6b4fd9] text-white px-3 py-2 rounded-lg transition-colors flex items-center justify-center gap-2 flex-shrink-0"
               >
                 <RefreshCw className="w-4 h-4" />
@@ -140,14 +185,8 @@ threads.forEach(thread => {
               </button>
             </div>
             <p className="mt-3 text-sm text-[#52525b]">
-              This is a real inbox.{" "}
-              <button
-                onClick={simulateIncomingEmail}
-                className="text-[#8161FF] hover:underline"
-              >
-                Send a test email
-              </button>{" "}
-              to see it arrive.
+              This is a real inbox. Send an email to this address and watch it
+              appear in real-time.
             </p>
 
             {emails.length > 0 && (
