@@ -1,67 +1,35 @@
 import Link from "next/link"
-import { SiteHeader } from "@/components/site-header"
-import { Button } from "@/components/ui/button"
-
-import PaperPlane2 from "@/components/icons/paper-plane-2"
-import InboxArrowDown from "@/components/icons/inbox-arrow-down"
-import Envelope2 from "@/components/icons/envelope-2"
-import Code2 from "@/components/icons/code-2"
-import ShieldCheck from "@/components/icons/shield-check"
-import Microchip from "@/components/icons/microchip"
-import CircleCheck from "@/components/icons/circle-check"
+import { MarketingNav, MarketingFooter } from "@/components/marketing-nav"
 
 export default function FeaturesPage() {
-  const highlightCards: Array<{
-    title: string
-    description: string
-    bullets: string[]
-    Icon: React.ComponentType<any>
-  }> = [
+  const features = [
     {
       title: "Transactional sending",
-      description:
-        "Reliable API for receipts, notifications, and transactional messages at scale.",
-      bullets: ["Templates and variables", "Attachments", "Bounce handling"],
-      Icon: PaperPlane2,
+      description: "Reliable API for receipts, notifications, and transactional messages at scale.",
     },
     {
       title: "Inbound as webhooks",
-      description:
-        "Receive email to your endpoints with structured JSON for headers, text, HTML, and files.",
-      bullets: ["Automatic parsing", "Attachment handling", "Custom routing"],
-      Icon: InboxArrowDown,
+      description: "Receive email to your endpoints with structured JSON for headers, text, HTML, and files.",
     },
     {
       title: "Threaded conversations",
-      description:
-        "Group messages into conversation threads for full context across replies and participants.",
-      bullets: ["Smart threading", "Reply detection", "Conversation history"],
-      Icon: Envelope2,
+      description: "Group messages into conversation threads for full context across replies and participants.",
     },
     {
       title: "Webhooks & retries",
-      description:
-        "Deliver events to your services with robust retry logic and delivery logs.",
-      bullets: ["Exponential backoff", "Delivery logs", "Per-endpoint secrets"],
-      Icon: Code2,
+      description: "Deliver events to your services with robust retry logic and delivery logs.",
     },
     {
       title: "Security by default",
-      description:
-        "Protect your integration with API keys, HMAC signatures, and rate limits.",
-      bullets: ["HMAC signatures", "Domain verification", "Rate limiting"],
-      Icon: ShieldCheck,
+      description: "Protect your integration with API keys, HMAC signatures, and rate limits.",
     },
     {
       title: "AI-assisted workflows",
-      description:
-        "Use AI to classify, summarize, and draft replies with full thread context.",
-      bullets: ["Classification", "Summaries", "Suggested replies"],
-      Icon: Microchip,
+      description: "Use AI to classify, summarize, and draft replies with full thread context.",
     },
   ]
 
-  const everythingIncluded: string[] = [
+  const everythingIncluded = [
     "TypeScript SDK and REST API",
     "Open/click tracking (via dub.co)",
     "Configurable endpoints and routing",
@@ -73,75 +41,69 @@ export default function FeaturesPage() {
   ]
 
   return (
-    <div className="min-h-screen bg-background text-foreground relative">
-      <SiteHeader />
+    <div className="min-h-screen bg-[#fafaf9] text-[#1c1917] selection:bg-[#8161FF]/20">
+      <div className="max-w-2xl mx-auto px-6">
+        <MarketingNav />
 
-      {/* Hero */}
-      <section className="max-w-7xl mx-auto px-6 pt-16 pb-12">
-        <div className="max-w-3xl">
-          <h1 className="text-4xl md:text-5xl leading-tight mb-4">Features</h1>
-          <p className="text-lg text-muted-foreground leading-relaxed">
-            The all‑in‑one email platform for developers. Send transactional emails, receive
-            inbound messages as webhooks, and build AI‑powered workflows—all in one place.
+        {/* Hero */}
+        <section className="pt-20 pb-12">
+          <h1 className="font-heading text-[32px] leading-[1.2] tracking-tight mb-2">Features</h1>
+          <p className="text-[#52525b] leading-relaxed">
+            The all‑in‑one email platform for developers. Send transactional emails, receive inbound messages as webhooks, and build AI‑powered workflows.
           </p>
-        </div>
-      </section>
+        </section>
 
-      {/* Highlights grid */}
-      <section className="max-w-7xl mx-auto px-6 pb-8">
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {highlightCards.map(({ title, description, bullets, Icon }) => (
-            <div key={title} className="bg-card border border-border border-dotted rounded-none p-6">
-              <div className="w-12 h-12 border border-border border-dotted rounded-none flex items-center justify-center mb-4">
-                <Icon width="18" height="18" className="text-foreground" />
-              </div>
-              <h3 className="text-lg font-semibold mb-1">{title}</h3>
-              <p className="text-sm text-muted-foreground mb-4">{description}</p>
-              <ul className="space-y-2">
-                {bullets.map((b) => (
-                  <li key={b} className="flex items-start gap-2 text-sm text-muted-foreground">
-                    <CircleCheck width="14" height="14" className="mt-0.5 text-foreground" />
-                    <span>{b}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Everything included */}
-      <section className="max-w-7xl mx-auto px-6 py-12">
-        <div className="bg-muted/30 border border-dotted rounded-none p-8">
-          <h2 className="text-2xl font-semibold mb-4 text-center">Everything included</h2>
-          <div className="grid md:grid-cols-2 gap-3 max-w-4xl mx-auto">
-            {everythingIncluded.map((item) => (
-              <div key={item} className="flex items-start gap-2 text-sm text-muted-foreground">
-                <CircleCheck width="14" height="14" className="mt-0.5 text-foreground" />
-                <span>{item}</span>
+        {/* Features list */}
+        <section className="py-8 border-t border-[#e7e5e4]">
+          <div className="space-y-0">
+            {features.map((feature) => (
+              <div key={feature.title} className="py-4 border-b border-[#e7e5e4]">
+                <p className="text-[#1c1917] font-medium">{feature.title}</p>
+                <p className="text-sm text-[#52525b] mt-1">{feature.description}</p>
               </div>
             ))}
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* CTA */}
-      <section className="max-w-6xl mx-auto px-6 pb-20">
-        <div className="border border-dotted rounded-none p-10 text-center">
-          <h2 className="text-3xl font-bold mb-4">Build better email experiences</h2>
-          <p className="text-muted-foreground mb-8 max-w-2xl mx-auto">
-            Start free, integrate in minutes, and scale with confidence.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button variant="primary" asChild>
-              <Link href="/login">Get started</Link>
-            </Button>
-            <Button variant="outline" asChild>
-              <Link href="/docs">Read the docs</Link>
-            </Button>
+        {/* Everything included */}
+        <section className="py-12 border-t border-[#e7e5e4]">
+          <h2 className="font-heading text-xl font-semibold tracking-tight mb-6">Everything included</h2>
+          <div className="space-y-3">
+            {everythingIncluded.map((item) => (
+              <div key={item} className="flex items-center gap-3 text-sm">
+                <svg className="w-4 h-4 text-[#8161FF] flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+                <span className="text-[#3f3f46]">{item}</span>
+              </div>
+            ))}
           </div>
-        </div>
-      </section>
+        </section>
+
+        {/* CTA */}
+        <section className="py-12 border-t border-[#e7e5e4]">
+          <div className="text-center">
+            <h2 className="font-heading text-xl font-semibold tracking-tight mb-2">Build better email experiences</h2>
+            <p className="text-[#52525b] mb-6">Start free, integrate in minutes, and scale with confidence.</p>
+            <div className="flex items-center justify-center gap-3">
+              <Link
+                href="/login"
+                className="bg-[#8161FF] hover:bg-[#6b4fd9] text-white px-6 py-2.5 rounded-xl text-sm font-medium transition-colors"
+              >
+                Get started
+              </Link>
+              <Link
+                href="/docs"
+                className="bg-white border border-[#e7e5e4] hover:border-[#d6d3d1] text-[#1c1917] px-6 py-2.5 rounded-xl text-sm font-medium transition-colors"
+              >
+                Read the docs
+              </Link>
+            </div>
+          </div>
+        </section>
+
+        <MarketingFooter />
+      </div>
     </div>
   )
 }

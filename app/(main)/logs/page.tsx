@@ -58,7 +58,7 @@ import EnvelopeBan from '@/components/icons/envelope-ban'
 import CircleOpenArrowUpRight from '@/components/icons/circle-open-arrow-up-right'
 
 // Configuration constants
-const DOMAINS_FETCH_LIMIT = 500 // Reasonable limit for domain dropdown - if users have more domains, 
+const DOMAINS_FETCH_LIMIT = 100 // Maximum allowed by e2 API - if users have more domains,
                                  // consider implementing search/autocomplete or pagination
 
 function getStatusColor(email: EmailLogEntry): string {

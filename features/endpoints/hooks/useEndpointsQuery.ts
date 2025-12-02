@@ -1,32 +1,56 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { checkMigrationNeeded, migrateWebhooksToEndpoints } from '@/app/actions/endpoints'
+import { client } from '@/lib/api/client'
 import type { EndpointWithStats } from '../types'
 
-async function fetchEndpoints(sortBy?: 'newest' | 'oldest'): Promise<EndpointWithStats[]> {
-  const params = new URLSearchParams()
-  if (sortBy) params.set('sortBy', sortBy)
-  
-  const response = await fetch(`/api/v2/endpoints${params.toString() ? `?${params}` : ''}`)
-  
-  if (!response.ok) {
-    throw new Error('Failed to fetch endpoints')
-  }
-  
-  const data = await response.json()
-  return data.data || []
+export type EndpointsQueryParams = {
+  sortBy?: 'newest' | 'oldest'
+  type?: 'webhook' | 'email' | 'email_group'
+  active?: boolean
+  search?: string
+  limit?: number
+  offset?: number
 }
 
-export const useEndpointsQuery = (sortBy?: 'newest' | 'oldest') => {
+async function fetchEndpoints(params?: EndpointsQueryParams): Promise<{ data: EndpointWithStats[], pagination: { total: number, hasMore: boolean, limit: number, offset: number } }> {
+  const { data, error } = await client.api.e2.endpoints.get({
+    query: {
+      sortBy: params?.sortBy,
+      type: params?.type,
+      active: params?.active !== undefined ? (params.active ? 'true' : 'false') : undefined,
+      search: params?.search,
+      limit: params?.limit,
+      offset: params?.offset,
+    }
+  })
+
+  if (error) {
+    throw new Error((error as any)?.error || 'Failed to fetch endpoints')
+  }
+
+  return {
+    data: (data?.data || []) as unknown as EndpointWithStats[],
+    pagination: data?.pagination || { total: 0, hasMore: false, limit: 50, offset: 0 }
+  }
+}
+
+export const useEndpointsQuery = (sortByOrParams?: 'newest' | 'oldest' | EndpointsQueryParams) => {
   const queryClient = useQueryClient()
   const [migrationChecked, setMigrationChecked] = useState(false)
   const [migrationInProgress, setMigrationInProgress] = useState(false)
 
+  // Normalize params - support both legacy sortBy string and new params object
+  const params: EndpointsQueryParams = typeof sortByOrParams === 'string' 
+    ? { sortBy: sortByOrParams }
+    : sortByOrParams || {}
+
   const endpointsQuery = useQuery({
-    queryKey: ['endpoints', sortBy],
-    queryFn: () => fetchEndpoints(sortBy),
+    queryKey: ['endpoints', params],
+    queryFn: () => fetchEndpoints(params),
     staleTime: 30 * 1000, // 30 seconds (reduced from 5 minutes for better UX)
     refetchOnWindowFocus: true, // Refetch when user returns to tab/page
+    select: (result) => result, // Keep full response with pagination
   })
 
   // Check for migration needs when the query succeeds and returns empty results
@@ -39,7 +63,7 @@ export const useEndpointsQuery = (sortBy?: 'newest' | 'oldest') => {
       // 4. Migration is not already in progress
       if (
         endpointsQuery.isSuccess &&
-        endpointsQuery.data?.length === 0 &&
+        endpointsQuery.data?.data?.length === 0 &&
         !migrationChecked &&
         !migrationInProgress
       ) {
@@ -79,9 +103,13 @@ export const useEndpointsQuery = (sortBy?: 'newest' | 'oldest') => {
     checkAndMigrate()
   }, [endpointsQuery.isSuccess, endpointsQuery.data, migrationChecked, migrationInProgress, queryClient])
 
-  // Return the query with additional migration state
+  // Return backward-compatible response with data array at top level + pagination
   return {
     ...endpointsQuery,
+    // Backward compatibility: expose data array directly (like the old hook)
+    data: endpointsQuery.data?.data || [],
+    // New: expose pagination info
+    pagination: endpointsQuery.data?.pagination,
     migrationInProgress,
     migrationChecked
   }

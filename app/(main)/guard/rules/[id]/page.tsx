@@ -41,15 +41,8 @@ import CircleXmark from "@/components/icons/circle-xmark";
 import { ApiIdLabel } from "@/components/api-id-label";
 import { useGuardRulesQuery } from "@/features/guard/hooks/useGuardHooks";
 import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useMailV2Query } from "@/features/emails/hooks/useMailV2Hooks";
- import { useEndpointsQuery } from "@/features/endpoints/hooks/useEndpointsQuery";
+import { EndpointSelector } from "@/components/endpoints";
 
 export default function GuardRuleDetailPage() {
   const params = useParams();
@@ -479,13 +472,21 @@ export default function GuardRuleDetailPage() {
               </ToggleGroup>
             </div>
             {actionType === 'route' && (
-              <RouteEndpointSelector
-                routeEndpointId={routeEndpointId}
-                setRouteEndpointId={(id) => {
-                  setRouteEndpointId(id);
-                  setActionConfig({ action: 'route', endpointId: id });
-                }}
-              />
+              <div className="space-y-2">
+                <Label>Choose endpoint</Label>
+                <EndpointSelector
+                  value={routeEndpointId || null}
+                  onChange={(id) => {
+                    setRouteEndpointId(id || "");
+                    setActionConfig({ action: 'route', endpointId: id || "" });
+                  }}
+                  placeholder="Select an endpoint..."
+                  filterActive={true}
+                />
+                {routeEndpointId && (
+                  <div className="text-xs text-muted-foreground font-mono">{routeEndpointId}</div>
+                )}
+              </div>
             )}
             </section>
 
@@ -667,37 +668,6 @@ export default function GuardRuleDetailPage() {
       </div>
     </div>
   );
-}
-
-function RouteEndpointSelector({
-  routeEndpointId,
-  setRouteEndpointId,
-}: {
-  routeEndpointId: string
-  setRouteEndpointId: (id: string) => void
-}) {
-  const { data: endpoints, isLoading } = useEndpointsQuery('newest')
-
-  return (
-    <div className="space-y-2">
-      <Label>Choose endpoint</Label>
-      <Select value={routeEndpointId} onValueChange={setRouteEndpointId}>
-        <SelectTrigger className="w-full">
-          <SelectValue placeholder={isLoading ? 'Loading endpoints…' : 'Select an endpoint'} />
-        </SelectTrigger>
-        <SelectContent>
-          {(endpoints || []).map((ep: any) => (
-            <SelectItem key={ep.id} value={ep.id}>
-              {ep.name} <span className="text-xs text-muted-foreground">({ep.type})</span>
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      {routeEndpointId && (
-        <div className="text-xs text-muted-foreground font-mono">{routeEndpointId}</div>
-      )}
-    </div>
-  )
 }
 
 function RecentEmailsList({

@@ -213,6 +213,7 @@ export async function initiateDomainVerification(
     }
 
     // Prepare DNS records that need to be added (including MAIL FROM domain records)
+    // Note: Root domain SPF and DMARC are optional - SPF only needed on MAIL FROM subdomain
     const requiredDnsRecords = [
       {
         type: 'TXT',
@@ -225,18 +226,6 @@ export async function initiateDomainVerification(
         name: domain,
         value: `10 inbound-smtp.${awsRegion}.amazonaws.com`,
         description: 'Inbound email routing'
-      },
-      {
-        type: 'TXT',
-        name: domain,
-        value: 'v=spf1 include:amazonses.com ~all',
-        description: 'SPF record for root domain'
-      },
-      {
-        type: 'TXT',
-        name: `_dmarc.${domain}`,
-        value: `v=DMARC1; p=none; rua=mailto:dmarc@${domain}; ruf=mailto:dmarc@${domain}; fo=1; aspf=r; adkim=r`,
-        description: 'DMARC policy record'
       },
       // MAIL FROM domain records to eliminate "via amazonses.com"
       {

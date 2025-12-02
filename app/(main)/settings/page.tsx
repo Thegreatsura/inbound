@@ -1,43 +1,36 @@
 "use client"
 
 import { useSession, signOut } from '@/lib/auth/auth-client'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
-import { Skeleton } from '@/components/ui/skeleton'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import {
   useCustomerQuery,
   useDomainStatsQuery,
-  useBillingPortalMutation
+  useBillingPortalMutation,
+  useReputationMetricsQuery,
+  useWarmupStatusQuery
 } from '@/features/settings/hooks'
-import {
-  Customer,
-  DomainStatsResponse,
-} from '@/features/settings/types'
-import CreditCard2 from "@/components/icons/credit-card-2"
-import ChartTrendUp from "@/components/icons/chart-trend-up"
-import CircleCheck from "@/components/icons/circle-check"
-import CircleLogout from "@/components/icons/circle-logout"
-import { formatDistanceToNow } from 'date-fns'
-import { PricingTable } from '@/components/autumn/pricing-table-format'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { trackPurchaseConversion } from '@/lib/utils/twitter-tracking'
 import { updateUserProfile } from '@/app/actions/primary'
-// removed unused feature icons after layout merge
-// Types are now imported from @/features/settings/types
+import { Check, ChevronRight, Plus, Minus, LogOut, ExternalLink, Loader2 } from 'lucide-react'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { PricingTable, plans } from '@/components/pricing-table'
 
 export default function SettingsPage() {
   const { data: session, isPending } = useSession()
   const [isLoading, setIsLoading] = useState(false)
-  const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [isUpgradeDialogOpen, setIsUpgradeDialogOpen] = useState(false)
   const [isUpgradeSuccessOpen, setIsUpgradeSuccessOpen] = useState(false)
   
-  // React Query hooks
+  // Add-on quantities
+  const [extraDomains, setExtraDomains] = useState(0)
+  const [extraEmailPacks, setExtraEmailPacks] = useState(0)
+  
+  // Profile editing state
+  const [editingProfile, setEditingProfile] = useState(false)
+  const [nameValue, setNameValue] = useState('')
+  
   const { 
     data: customerData, 
     isLoading: isLoadingCustomer,
@@ -48,14 +41,27 @@ export default function SettingsPage() {
   const { 
     data: domainStats, 
     isLoading: isLoadingDomainStats,
-    error: domainStatsError
   } = useDomainStatsQuery()
+
+  const {
+    data: reputationMetrics,
+    isLoading: isLoadingReputation,
+  } = useReputationMetricsQuery()
+
+  const {
+    data: warmupStatus,
+  } = useWarmupStatusQuery()
   
-  // Mutations
   const billingPortalMutation = useBillingPortalMutation()
   
   const router = useRouter()
   const searchParams = useSearchParams()
+
+  useEffect(() => {
+    if (session?.user?.name) {
+      setNameValue(session.user.name)
+    }
+  }, [session?.user?.name])
 
   const handleSignOut = async () => {
     try {
@@ -65,16 +71,18 @@ export default function SettingsPage() {
     }
   }
 
-  const handleUpdateProfile = async (formData: FormData) => {
+  const handleUpdateProfile = async () => {
     setIsLoading(true)
     try {
+      const formData = new FormData()
+      formData.append('name', nameValue)
       const result = await updateUserProfile(formData)
       
       if (result.error) {
         toast.error(result.error)
       } else if (result.success) {
-        toast.success(result.message || "Profile updated successfully!")
-        // Refresh the page to show updated data
+        toast.success(result.message || "Profile updated!")
+        setEditingProfile(false)
         window.location.reload()
       }
     } catch (error) {
@@ -83,7 +91,6 @@ export default function SettingsPage() {
       setIsLoading(false)
     }
   }
-
 
   const handleManageBilling = async () => {
     try {
@@ -95,20 +102,30 @@ export default function SettingsPage() {
     }
   }
 
+  const handleAddAddons = () => {
+    // TODO: Connect to backend - purchase add-ons
+    const parts = []
+    if (extraDomains > 0) {
+      parts.push(`${extraDomains} domain${extraDomains !== 1 ? 's' : ''} ($${extraDomains * 10}/mo)`)
+    }
+    if (extraEmailPacks > 0) {
+      parts.push(`${extraEmailPacks} email pack${extraEmailPacks !== 1 ? 's' : ''} ($${extraEmailPacks * 15}/mo)`)
+    }
+    toast.info(`Adding: ${parts.join(' + ')}`)
+  }
+
   // Check for upgrade success parameter
   useEffect(() => {
     const upgradeParam = searchParams.get('upgrade')
-    const productParam = searchParams.get('product') // Get product ID if available
+    const productParam = searchParams.get('product')
     if (upgradeParam === 'true') {
       setIsUpgradeSuccessOpen(true)
       
-      // Track Twitter conversion for plan purchase
       if (session?.user?.email) {
-        const productId = productParam || 'pro' // Default to 'pro' if not specified
+        const productId = productParam || 'pro'
         trackPurchaseConversion(productId, session.user.email)
       }
       
-      // Remove the parameter from URL
       const newUrl = new URL(window.location.href)
       newUrl.searchParams.delete('upgrade')
       newUrl.searchParams.delete('product')
@@ -118,12 +135,8 @@ export default function SettingsPage() {
 
   if (isPending) {
     return (
-      <div className="min-h-screen p-4">
-        <div className="max-w-6xl mx-auto">
-          <div className="flex items-center justify-center py-20">
-            <div className="text-muted-foreground">Loading...</div>
-          </div>
-        </div>
+      <div className="min-h-screen bg-[#fafaf9] flex items-center justify-center">
+        <div className="text-[#78716c]">Loading…</div>
       </div>
     )
   }
@@ -134,348 +147,516 @@ export default function SettingsPage() {
   }
 
   const activeProduct = customerData?.products?.find(p => p.status === 'active' || p.status === 'trialing')
-  console.log("Customer Data", customerData)
   const domainsFeature = customerData?.features?.['domains']
   const inboundTriggersFeature = customerData?.features?.['inbound_triggers']
-  const emailRetentionFeature = customerData?.features?.['email_retention']
   const emailsSentFeature = customerData?.features?.['emails_sent']
+  const emailRetentionFeature = customerData?.features?.['email_retention']
 
-  // For domains, use actual domain count from domain stats
   const currentDomainCount = domainStats?.totalDomains || 0
   const maxDomains = domainsFeature?.balance || 0
 
-  // Show upgrade button for all users except Scale plan
-  const showUpgradeButton = !activeProduct || 
-    !activeProduct.name?.toLowerCase().includes('scale')
-
-  const handleOpenUpgrade = () => {
-    setIsDialogOpen(true)
-  }
+  const showUpgradeButton = !activeProduct || !activeProduct.name?.toLowerCase().includes('scale')
 
   return (
-    <div className="min-h-screen p-4">
+    <div className="min-h-screen bg-[#fafaf9] text-[#1c1917] selection:bg-[#8161FF]/20 p-4">
       <div className="max-w-5xl mx-auto px-2">
+        
         {/* Header */}
-        <div className="mb-6">
-          <div className="flex items-center justify-between">
+        <header className="mb-6 pt-2">
+          <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
+          <p className="text-[#52525b] text-sm mt-1">Manage your account, plan, and add-ons.</p>
+        </header>
+
+        {/* Current Plan */}
+        <section className="py-8 border-t border-[#e7e5e4]">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-xs text-[#78716c] uppercase tracking-wide mb-2">Current plan</p>
+              {isLoadingCustomer ? (
+                <div className="h-7 w-24 bg-[#e7e5e4] rounded animate-pulse" />
+              ) : (
+                <div className="flex items-center gap-3">
+                  <h2 className="text-2xl font-semibold capitalize">{activeProduct?.name || 'Starter'}</h2>
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${
+                    activeProduct?.status === 'active' 
+                      ? 'bg-[#dcfce7] text-[#166534]' 
+                      : activeProduct?.status === 'trialing'
+                      ? 'bg-[#fef3c7] text-[#92400e]'
+                      : 'bg-[#f3f4f6] text-[#6b7280]'
+                  }`}>
+                    {activeProduct?.status === 'active' ? 'Active' : activeProduct?.status === 'trialing' ? 'Trial' : 'Inactive'}
+                  </span>
+                </div>
+              )}
+            </div>
             <div className="flex items-center gap-2">
-              {/* Sidebar toggle */}
-              {/** import inline to avoid circular at top-level **/}
-              {(() => {
-                const SidebarToggle = require("@/components/sidebar-toggle-button").default
-                return <SidebarToggle />
-              })()}
+              <button
+                onClick={handleManageBilling}
+                disabled={billingPortalMutation.isPending}
+                className="text-sm text-[#52525b] hover:text-[#1c1917] transition-colors flex items-center gap-1"
+              >
+                {billingPortalMutation.isPending ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <ExternalLink className="w-3.5 h-3.5" />
+                )}
+                Billing
+              </button>
+              {showUpgradeButton && (
+                <button
+                  onClick={() => setIsUpgradeDialogOpen(true)}
+                  className="bg-[#8161FF] hover:bg-[#6b4fd9] text-white text-sm px-3 py-1.5 rounded-lg transition-colors"
+                >
+                  Upgrade
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Usage and Reputation Grid */}
+          {!isLoadingCustomer && customerData && (
+            <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* Left: Usage metrics */}
+              <div className="space-y-4">
+                <p className="text-xs text-[#78716c] uppercase tracking-wide mb-3">Usage</p>
+                
+                {domainsFeature && (
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-sm text-[#3f3f46]">Domains</span>
+                      <span className="text-xs text-[#78716c] font-mono">
+                        {domainsFeature.unlimited ? '∞' : `${currentDomainCount} / ${maxDomains}`}
+                      </span>
+                    </div>
+                    {!domainsFeature.unlimited && maxDomains > 0 && (
+                      <div className="h-1.5 w-full rounded-full bg-[#e7e5e4] overflow-hidden">
+                        <div
+                          className="h-1.5 rounded-full bg-[#8161FF] transition-all"
+                          style={{ width: `${Math.min((currentDomainCount / maxDomains) * 100, 100)}%` }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {inboundTriggersFeature && (() => {
+                  const usage = inboundTriggersFeature.usage || 0
+                  const remaining = inboundTriggersFeature.balance || 0
+                  const total = usage + remaining
+                  return (
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-sm text-[#3f3f46]">Emails received</span>
+                        <span className="text-xs text-[#78716c] font-mono">
+                          {inboundTriggersFeature.unlimited 
+                            ? '∞' 
+                            : `${usage.toLocaleString()} / ${total.toLocaleString()}`}
+                        </span>
+                      </div>
+                      {!inboundTriggersFeature.unlimited && total > 0 && (
+                        <div className="h-1.5 w-full rounded-full bg-[#e7e5e4] overflow-hidden">
+                          <div
+                            className="h-1.5 rounded-full bg-[#22c55e] transition-all"
+                            style={{ width: `${Math.min((usage / total) * 100, 100)}%` }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
+
+                {emailsSentFeature && (() => {
+                  const usage = emailsSentFeature.usage || 0
+                  const remaining = emailsSentFeature.balance || 0
+                  const total = usage + remaining
+                  return (
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-[#3f3f46]">Emails sent</span>
+                          {warmupStatus?.isInWarmup && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#fef3c7] text-[#92400e]">
+                              {warmupStatus.daysRemaining}d warmup
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-xs text-[#78716c] font-mono">
+                          {emailsSentFeature.unlimited 
+                            ? '∞' 
+                            : `${usage.toLocaleString()} / ${total.toLocaleString()}`}
+                        </span>
+                      </div>
+                      {!emailsSentFeature.unlimited && total > 0 && (
+                        <div className="relative h-1.5 w-full rounded-full bg-[#e7e5e4] overflow-hidden">
+                          {/* Usage bar */}
+                          <div
+                            className="h-1.5 rounded-full bg-[#a855f7] transition-all"
+                            style={{ width: `${Math.min((usage / total) * 100, 100)}%` }}
+                          />
+                          {/* Warmup cap overlay - shows limited area on the right */}
+                          {warmupStatus?.isInWarmup && warmupStatus.dailyLimit < total && (
+                            <div 
+                              className="absolute top-0 bottom-0 right-0 bg-gradient-to-r from-transparent via-[#fbbf24]/40 to-[#f59e0b]/60 rounded-r-full"
+                              style={{ 
+                                width: `${100 - (warmupStatus.dailyLimit / total) * 100}%`
+                              }}
+                            />
+                          )}
+                        </div>
+                      )}
+                      {/* Warmup daily limit info */}
+                      {warmupStatus?.isInWarmup && (
+                        <div className="flex items-center justify-between mt-1.5">
+                          <span className="text-[10px] text-[#92400e]">
+                            Daily limit: {warmupStatus.emailsSentToday}/{warmupStatus.dailyLimit}
+                          </span>
+                          <span className="text-[10px] text-[#a8a29e]">
+                            Resets midnight UTC
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
+
+                {emailRetentionFeature && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-[#3f3f46]">Email retention</span>
+                    <span className="text-xs text-[#78716c] font-mono">
+                      {emailRetentionFeature.unlimited ? '∞' : `${emailRetentionFeature.balance} days`}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Right: Reputation metrics */}
+              <div className="space-y-4">
+                <p className="text-xs text-[#78716c] uppercase tracking-wide mb-3">Reputation (24h)</p>
+                
+                {isLoadingReputation ? (
+                  <div className="space-y-4">
+                    <div className="h-16 bg-[#e7e5e4] rounded animate-pulse" />
+                    <div className="h-16 bg-[#e7e5e4] rounded animate-pulse" />
+                    <div className="h-6 bg-[#e7e5e4] rounded animate-pulse" />
+                  </div>
+                ) : (
+                  <>
+                    {/* Bounce Rate - Scale 0-15% */}
+                    {(() => {
+                      const bounceRate = reputationMetrics?.bounceRate ?? 0
+                      const bounceBarWidth = Math.min((bounceRate / 15) * 100, 100)
+                      const bounceColor = bounceRate >= 10 ? '#dc2626' : bounceRate >= 5 ? '#ca8a04' : '#22c55e'
+                      return (
+                        <div>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="text-sm text-[#3f3f46]">Bounce rate</span>
+                            <span className="text-xs font-mono" style={{ color: bounceColor }}>
+                              {bounceRate.toFixed(2)}%
+                            </span>
+                          </div>
+                          <div className="relative h-1.5 w-full rounded-full bg-[#e7e5e4] overflow-hidden">
+                            {/* Warning threshold at 5% (5/15 = 33.3%) */}
+                            <div className="absolute top-0 bottom-0 w-px bg-[#ca8a04]" style={{ left: '33.3%' }} />
+                            {/* At risk threshold at 10% (10/15 = 66.6%) */}
+                            <div className="absolute top-0 bottom-0 w-px bg-[#dc2626]" style={{ left: '66.6%' }} />
+                            {/* Current value bar */}
+                            <div
+                              className="h-1.5 rounded-full transition-all"
+                              style={{ width: `${bounceBarWidth}%`, backgroundColor: bounceColor }}
+                            />
+                          </div>
+                          <div className="flex items-center justify-between mt-1">
+                            <div className="flex items-center gap-3 text-[10px] text-[#a8a29e]">
+                              <span className="flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-[#ca8a04]" />
+                                5%
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-[#dc2626]" />
+                                10%
+                              </span>
+                            </div>
+                            <span className="text-[10px] text-[#a8a29e]">15%</span>
+                          </div>
+                        </div>
+                      )
+                    })()}
+
+                    {/* Complaint Rate - Scale 0-1% */}
+                    {(() => {
+                      const complaintRate = reputationMetrics?.complaintRate ?? 0
+                      const complaintBarWidth = Math.min((complaintRate / 1) * 100, 100)
+                      const complaintColor = complaintRate >= 0.5 ? '#dc2626' : complaintRate >= 0.1 ? '#ca8a04' : '#22c55e'
+                      return (
+                        <div>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="text-sm text-[#3f3f46]">Complaint rate</span>
+                            <span className="text-xs font-mono" style={{ color: complaintColor }}>
+                              {complaintRate.toFixed(2)}%
+                            </span>
+                          </div>
+                          <div className="relative h-1.5 w-full rounded-full bg-[#e7e5e4] overflow-hidden">
+                            {/* Warning threshold at 0.1% (0.1/1 = 10%) */}
+                            <div className="absolute top-0 bottom-0 w-px bg-[#ca8a04]" style={{ left: '10%' }} />
+                            {/* At risk threshold at 0.5% (0.5/1 = 50%) */}
+                            <div className="absolute top-0 bottom-0 w-px bg-[#dc2626]" style={{ left: '50%' }} />
+                            {/* Current value bar */}
+                            <div
+                              className="h-1.5 rounded-full transition-all"
+                              style={{ width: `${complaintBarWidth}%`, backgroundColor: complaintColor }}
+                            />
+                          </div>
+                          <div className="flex items-center justify-between mt-1">
+                            <div className="flex items-center gap-3 text-[10px] text-[#a8a29e]">
+                              <span className="flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-[#ca8a04]" />
+                                0.1%
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-[#dc2626]" />
+                                0.5%
+                              </span>
+                            </div>
+                            <span className="text-[10px] text-[#a8a29e]">1%</span>
+                          </div>
+                        </div>
+                      )
+                    })()}
+
+                    {/* Delivery Rate */}
+                    {(() => {
+                      const deliveryRate = reputationMetrics?.deliveryRate ?? 100
+                      const deliveryColor = deliveryRate >= 95 ? '#22c55e' : deliveryRate >= 90 ? '#ca8a04' : '#dc2626'
+                      return (
+                        <div className="flex items-center justify-between pt-2 border-t border-[#e7e5e4]">
+                          <span className="text-sm text-[#3f3f46]">Delivery rate</span>
+                          <span className="text-xs font-mono" style={{ color: deliveryColor }}>
+                            {deliveryRate.toFixed(1)}%
+                          </span>
+                        </div>
+                      )
+                    })()}
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
+          {customerError && (
+            <div className="mt-6 p-4 bg-[#fef2f2] border border-[#fecaca] rounded-lg">
+              <p className="text-sm text-[#b91c1c]">Unable to load subscription data</p>
+              <button 
+                onClick={() => refetchCustomer()}
+                className="mt-2 text-xs text-[#8161FF] hover:underline"
+              >
+                Try again
+              </button>
+            </div>
+          )}
+        </section>
+
+        {/* Add-ons */}
+        <section className="py-8 border-t border-[#e7e5e4]">
+          <h2 className="font-heading text-lg font-semibold tracking-tight mb-1">Add-ons</h2>
+          <p className="text-sm text-[#52525b] mb-6">Scale beyond your plan limits.</p>
+
+          <div className="space-y-3">
+            {/* Extra domains */}
+            <div className="flex items-center justify-between py-3 border-b border-[#e7e5e4]">
               <div>
-                <h2 className="text-2xl font-semibold text-foreground mb-1 tracking-tight">
-                  Settings
-                </h2>
-                <p className="text-muted-foreground text-sm font-medium">
-                  Manage your account, billing, API keys, and preferences
+                <p className="font-medium text-[#1c1917]">Extra domains</p>
+                <p className="text-sm text-[#52525b] mt-0.5">$10/domain per month</p>
+              </div>
+              <div className="flex items-center gap-2 bg-[#f5f5f4] rounded-lg p-1">
+                <button
+                  onClick={() => setExtraDomains(Math.max(0, extraDomains - 1))}
+                  disabled={extraDomains === 0}
+                  className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white transition-colors disabled:opacity-40"
+                >
+                  <Minus className="w-4 h-4" />
+                </button>
+                <span className="w-8 text-center font-mono text-sm">{extraDomains}</span>
+                <button
+                  onClick={() => setExtraDomains(extraDomains + 1)}
+                  className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Extra email capacity */}
+            <div className="flex items-center justify-between py-3 border-b border-[#e7e5e4]">
+              <div>
+                <p className="font-medium text-[#1c1917]">Extra email capacity</p>
+                <p className="text-sm text-[#52525b] mt-0.5">$15/pack per month · +50,000 emails</p>
+              </div>
+              <div className="flex items-center gap-2 bg-[#f5f5f4] rounded-lg p-1">
+                <button
+                  onClick={() => setExtraEmailPacks(Math.max(0, extraEmailPacks - 1))}
+                  disabled={extraEmailPacks === 0}
+                  className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white transition-colors disabled:opacity-40"
+                >
+                  <Minus className="w-4 h-4" />
+                </button>
+                <span className="w-8 text-center font-mono text-sm">{extraEmailPacks}</span>
+                <button
+                  onClick={() => setExtraEmailPacks(extraEmailPacks + 1)}
+                  className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-6 flex justify-end">
+            <button
+              onClick={handleAddAddons}
+              disabled={extraDomains === 0 && extraEmailPacks === 0}
+              className="bg-[#8161FF] hover:bg-[#6b4fd9] disabled:bg-[#e7e5e4] disabled:text-[#a8a29e] text-white text-sm px-4 py-2 rounded-lg transition-colors font-medium"
+            >
+              {extraDomains === 0 && extraEmailPacks === 0 
+                ? 'Select add-ons above' 
+                : `Add to subscription · $${(extraDomains * 10) + (extraEmailPacks * 15)}/mo`}
+            </button>
+          </div>
+        </section>
+
+        {/* Profile */}
+        <section className="py-8 border-t border-[#e7e5e4]">
+          <h2 className="font-heading text-lg font-semibold tracking-tight mb-6">Profile</h2>
+          
+          <div className="space-y-4">
+            <div className="flex items-center justify-between py-3 border-b border-[#e7e5e4]">
+              <div>
+                <p className="text-sm text-[#78716c]">Name</p>
+                {editingProfile ? (
+                  <input
+                    type="text"
+                    value={nameValue}
+                    onChange={(e) => setNameValue(e.target.value)}
+                    className="mt-1 w-full max-w-xs px-3 py-1.5 text-sm bg-white border border-[#e7e5e4] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8161FF]/20 focus:border-[#8161FF]"
+                    autoFocus
+                  />
+                ) : (
+                  <p className="text-[#1c1917]">{session.user.name || '—'}</p>
+                )}
+              </div>
+              {editingProfile ? (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      setEditingProfile(false)
+                      setNameValue(session.user.name || '')
+                    }}
+                    className="text-sm text-[#52525b] hover:text-[#1c1917] transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleUpdateProfile}
+                    disabled={isLoading || !nameValue.trim()}
+                    className="bg-[#8161FF] hover:bg-[#6b4fd9] disabled:opacity-50 text-white text-sm px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
+                  >
+                    {isLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                    Save
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setEditingProfile(true)}
+                  className="text-sm text-[#8161FF] hover:underline"
+                >
+                  Edit
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between py-3 border-b border-[#e7e5e4]">
+              <div>
+                <p className="text-sm text-[#78716c]">Email</p>
+                <p className="text-[#1c1917]">{session.user.email}</p>
+              </div>
+              <span className={`text-xs px-2 py-0.5 rounded-full ${
+                session.user.emailVerified 
+                  ? 'bg-[#dcfce7] text-[#166534]' 
+                  : 'bg-[#fef3c7] text-[#92400e]'
+              }`}>
+                {session.user.emailVerified ? 'Verified' : 'Unverified'}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between py-3 border-b border-[#e7e5e4]">
+              <div>
+                <p className="text-sm text-[#78716c]">Member since</p>
+                <p className="text-[#1c1917]">
+                  {new Date(session.user.createdAt).toLocaleDateString('en-US', { 
+                    month: 'long', 
+                    year: 'numeric' 
+                  })}
                 </p>
               </div>
             </div>
           </div>
-        </div>
+        </section>
 
-        {/* Content */}
-        
-        <div className="space-y-6">
-        <div className="h-4 border-b border-slate-800"></div>
-        {/* Subscription Management */}
-        <Card className="border-none p-0 w-full bg-transparent">
-          <CardContent className="p-0">
-            {isLoadingCustomer ? (
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <Skeleton className="h-6 w-32 mb-2" />
-                  <Skeleton className="h-4 w-64" />
-                </div>
-                <div className="space-y-3">
-                  <Skeleton className="h-12 w-32" />
-                  <Skeleton className="h-12 w-32" />
-                </div>
-              </div>
-            ) : customerData ? (
-              <div>
-                {/* Plan Info */}
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="flex items-center gap-3 mb-2">
-                      <h3 className="text-xl font-semibold">
-                        {activeProduct?.name || 'Free'}
-                      </h3>
-                      <Badge 
-                        variant={activeProduct?.status === 'active' ? 'default' : 'secondary'}
-                        className="capitalize"
-                      >
-                        {activeProduct?.status || 'Inactive'}
-                      </Badge>
-                    </div>
-                    <p className="text-muted-foreground text-sm max-w-md">
-                      {activeProduct?.name === 'Pro' 
-                        ? 'Advanced email processing with unlimited triggers and extended retention.'
-                        : activeProduct?.name === 'Scale'
-                        ? 'Enterprise-grade email infrastructure with maximum limits and priority support.'
-                        : 'Get started with basic email forwarding and domain management.'}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button 
-                      variant="outline" 
-                      onClick={handleManageBilling}
-                      disabled={!customerData || billingPortalMutation.isPending}
-                    >
-                      {billingPortalMutation.isPending ? 'Loading...' : 'Manage'}
-                    </Button>
-                    {showUpgradeButton && (
-                      <Button 
-                        onClick={handleOpenUpgrade}
-                        variant="primary"
-                      >
-                        <ChartTrendUp width="16" height="16" className="mr-2" />
-                        Upgrade
-                      </Button>
-                    )}
-                  </div>
-                </div>
+        {/* Sign out */}
+        <section className="py-8 border-t border-[#e7e5e4]">
+          <button
+            onClick={handleSignOut}
+            className="text-[#52525b] hover:text-[#1c1917] transition-colors flex items-center gap-2 text-sm"
+          >
+            <LogOut className="w-4 h-4" />
+            Sign out
+          </button>
+        </section>
 
-                {/* Features & Usage */}
-                <div className="mt-6 space-y-4">
-                  {domainsFeature && (
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="text-sm font-medium">Domains</div>
-                        <div className="text-xs text-muted-foreground">
-                          {domainsFeature.unlimited ? 'unlimited' : `${currentDomainCount} / ${maxDomains.toLocaleString()}`}
-                        </div>
-                      </div>
-                      {!domainsFeature.unlimited && maxDomains > 0 && (
-                        <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
-                          <div
-                            className="h-1.5 rounded-full bg-blue-500"
-                            style={{ width: `${Math.min((currentDomainCount / maxDomains) * 100, 100)}%` }}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {inboundTriggersFeature && (
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="text-sm font-medium">Emails Received</div>
-                        <div className="text-xs text-muted-foreground">
-                          {inboundTriggersFeature.unlimited ? 'unlimited' : `${(inboundTriggersFeature.usage || 0).toLocaleString()} / ${(inboundTriggersFeature.balance || 0).toLocaleString()}`}
-                        </div>
-                      </div>
-                      {!inboundTriggersFeature.unlimited && (inboundTriggersFeature.balance || 0) > 0 && (
-                        <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
-                          <div
-                            className="h-1.5 rounded-full bg-green-500"
-                            style={{ width: `${Math.min((((inboundTriggersFeature.usage || 0) / (inboundTriggersFeature.balance || 0)) * 100), 100)}%` }}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {emailsSentFeature && (
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="text-sm font-medium">Emails Sent</div>
-                        <div className="text-xs text-muted-foreground">
-                          {emailsSentFeature.unlimited ? 'unlimited' : `${(emailsSentFeature.usage || 0).toLocaleString()} / ${(emailsSentFeature.balance || 0).toLocaleString()}`}
-                        </div>
-                      </div>
-                      {!emailsSentFeature.unlimited && (emailsSentFeature.balance || 0) > 0 && (
-                        <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
-                          <div
-                            className="h-1.5 rounded-full bg-purple-500"
-                            style={{ width: `${Math.min((((emailsSentFeature.usage || 0) / (emailsSentFeature.balance || 0)) * 100), 100)}%` }}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {emailRetentionFeature && (
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="text-sm font-medium">Email Retention</div>
-                        <div className="text-xs text-muted-foreground">{emailRetentionFeature.unlimited ? 'unlimited' : `${emailRetentionFeature.balance?.toLocaleString()} days`}</div>
-                      </div>
-                    </div>
-                  )}
-
-                </div>
-              </div>
-            ) : customerError ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <CreditCard2 width="32" height="32" className="mx-auto mb-2 opacity-50" />
-                <p>Unable to load subscription data</p>
-                <p className="text-sm text-destructive mt-1">
-                  {customerError instanceof Error ? customerError.message : 'Unknown error'}
-                </p>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => refetchCustomer()}
-                  className="mt-2"
-                >
-                  Retry
-                </Button>
-              </div>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <CreditCard2 width="32" height="32" className="mx-auto mb-2 opacity-50" />
-                <p>No subscription data available</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-
-        <Card className="border-none bg-transparent">
-          <CardHeader className="p-0 mb-4">
-            <CardTitle>Profile Information</CardTitle>
-            <CardDescription>
-              Update your profile details and personal information
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4 p-0">
-            <form action={handleUpdateProfile} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Full Name</Label>
-                  <Input 
-                    id="name" 
-                    name="name" 
-                    defaultValue={session.user.name || ''} 
-                    placeholder="Enter your full name"
-                    required
-                    minLength={1}
-                    maxLength={255}
-                    disabled={isLoading}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email Address</Label>
-                  <Input 
-                    id="email" 
-                    name="email" 
-                    type="email" 
-                    defaultValue={session.user.email} 
-                    disabled
-                    className="bg-muted"
-                  />
-                </div>
-              </div>
-              {/* <div className="space-y-2">
-                <Label htmlFor="image">Profile Image URL</Label>
-                <Input 
-                  id="image" 
-                  name="image" 
-                  type="url" 
-                  defaultValue={session.user.image || ''} 
-                  placeholder="https://example.com/avatar.jpg"
-                />
-              </div> */}
-              <Button type="submit" disabled={isLoading}>
-                {isLoading ? 'Updating...' : 'Update Profile'}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-
-        <div className="h-4 border-b border-slate-800"></div>
-
-        <Card className="border-none bg-transparent">
-          <CardHeader className="p-0 mb-4">
-            <CardTitle>Account Status</CardTitle>
-            <CardDescription>
-              Your account verification and status information
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4 p-0">
-            <div className="flex items-center justify-between">
-              <span>Email Verification</span>
-              <Badge variant={session.user.emailVerified ? "default" : "destructive"}>
-                {session.user.emailVerified ? 'Verified' : 'Unverified'}
-              </Badge>
-            </div>
-            <div className="flex items-center justify-between">
-              <span>Account Created</span>
-              <span className="text-sm text-muted-foreground">
-                {new Date(session.user.createdAt).toLocaleDateString()}
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span>Last Updated</span>
-              <span className="text-sm text-muted-foreground">
-                {new Date(session.user.updatedAt).toLocaleDateString()}
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <div className="h-4 border-b border-slate-800"></div>
-
-        <Card className="border-none bg-transparent">
-          <CardHeader className="p-0 mb-4">
-            <CardTitle>Sign out</CardTitle>
-            <CardDescription>
-              Sign out of your account on this device
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="p-0">
-            <Button variant="outline" onClick={handleSignOut}>
-              <CircleLogout width="16" height="16" className="mr-2" />
-              Sign out
-            </Button>
-          </CardContent>
-        </Card>
-        </div>
       </div>
 
-
       {/* Upgrade Dialog */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-[95vw] lg:max-w-[1400px] max-h-[90vh] overflow-y-auto">
+      <Dialog open={isUpgradeDialogOpen} onOpenChange={setIsUpgradeDialogOpen}>
+        <DialogContent className="max-w-2xl bg-[#fafaf9] border-[#e7e5e4]">
           <DialogHeader>
-            <DialogTitle className="text-2xl font-bold text-center">Upgrade Your Plan</DialogTitle>
-            <DialogDescription className="text-center">
-              Choose the plan that best fits your needs and unlock more features
+            <DialogTitle className="font-heading text-xl">Choose a plan</DialogTitle>
+            <DialogDescription className="text-[#52525b]">
+              Upgrade to unlock more features and higher limits.
             </DialogDescription>
           </DialogHeader>
-          <div className="mt-6 w-full">
-            <PricingTable />
+          <div className="mt-2">
+            <PricingTable 
+              showHeader={false} 
+              onPlanSelect={(plan) => {
+                // TODO: Connect to backend checkout
+                toast.info(`Selected ${plan.name} plan`)
+                setIsUpgradeDialogOpen(false)
+              }}
+              currentPlan={activeProduct?.name?.toLowerCase() || 'starter'}
+            />
           </div>
         </DialogContent>
       </Dialog>
 
       {/* Upgrade Success Dialog */}
       <Dialog open={isUpgradeSuccessOpen} onOpenChange={setIsUpgradeSuccessOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <div className="mx-auto w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mb-4">
-              <CircleCheck width="24" height="24" className="text-green-600" />
+        <DialogContent className="max-w-md bg-[#fafaf9] border-[#e7e5e4]">
+          <div className="text-center py-4">
+            <div className="w-12 h-12 bg-[#dcfce7] rounded-full flex items-center justify-center mx-auto mb-4">
+              <Check className="w-6 h-6 text-[#166534]" />
             </div>
-            <DialogTitle className="text-2xl font-bold text-center">Upgrade Successful!</DialogTitle>
-            <DialogDescription className="text-center">
-              Thank you for upgrading your plan! Your new features and limits are now active.
+            <DialogTitle className="font-heading text-xl mb-2">Upgrade successful!</DialogTitle>
+            <DialogDescription className="text-[#52525b]">
+              Your new plan is now active. Thank you for upgrading!
             </DialogDescription>
-          </DialogHeader>
-          <div className="mt-6 flex justify-center">
-            <Button 
+            <button
               onClick={() => {
                 setIsUpgradeSuccessOpen(false)
-                // Refresh customer data to show updated plan
                 refetchCustomer()
               }}
-              className="w-full"
+              className="mt-6 w-full bg-[#8161FF] hover:bg-[#6b4fd9] text-white py-2.5 rounded-lg transition-colors font-medium"
             >
               Continue
-            </Button>
+            </button>
           </div>
         </DialogContent>
       </Dialog>

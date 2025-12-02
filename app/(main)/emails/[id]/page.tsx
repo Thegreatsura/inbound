@@ -41,29 +41,16 @@ import Refresh2 from "@/components/icons/refresh-2";
 import BoltLightning from "@/components/icons/bolt-lightning";
 import UserGroup from "@/components/icons/user-group";
 import Download2 from "@/components/icons/download-2";
+import CircleWarning2 from "@/components/icons/circle-warning-2";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 import { DOMAIN_STATUS } from "@/lib/db/schema";
 import { cn } from "@/lib/utils";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import AddDomainForm from "@/components/add-domain-form";
 import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import ChevronDown from "@/components/icons/chevron-down";
 
 // React Query hooks for v2 API
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEndpointsQuery } from "@/features/endpoints/hooks";
+import { EndpointSelector } from "@/components/endpoints/EndpointSelector";
 import {
   useDomainDetailsV2Query,
   useDomainVerificationCheckV2,
@@ -82,6 +69,7 @@ import type {
   GetDomainByIdResponse,
   PutDomainByIdRequest,
 } from "@/app/api/v2/domains/[id]/route";
+import { client } from "@/lib/api/client";
 import type {
   GetEmailAddressesResponse,
   EmailAddressWithDomain,
@@ -155,11 +143,7 @@ export default function DomainDetailPage() {
     gcTime: 10 * 60 * 1000, // 10 minutes
   });
 
-  const { 
-    data: userEndpoints = [], 
-    isLoading: isEndpointsLoading, 
-    refetch: refetchEndpoints 
-  } = useEndpointsQuery();
+  // Note: EndpointSelector components handle their own data fetching with search + pagination
 
   // Get auth recommendations for verified domains
   const {
@@ -182,7 +166,7 @@ export default function DomainDetailPage() {
 
   // Local state for UI interactions
   const [newEmailAddress, setNewEmailAddress] = useState("");
-  const [selectedEndpointId, setSelectedEndpointId] = useState<string>("none");
+  const [selectedEndpointId, setSelectedEndpointId] = useState<string | null>(null);
   const [emailError, setEmailError] = useState<string | null>(null);
   const [isRefreshingVerification, setIsRefreshingVerification] =
     useState(false);
@@ -203,10 +187,10 @@ export default function DomainDetailPage() {
   const [selectedEmailForEndpoint, setSelectedEmailForEndpoint] =
     useState<EmailAddressWithDomain | null>(null);
   const [endpointDialogSelectedId, setEndpointDialogSelectedId] =
-    useState<string>("none");
+    useState<string | null>(null);
 
   // Catch-all state
-  const [catchAllEndpointId, setCatchAllEndpointId] = useState<string>("none");
+  const [catchAllEndpointId, setCatchAllEndpointId] = useState<string | null>(null);
 
   // Email deletion confirmation state
   const [emailToDelete, setEmailToDelete] = useState<{
@@ -218,18 +202,6 @@ export default function DomainDetailPage() {
 
   // Zone file generation state
   const [isGeneratingZoneFile, setIsGeneratingZoneFile] = useState(false);
-
-  // Refetch endpoints when navigating to this page to ensure fresh data
-  useEffect(() => {
-    if (domainId) {
-      // Small delay to ensure any pending endpoint creations are completed
-      const timer = setTimeout(() => {
-        refetchEndpoints();
-      }, 100);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [domainId, refetchEndpoints]);
 
   // Set catch-all endpoint ID when data loads
   useEffect(() => {
@@ -298,14 +270,18 @@ export default function DomainDetailPage() {
         }
       }
 
-      // Use check=true to force a fresh verification check
-      const response = await fetch(`/api/v2/domains/${domainId}?check=true`);
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Failed to check domain verification");
+      // Use check=true to force a fresh verification check via Elysia e2 API
+      const { data: updatedDomain, error } = await client.api.e2.domains({ id: domainId }).get({
+        query: { check: 'true' }
+      });
+      
+      if (error) {
+        throw new Error((error as any)?.error || "Failed to check domain verification");
       }
-
-      const updatedDomain = await response.json();
+      
+      if (!updatedDomain) {
+        throw new Error("No data returned from verification check");
+      }
 
       // Manually update the query cache with the fresh data
       queryClient.setQueryData(domainV2Keys.detail(domainId), updatedDomain);
@@ -475,8 +451,7 @@ export default function DomainDetailPage() {
       await addEmailMutation.mutateAsync({
         address: fullEmailAddress,
         domainId: domainId,
-        endpointId:
-          selectedEndpointId === "none" ? undefined : selectedEndpointId,
+        endpointId: selectedEndpointId ?? undefined,
       });
 
       setNewEmailAddress("");
@@ -567,8 +542,7 @@ export default function DomainDetailPage() {
     console.log("🔄 Updating email endpoint:", {
       emailId: selectedEmailForEndpoint.id,
       currentEndpointId: selectedEmailForEndpoint.endpointId,
-      newEndpointId:
-        endpointDialogSelectedId === "none" ? null : endpointDialogSelectedId,
+      newEndpointId: endpointDialogSelectedId,
       domainId: domainId,
     });
 
@@ -600,32 +574,12 @@ export default function DomainDetailPage() {
   const openEndpointDialog = (email: EmailAddressWithDomain) => {
     setSelectedEmailForEndpoint(email);
     // Prioritize endpointId over webhookId (for migrated webhooks)
-    setEndpointDialogSelectedId(email.endpointId || email.webhookId || "none");
+    setEndpointDialogSelectedId(email.endpointId || email.webhookId || null);
     setIsEndpointDialogOpen(true);
   };
 
-  const handleEndpointSelection = (value: string) => {
-    if (value === "create-new") {
-      router.push("/endpoints");
-    } else {
-      setSelectedEndpointId(value);
-    }
-  };
-
-  const handleEndpointDialogSelection = (value: string) => {
-    if (value === "create-new") {
-      router.push("/endpoints");
-    } else {
-      setEndpointDialogSelectedId(value);
-    }
-  };
-
-  const handleCatchAllEndpointSelection = (value: string) => {
-    if (value === "create-new") {
-      router.push("/endpoints");
-    } else {
-      setCatchAllEndpointId(value);
-    }
+  const handleCreateNewEndpoint = () => {
+    router.push("/endpoints");
   };
 
   const toggleCatchAll = async () => {
@@ -640,11 +594,6 @@ export default function DomainDetailPage() {
         });
         toast.success("Catch-all disabled successfully");
       } else {
-        if (catchAllEndpointId === "none") {
-          toast.error("Please select an endpoint for catch-all emails");
-          return;
-        }
-
         await updateCatchAllMutation.mutateAsync({
           domainId,
           isCatchAllEnabled: true,
@@ -859,6 +808,18 @@ export default function DomainDetailPage() {
     }
   };
 
+  // Pre-qualifying checks for domain capabilities
+  // These determine what the domain can do regardless of HOW it achieved that capability
+  const mxRecordVerified = authRecommendationsData?.verificationCheck?.dnsRecords?.some(
+    (r: { type: string; isVerified: boolean }) => r.type === "MX" && r.isVerified
+  ) ?? false;
+  
+  // canSend: Domain can send emails if verified (either directly or inherited from parent)
+  const canSend = status === DOMAIN_STATUS.VERIFIED;
+  
+  // canReceive: Domain can receive emails if MX record is verified
+  const canReceive = mxRecordVerified;
+
   // Determine what to show based on domain status
   const showEmailSection = status === DOMAIN_STATUS.VERIFIED;
 
@@ -1047,31 +1008,251 @@ export default function DomainDetailPage() {
           </div>
         </div>
 
-        {/* Show AddDomainForm for pending domains */}
+        {/* Verification Pending Banner for pending domains */}
         {status === DOMAIN_STATUS.PENDING && (
-          <AddDomainForm
-            preloadedDomain={domain}
-            preloadedDomainId={domainDetailsData.id}
-            preloadedDnsRecords={
-              dnsRecordsData?.records?.map((record) => ({
-                type: record.recordType as "TXT" | "MX",
-                name: record.name,
-                value: record.value,
-                isVerified: record.isVerified,
-              })) || []
-            }
-            preloadedStep={1}
-            preloadedProvider={domainDetailsData.domainProvider || undefined}
-            overrideRefreshFunction={refreshVerification}
-            onSuccess={(domainId) => {
-              refetchDomainDetails();
-            }}
-          />
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+            <div className="flex items-center gap-2">
+              <Clock2 width="18" height="18" className="text-amber-600" />
+              <span className="font-medium text-amber-800">Verification Pending</span>
+            </div>
+            <p className="text-sm text-amber-700 mt-1">
+              Add the DNS records below to verify your domain. Verification may take a few minutes after adding the records.
+            </p>
+          </div>
         )}
 
+        {/* Domain Capabilities Status Card - Shows send/receive status */}
+        {status === DOMAIN_STATUS.VERIFIED && (!canSend || !canReceive) && (
+          <div className="border rounded-lg overflow-hidden">
+            {/* Header */}
+            <div className="bg-muted/30 px-4 py-3 border-b">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">Domain Status</span>
+                {domainDetailsData?.inheritsFromParent && domainDetailsData?.parentDomain && (
+                  <span className="text-xs text-muted-foreground">
+                    Subdomain of {domainDetailsData.parentDomain}
+                  </span>
+                )}
+              </div>
+            </div>
+            
+            {/* Status Grid */}
+            <div className="p-4 space-y-4">
+              <div className="grid grid-cols-2 gap-6">
+                {/* Sending Status */}
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <div className={`size-2.5 rounded-full ${canSend ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                    <span className="text-sm font-medium">Sending</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground pl-4.5">
+                    {canSend ? "Ready to send emails" : "Complete verification to send"}
+                  </p>
+                </div>
+                
+                {/* Receiving Status */}
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <div className={`size-2.5 rounded-full ${canReceive ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                    <span className="text-sm font-medium">Receiving</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground pl-4.5">
+                    {canReceive ? "Ready to receive emails" : "Add MX record to receive"}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* DNS Records - Show immediately after Domain Status when receiving is not ready */}
+        {status === DOMAIN_STATUS.VERIFIED && !canReceive && (() => {
+          const dnsRecordsToDisplay = 
+            authRecommendationsData?.verificationCheck?.dnsRecords ||
+            dnsRecordsData?.records?.map(r => ({
+              type: r.recordType,
+              name: r.name,
+              value: r.value,
+              isVerified: r.isVerified
+            })) || [];
+
+          if (dnsRecordsToDisplay.length === 0) return null;
+
+          // Group records by purpose
+          const mxReceiveRecord = dnsRecordsToDisplay.find((r: any) => 
+            r.type === "MX" && !r.name.includes("mail.")
+          );
+          const otherRecords = dnsRecordsToDisplay.filter((r: any) => 
+            !(r.type === "MX" && !r.name.includes("mail."))
+          );
+
+          // Helper to get priority from MX value
+          const getMxPriority = (value: string) => {
+            const match = value.match(/^(\d+)\s/);
+            return match ? match[1] : "";
+          };
+
+          // Helper to get clean MX value without priority
+          const getCleanMxValue = (value: string) => {
+            return value.replace(/^\d+\s+/, "");
+          };
+
+          return (
+            <div className="border rounded-lg overflow-hidden">
+              {/* Header */}
+              <div className="bg-muted/30 px-4 py-3 border-b">
+                <div className="flex items-center justify-between">
+                  <span className="text-lg font-semibold">DNS Records</span>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleZoneFileGeneration}
+                      disabled={isGeneratingZoneFile || !dnsRecordsToDisplay.length}
+                      className="h-8"
+                    >
+                      <Download2 width="14" height="14" className="mr-1.5" />
+                      Zone File
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="divide-y">
+                {/* Enable Receiving Section */}
+                <div className="p-4 space-y-3">
+                  <span className="font-semibold text-foreground">Enable Receiving</span>
+
+                  {/* MX Record Table */}
+                  {mxReceiveRecord && (
+                    <div className="rounded-lg border overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-muted/50">
+                            <th className="text-left px-3 py-2 font-medium text-muted-foreground w-[60px]">Type</th>
+                            <th className="text-left px-3 py-2 font-medium text-muted-foreground">Name</th>
+                            <th className="text-left px-3 py-2 font-medium text-muted-foreground">Content</th>
+                            <th className="text-left px-3 py-2 font-medium text-muted-foreground w-[60px]">TTL</th>
+                            <th className="text-left px-3 py-2 font-medium text-muted-foreground w-[70px]">Priority</th>
+                            <th className="text-left px-3 py-2 font-medium text-muted-foreground w-[80px]">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr className="border-t">
+                            <td className="px-3 py-2.5 font-mono text-xs">{mxReceiveRecord.type}</td>
+                            <td 
+                              className="px-3 py-2.5 font-mono text-xs cursor-pointer hover:bg-muted/50 transition-colors group"
+                              onClick={() => copyWithFeedback(`mx-name`, mxReceiveRecord.name, "Name")}
+                            >
+                              <div className="flex items-center gap-1.5">
+                                <span className="truncate max-w-[180px]">{mxReceiveRecord.name}</span>
+                                <CopyIcon active={copiedKey === `mx-name`} />
+                              </div>
+                            </td>
+                            <td 
+                              className="px-3 py-2.5 font-mono text-xs cursor-pointer hover:bg-muted/50 transition-colors"
+                              onClick={() => copyWithFeedback(`mx-value`, getCleanMxValue(mxReceiveRecord.value), "Content")}
+                            >
+                              <div className="flex items-center gap-1.5">
+                                <span className="truncate max-w-[200px]">{getCleanMxValue(mxReceiveRecord.value)}</span>
+                                <CopyIcon active={copiedKey === `mx-value`} />
+                              </div>
+                            </td>
+                            <td className="px-3 py-2.5 text-muted-foreground">Auto</td>
+                            <td className="px-3 py-2.5">{getMxPriority(mxReceiveRecord.value) || "10"}</td>
+                            <td className="px-3 py-2.5">
+                              {mxReceiveRecord.isVerified ? (
+                                <Badge variant="default" className="text-xs">Verified</Badge>
+                              ) : (
+                                <Badge variant="secondary" className="text-xs">Pending</Badge>
+                              )}
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {/* Warning for missing MX */}
+                  {!mxReceiveRecord?.isVerified && (
+                    <div className="flex items-center gap-2 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-md px-3 py-2">
+                      <CircleWarning2 width="16" height="16" className="text-amber-600 shrink-0" />
+                      <p className="text-sm text-amber-800 dark:text-amber-200 flex-1">
+                        <span className="font-medium">Receiving:</span> Missing required MX record. Make sure you&apos;ve added the correct record to your domain provider.
+                      </p>
+                      <Link href="https://docs.inbound.new" target="_blank" className="text-sm text-amber-700 hover:text-amber-900 dark:text-amber-300 flex items-center gap-1 shrink-0">
+                        <ExternalLink2 width="12" height="12" />
+                        Docs
+                      </Link>
+                    </div>
+                  )}
+                </div>
+
+                {/* Other Records Section (if any) */}
+                {otherRecords.length > 0 && (
+                  <div className="p-4 space-y-3">
+                    <span className="font-semibold text-foreground">Other Records</span>
+
+                    <div className="rounded-lg border overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-muted/50">
+                            <th className="text-left px-3 py-2 font-medium text-muted-foreground w-[60px]">Type</th>
+                            <th className="text-left px-3 py-2 font-medium text-muted-foreground">Name</th>
+                            <th className="text-left px-3 py-2 font-medium text-muted-foreground">Content</th>
+                            <th className="text-left px-3 py-2 font-medium text-muted-foreground w-[60px]">TTL</th>
+                            <th className="text-left px-3 py-2 font-medium text-muted-foreground w-[70px]">Priority</th>
+                            <th className="text-left px-3 py-2 font-medium text-muted-foreground w-[80px]">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {otherRecords.map((record: any, index: number) => (
+                            <tr key={index} className="border-t">
+                              <td className="px-3 py-2.5 font-mono text-xs">{record.type}</td>
+                              <td 
+                                className="px-3 py-2.5 font-mono text-xs cursor-pointer hover:bg-muted/50 transition-colors"
+                                onClick={() => copyWithFeedback(`other-name-${index}`, record.name, "Name")}
+                              >
+                                <div className="flex items-center gap-1.5">
+                                  <span className="truncate max-w-[180px]">{record.name}</span>
+                                  <CopyIcon active={copiedKey === `other-name-${index}`} />
+                                </div>
+                              </td>
+                              <td 
+                                className="px-3 py-2.5 font-mono text-xs cursor-pointer hover:bg-muted/50 transition-colors"
+                                onClick={() => copyWithFeedback(`other-value-${index}`, record.type === "MX" ? getCleanMxValue(record.value) : record.value, "Content")}
+                              >
+                                <div className="flex items-center gap-1.5">
+                                  <span className="truncate max-w-[200px]">{record.type === "MX" ? getCleanMxValue(record.value) : record.value}</span>
+                                  <CopyIcon active={copiedKey === `other-value-${index}`} />
+                                </div>
+                              </td>
+                              <td className="px-3 py-2.5 text-muted-foreground">Auto</td>
+                              <td className="px-3 py-2.5">{record.type === "MX" ? getMxPriority(record.value) || "10" : ""}</td>
+                              <td className="px-3 py-2.5">
+                                {record.isVerified ? (
+                                  <Badge variant="default" className="text-xs">Verified</Badge>
+                                ) : (
+                                  <Badge variant="secondary" className="text-xs">Pending</Badge>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
         {/* MAIL FROM Configuration - no card */}
+        {/* Hide for subdomains that inherit from a verified parent - they use parent's SES identity */}
         {status === DOMAIN_STATUS.VERIFIED &&
-          !domainWithMailFrom?.mailFromDomain && (
+          !domainWithMailFrom?.mailFromDomain &&
+          !domainDetailsData?.inheritsFromParent && (
             <div className="p-2">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
@@ -1097,7 +1278,9 @@ export default function DomainDetailPage() {
           )}
 
         {/* Auth Recommendations - no card */}
+        {/* Hide for subdomains that inherit from a verified parent - SPF/DMARC should be on parent domain */}
         {status === DOMAIN_STATUS.VERIFIED &&
+          !domainDetailsData?.inheritsFromParent &&
           authRecommendationsData?.authRecommendations &&
           Object.values(authRecommendationsData.authRecommendations).some(
             (rec) => rec !== undefined
@@ -1333,31 +1516,62 @@ export default function DomainDetailPage() {
             </div>
           )}
 
-        {/* Email Management Section - Only show for verified domains (no card) */}
-        {showEmailSection && (
-          <div className="">
-            <div className="pb-4">
+        {/* Minimized Email Management & Advanced Setup when receiving is disabled */}
+        {showEmailSection && !canReceive && (
+          <div className="space-y-2">
+            <div className="border rounded-lg px-4 py-3 bg-muted/20">
               <div className="flex items-center justify-between">
-                <div>
-                  <div className="flex items-center gap-2 text-foreground text-lg font-medium">
-                    Email Management
-                  </div>
-                  <div className="text-muted-foreground text-sm">
-                    {domainDetailsData?.isCatchAllEnabled
-                      ? `Mixed routing: specific addresses + catch-all for @${domain}`
-                      : `Manage individual email addresses for @${domain}`}
+                <div className="flex items-center gap-3">
+                  <Envelope2 width="18" height="18" className="text-muted-foreground" />
+                  <div>
+                    <span className="text-sm font-medium text-muted-foreground">Email Management</span>
+                    <span className="text-xs text-muted-foreground ml-2">• Requires MX record</span>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Envelope2 width="16" height="16" />
+                <Badge variant="outline" className="text-xs text-muted-foreground">
                   {stats.totalEmailAddresses} addresses
-                  <span className="text-muted-foreground/60">•</span>
-                  <ChartTrendUp width="16" height="16" />
-                  {stats.emailsLast24h} emails (24h)
+                </Badge>
+              </div>
+            </div>
+            <div className="border rounded-lg px-4 py-3 bg-muted/20">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <BoltLightning width="18" height="18" className="text-muted-foreground" />
+                  <div>
+                    <span className="text-sm font-medium text-muted-foreground">Advanced Setup</span>
+                    <span className="text-xs text-muted-foreground ml-2">• Requires MX record</span>
+                  </div>
+                </div>
+                <Badge variant="outline" className="text-xs text-muted-foreground">
+                  Catch-all, DMARC
+                </Badge>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showEmailSection && canReceive && (
+          <div className="border rounded-lg overflow-hidden">
+            {/* Header */}
+            <div className="bg-muted/30 px-4 py-3 border-b">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Envelope2 width="18" height="18" className="text-primary" />
+                  <span className="text-lg font-semibold">Email Management</span>
+                </div>
+                <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                  <span>{stats.totalEmailAddresses} addresses</span>
+                  <span className="text-muted-foreground/40">•</span>
+                  <span>{stats.emailsLast24h} emails (24h)</span>
                 </div>
               </div>
             </div>
-            <div className="space-y-4">
+            <div className="p-4 space-y-4">
+              <p className="text-sm text-muted-foreground">
+                {domainDetailsData?.isCatchAllEnabled
+                  ? `Mixed routing: specific addresses + catch-all for @${domain}`
+                  : `Manage individual email addresses for @${domain}`}
+              </p>
               {/* Individual email addresses - now supports mixed mode with catch-all */}
               <div className="space-y-4">
                 {/* Add Email Form */}
@@ -1382,48 +1596,17 @@ export default function DomainDetailPage() {
                     </div>
                   </div>
                   <div className="flex gap-2 w-full sm:flex-1">
-                    <Select
+                    <EndpointSelector
                       value={selectedEndpointId}
-                      onValueChange={handleEndpointSelection}
-                      disabled={isEndpointsLoading}
-                    >
-                      <SelectTrigger className="flex-1 h-10 min-w-0">
-                        <SelectValue placeholder="Endpoint (optional)" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">Store in Inbound</SelectItem>
-                        <SelectItem
-                          value="create-new"
-                          className="text-blue-600 font-medium"
-                        >
-                          <div className="flex items-center gap-2">
-                            <CirclePlus width="16" height="16" />
-                            Create Endpoint
-                          </div>
-                        </SelectItem>
-                        {userEndpoints.length > 0 && (
-                          <>
-                            <div className="px-2 py-1 text-xs font-medium text-muted-foreground border-t">
-                              Endpoints
-                            </div>
-                            {userEndpoints.map((endpoint) => (
-                              <SelectItem key={endpoint.id} value={endpoint.id}>
-                                <div className="flex items-center gap-2">
-                                  <CustomInboundIcon
-                                    Icon={getEndpointIcon(endpoint)}
-                                    size={16}
-                                    backgroundColor={getEndpointIconColor(
-                                      endpoint
-                                    )}
-                                  />
-                                  {endpoint.name} ({endpoint.type})
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </>
-                        )}
-                      </SelectContent>
-                    </Select>
+                      onChange={setSelectedEndpointId}
+                      placeholder="Endpoint (optional)"
+                      allowNone
+                      noneLabel="Store in Inbound"
+                      showCreateNew
+                      onCreateNew={handleCreateNewEndpoint}
+                      className="flex-1 h-10 min-w-0"
+                      triggerVariant="select"
+                    />
                     <Button
                       onClick={addEmailAddressHandler}
                       disabled={!newEmailAddress.trim()}
@@ -1532,40 +1715,32 @@ export default function DomainDetailPage() {
                         <div className="flex items-center gap-2">
                           <div className="text-sm text-muted-foreground">
                             {(() => {
-                              console.log("🔍 Routing:", email.routing);
                               // Use the routing information from the email
                               const routing = email.routing;
 
                               if (routing.type === "endpoint" && routing.id) {
-                                const endpoint = userEndpoints.find(
-                                  (ep) => ep.id === routing.id
-                                );
-                                if (endpoint) {
-                                  const EndpointIcon =
-                                    getEndpointIcon(endpoint);
-                                  return (
-                                    <Link
-                                      href={`/endpoints/${routing.id}`}
-                                      className="flex items-center gap-1.5 hover:opacity-80 transition-opacity"
+                                // Use endpoint type from routing to determine icon
+                                const endpointType = routing.endpointType || 'webhook';
+                                const EndpointIcon = getEndpointIcon({ type: endpointType });
+                                const iconColor = getEndpointIconColor({ type: endpointType, isActive: routing.isActive });
+                                return (
+                                  <Link
+                                    href={`/endpoints/${routing.id}`}
+                                    className="flex items-center gap-1.5 hover:opacity-80 transition-opacity"
+                                  >
+                                    <CustomInboundIcon
+                                      Icon={EndpointIcon}
+                                      size={25}
+                                      backgroundColor={iconColor}
+                                    />
+                                    <span
+                                      className={`font-medium hover:underline`}
+                                      style={{ color: iconColor }}
                                     >
-                                      <CustomInboundIcon
-                                        Icon={EndpointIcon}
-                                        size={25}
-                                        backgroundColor={getEndpointIconColor(
-                                          endpoint
-                                        )}
-                                      />
-                                      <span
-                                        className={`font-medium hover:underline`}
-                                        style={{
-                                          color: getEndpointIconColor(endpoint),
-                                        }}
-                                      >
-                                        {routing.name}
-                                      </span>
-                                    </Link>
-                                  );
-                                }
+                                      {routing.name}
+                                    </span>
+                                  </Link>
+                                );
                               } else if (
                                 routing.type === "webhook" &&
                                 routing.id
@@ -1629,24 +1804,19 @@ export default function DomainDetailPage() {
 
               {/* Catch-all toggle and configuration */}
               {domainDetailsData && (
-                <>
-                  <Separator />
-                  <div className="space-y-3">
-                    <div className="text-foreground text-lg font-medium">
-                      Advanced Setup
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="font-medium text-foreground">
-                          Catch-all Configuration
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          {domainDetailsData.isCatchAllEnabled
-                            ? "Fallback for emails not matching specific addresses above"
-                            : "Capture emails to any address on this domain (works with specific addresses)"}
-                        </div>
+                <div className="pt-2 space-y-3 border-t">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-medium text-foreground">
+                        Catch-all Configuration
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        {domainDetailsData.isCatchAllEnabled
+                          ? "Fallback for emails not matching specific addresses above"
+                          : "Capture emails to any address on this domain (works with specific addresses)"}
                       </div>
                     </div>
+                  </div>
 
                     <div className="flex flex-col sm:flex-row gap-3">
                       {domainDetailsData.isCatchAllEnabled &&
@@ -1701,53 +1871,17 @@ export default function DomainDetailPage() {
                         </div>
                       ) : (
                         <div className="flex-1">
-                          <Select
+                          <EndpointSelector
                             value={catchAllEndpointId}
-                            onValueChange={handleCatchAllEndpointSelection}
-                            disabled={isEndpointsLoading}
-                          >
-                            <SelectTrigger className="w-full h-10">
-                              <SelectValue placeholder="Select endpoint" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">
-                                Store in Inbound
-                              </SelectItem>
-                              <SelectItem
-                                value="create-new"
-                                className="text-blue-600 font-medium"
-                              >
-                                <div className="flex items-center gap-2">
-                                  <CirclePlus width="16" height="16" />
-                                  Create Endpoint
-                                </div>
-                              </SelectItem>
-                              {userEndpoints.length > 0 && (
-                                <>
-                                  <div className="px-2 py-1 text-xs font-medium text-muted-foreground border-t">
-                                    Endpoints
-                                  </div>
-                                  {userEndpoints.map((endpoint) => (
-                                    <SelectItem
-                                      key={endpoint.id}
-                                      value={endpoint.id}
-                                    >
-                                      <div className="flex items-center gap-2">
-                                        <CustomInboundIcon
-                                          Icon={getEndpointIcon(endpoint)}
-                                          size={16}
-                                          backgroundColor={getEndpointIconColor(
-                                            endpoint
-                                          )}
-                                        />
-                                        {endpoint.name} ({endpoint.type})
-                                      </div>
-                                    </SelectItem>
-                                  ))}
-                                </>
-                              )}
-                            </SelectContent>
-                          </Select>
+                            onChange={setCatchAllEndpointId}
+                            placeholder="Select endpoint"
+                            allowNone
+                            noneLabel="Store in Inbound"
+                            showCreateNew
+                            onCreateNew={handleCreateNewEndpoint}
+                            className="w-full h-10"
+                            triggerVariant="select"
+                          />
                         </div>
                       )}
                       <div className={"w-full sm:w-auto sm:min-w-[140px]"}>
@@ -1759,10 +1893,7 @@ export default function DomainDetailPage() {
                           }
                           className="h-10 w-full"
                           onClick={toggleCatchAll}
-                          disabled={
-                            !domainDetailsData.isCatchAllEnabled &&
-                            catchAllEndpointId === "none"
-                          }
+                          disabled={false}
                         >
                           {domainDetailsData.isCatchAllEnabled
                             ? "Disable Catch-all"
@@ -1770,266 +1901,147 @@ export default function DomainDetailPage() {
                         </Button>
                       </div>
                     </div>
+                  {/* DMARC Email Delivery - Integrated into Advanced Setup */}
+                  <div className="pt-2 space-y-3 border-t">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-medium text-foreground">
+                          DMARC Email Delivery
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          {domainWithMailFrom?.receiveDmarcEmails
+                            ? `DMARC reports (dmarc@${domain}) will be processed and routed like normal emails`
+                            : `DMARC reports (dmarc@${domain}) will be stored but not delivered to endpoints`}
+                        </div>
+                      </div>
+                      <div className="w-full sm:w-auto sm:min-w-[140px]">
+                        <Button
+                          variant={
+                            domainWithMailFrom?.receiveDmarcEmails
+                              ? "destructive"
+                              : "secondary"
+                          }
+                          className="h-10 w-full"
+                          onClick={toggleDmarcEmails}
+                        >
+                          {domainWithMailFrom?.receiveDmarcEmails
+                            ? "Disable Routing"
+                            : "Enable Routing"}
+                        </Button>
+                      </div>
+                    </div>
                   </div>
-                </>
+                </div>
               )}
             </div>
           </div>
         )}
 
-        {/* DMARC Configuration - Only show for verified domains */}
-        {showEmailSection && (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="font-medium text-foreground">
-                  DMARC Email Delivery
-                </div>
-                <div className="text-sm text-muted-foreground">
-                  {domainWithMailFrom?.receiveDmarcEmails
-                    ? "DMARC reports (dmarc@" +
-                      domain +
-                      ") will be processed and routed like normal emails"
-                    : "DMARC reports (dmarc@" +
-                      domain +
-                      ") will be stored but not delivered to endpoints"}
-                </div>
-              </div>
-              <div className="w-full sm:w-auto sm:min-w-[140px]">
-                <Button
-                  variant={
-                    domainWithMailFrom?.receiveDmarcEmails
-                      ? "destructive"
-                      : "secondary"
-                  }
-                  className="h-10 w-full"
-                  onClick={toggleDmarcEmails}
-                >
-                  {domainWithMailFrom?.receiveDmarcEmails
-                    ? "Disable Routing"
-                    : "Enable Routing"}
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* DNS Records Overview - Show for pending domains OR verified domains with receiving enabled */}
+        {(status === DOMAIN_STATUS.PENDING || canReceive) && (() => {
+          // Unified DNS records: prefer authRecommendationsData, fall back to dnsRecordsData for pending
+          const dnsRecordsToDisplay = 
+            authRecommendationsData?.verificationCheck?.dnsRecords ||
+            dnsRecordsData?.records?.map(r => ({
+              type: r.recordType,
+              name: r.name,
+              value: r.value,
+              isVerified: r.isVerified
+            })) || [];
 
-        <div className="flex items-center justify-end">
-          <Button
-            variant="outline"
-            onClick={handleZoneFileGeneration}
-            disabled={
-              isGeneratingZoneFile ||
-              !authRecommendationsData?.verificationCheck?.dnsRecords?.length
-            }
-            className="flex items-center gap-2"
-          >
-            <Download2 width="16" height="16" />
-            {isGeneratingZoneFile ? "Generating..." : "Zone File"}
-          </Button>
-        </div>
+          if (dnsRecordsToDisplay.length === 0) return null;
 
-        {/* DNS Records Overview - Show all DNS records for verified domains */}
-        {authRecommendationsData?.verificationCheck?.dnsRecords &&
-          status !== DOMAIN_STATUS.PENDING && (
-            <Collapsible defaultOpen={status !== DOMAIN_STATUS.VERIFIED}>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Globe2 width="20" height="20" className="text-primary" />
-                  <div className="text-foreground text-lg font-medium">
-                    DNS Records
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  {(() => {
-                    const allRecords =
-                      authRecommendationsData.verificationCheck.dnsRecords ||
-                      [];
-                    const verifiedCount = allRecords.filter(
-                      (r: any) => r.isVerified
-                    ).length;
-                    const totalCount = allRecords.length;
-                    const allVerified =
-                      totalCount > 0 && verifiedCount === totalCount;
-                    const anyFailed =
-                      totalCount > 0 && verifiedCount < totalCount;
+          const allRecords = dnsRecordsToDisplay;
+          const verifiedCount = allRecords.filter((r: any) => r.isVerified).length;
+          const totalCount = allRecords.length;
+          const allVerified = totalCount > 0 && verifiedCount === totalCount;
 
-                    if (allVerified) {
-                      return (
-                        <Badge variant="default">
-                          <CircleCheck
-                            width="12"
-                            height="12"
-                            className="mr-1"
-                          />
-                          Fully Verified
-                        </Badge>
-                      );
-                    }
-                    if (anyFailed) {
-                      return (
-                        <Badge variant="destructive" className="text-xs">
-                          Failed to verify records
-                        </Badge>
-                      );
-                    }
-                    return <Badge variant="outline">No records</Badge>;
-                  })()}
-                  <CollapsibleTrigger className="h-8 w-8 inline-flex items-center justify-center rounded hover:bg-muted">
-                    <ChevronDown width="16" height="16" />
-                  </CollapsibleTrigger>
-                </div>
-              </div>
-              <CollapsibleContent>
-                <div className="rounded-[11px] md:rounded-[13px] overflow-hidden bg-[var(--dns-table-bg)] mt-3">
-                  <div className="px-4 py-3">
-                    <div className="flex">
-                      <div className="w-[20%] pr-4">
-                        <span className="text-sm font-medium text-muted-foreground">
-                          Name
-                        </span>
-                      </div>
-                      <div className="w-[35%] pr-4">
-                        <span className="text-sm font-medium text-muted-foreground">
-                          Value
-                        </span>
-                      </div>
-                      <div className="w-[10%] pr-4">
-                        <span className="text-sm font-medium text-muted-foreground">
-                          Type
-                        </span>
-                      </div>
-                      <div className="w-[15%] pr-4">
-                        <span className="text-sm font-medium text-muted-foreground">
-                          Purpose
-                        </span>
-                      </div>
-                      <div className="w-[10%] pr-4">
-                        <span className="text-sm font-medium text-muted-foreground">
-                          Required
-                        </span>
-                      </div>
-                      <div className="w-[10%]">
-                        <span className="text-sm font-medium text-muted-foreground">
-                          Status
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="px-4 py-2">
-                    {authRecommendationsData.verificationCheck.dnsRecords.map(
-                      (record: any, index: number) => {
-                        // Determine the purpose of the record
-                        const getPurpose = () => {
-                          if (record.name === domain) {
-                            if (record.value?.includes("v=spf1")) return "SPF";
-                            if (record.value?.includes("amazonses"))
-                              return "SES Verify";
-                            return "Domain";
-                          }
-                          if (record.name.includes("_dmarc")) return "DMARC";
-                          if (record.name.includes("_domainkey")) return "DKIM";
-                          if (record.name.includes("mail.")) return "MAIL FROM";
-                          if (record.type === "MX") return "Receive Mail";
-                          return "Other";
-                        };
-
-                        const purpose = getPurpose();
-                        const isRequired =
-                          record.type === "MX" ||
-                          (record.type === "TXT" &&
-                            record.value?.includes("amazonses"));
-
-                        return (
-                          <div
-                            key={index}
-                            className="flex items-center transition-colors py-3"
-                          >
-                            <div className="w-[20%] pr-4">
-                              <div className="flex items-center justify-between">
-                                <span className="font-mono text-sm truncate">
-                                  {record.name}
-                                </span>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() =>
-                                    copyWithFeedback(
-                                      `dns-name-${index}`,
-                                      record.name,
-                                      `${purpose} name`
-                                    )
-                                  }
-                                  className="h-8 w-8 p-0 flex items-center justify-center ml-2"
-                                >
-                                  <CopyIcon
-                                    active={copiedKey === `dns-name-${index}`}
-                                  />
-                                </Button>
-                              </div>
-                            </div>
-                            <div className="w-[35%] pr-4 min-w-0">
-                              <div className="flex items-center justify-between">
-                                <span className="font-mono text-sm truncate text-foreground min-w-0 flex-1">
-                                  {record.value}
-                                </span>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() =>
-                                    copyWithFeedback(
-                                      `dns-value-${index}`,
-                                      record.value,
-                                      record.type
-                                    )
-                                  }
-                                  className="h-8 w-8 p-0 flex items-center justify-center ml-2"
-                                >
-                                  <CopyIcon
-                                    active={copiedKey === `dns-value-${index}`}
-                                  />
-                                </Button>
-                              </div>
-                            </div>
-                            <div className="w-[10%] pr-4">
-                              <Badge
-                                variant="outline"
-                                className="text-xs font-mono"
-                              >
-                                {record.type}
-                              </Badge>
-                            </div>
-                            <div className="w-[15%] pr-4">
-                              <Badge variant="outline" className="text-xs">
-                                {purpose}
-                              </Badge>
-                            </div>
-                            <div className="w-[10%] pr-4">
-                              <span className="text-sm text-muted-foreground">
-                                {isRequired ? "Yes" : "No"}
-                              </span>
-                            </div>
-                            <div className="w-[10%]">
-                              {record.isVerified ? (
-                                <Badge variant="default" className="text-xs">
-                                  Verified
-                                </Badge>
-                              ) : (
-                                <Badge variant="secondary" className="text-xs">
-                                  Pending
-                                </Badge>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      }
+          return (
+            <div className="border rounded-lg overflow-hidden">
+              {/* Header */}
+              <div className="bg-muted/30 px-4 py-3 border-b">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Globe2 width="18" height="18" className="text-primary" />
+                    <span className="text-lg font-semibold">DNS Records</span>
+                    {allVerified ? (
+                      <Badge variant="default" className="ml-2">
+                        <CircleCheck width="12" height="12" className="mr-1" />
+                        Fully Verified
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary" className="ml-2 text-xs">
+                        {verifiedCount}/{totalCount} verified
+                      </Badge>
                     )}
                   </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleZoneFileGeneration}
+                    disabled={isGeneratingZoneFile || !dnsRecordsToDisplay.length}
+                    className="h-8"
+                  >
+                    <Download2 width="14" height="14" className="mr-1.5" />
+                    Zone File
+                  </Button>
                 </div>
-              </CollapsibleContent>
-            </Collapsible>
-          )}
+              </div>
+              
+              {/* Table */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-muted/30">
+                      <th className="text-left px-4 py-3 font-medium text-muted-foreground">Type</th>
+                      <th className="text-left px-4 py-3 font-medium text-muted-foreground">Name</th>
+                      <th className="text-left px-4 py-3 font-medium text-muted-foreground">Content</th>
+                      <th className="text-left px-4 py-3 font-medium text-muted-foreground w-[80px]">TTL</th>
+                      <th className="text-left px-4 py-3 font-medium text-muted-foreground w-[90px]">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dnsRecordsToDisplay.map((record: any, index: number) => (
+                      <tr key={index} className="border-t">
+                        <td className="px-4 py-3">
+                          <Badge variant="outline" className="text-xs font-mono">
+                            {record.type}
+                          </Badge>
+                        </td>
+                        <td 
+                          className="px-4 py-3 font-mono text-xs cursor-pointer hover:bg-muted/50 transition-colors"
+                          onClick={() => copyWithFeedback(`full-dns-name-${index}`, record.name, "Name")}
+                        >
+                          <div className="flex items-center gap-1.5">
+                            <span className="truncate max-w-[200px]">{record.name}</span>
+                            <CopyIcon active={copiedKey === `full-dns-name-${index}`} />
+                          </div>
+                        </td>
+                        <td 
+                          className="px-4 py-3 font-mono text-xs cursor-pointer hover:bg-muted/50 transition-colors"
+                          onClick={() => copyWithFeedback(`full-dns-value-${index}`, record.value, "Content")}
+                        >
+                          <div className="flex items-center gap-1.5">
+                            <span className="truncate max-w-[300px]">{record.value}</span>
+                            <CopyIcon active={copiedKey === `full-dns-value-${index}`} />
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground">Auto</td>
+                        <td className="px-4 py-3">
+                          {record.isVerified ? (
+                            <Badge variant="default" className="text-xs">Verified</Badge>
+                          ) : (
+                            <Badge variant="secondary" className="text-xs">Pending</Badge>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Endpoint Management Dialog */}
         <Dialog
@@ -2046,48 +2058,16 @@ export default function DomainDetailPage() {
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
                 <Label htmlFor="endpoint-assignment">Endpoint Assignment</Label>
-                <Select
+                <EndpointSelector
                   value={endpointDialogSelectedId}
-                  onValueChange={handleEndpointDialogSelection}
-                  disabled={isEndpointsLoading}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Store in Inbound" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Store in Inbound</SelectItem>
-                    <SelectItem
-                      value="create-new"
-                      className="text-blue-600 font-medium"
-                    >
-                      <div className="flex items-center gap-2">
-                        <CirclePlus width="16" height="16" />
-                        Create New Endpoint
-                      </div>
-                    </SelectItem>
-                    {userEndpoints.length > 0 && (
-                      <>
-                        <div className="px-2 py-1 text-xs font-medium text-muted-foreground border-t">
-                          Existing Endpoints
-                        </div>
-                        {userEndpoints.map((endpoint) => (
-                          <SelectItem key={endpoint.id} value={endpoint.id}>
-                            <div className="flex items-center gap-2">
-                              <CustomInboundIcon
-                                Icon={getEndpointIcon(endpoint)}
-                                size={16}
-                                backgroundColor={getEndpointIconColor(endpoint)}
-                              />
-                              <span>
-                                {endpoint.name} ({endpoint.type})
-                              </span>
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </>
-                    )}
-                  </SelectContent>
-                </Select>
+                  onChange={setEndpointDialogSelectedId}
+                  placeholder="Store in Inbound"
+                  allowNone
+                  noneLabel="Store in Inbound"
+                  showCreateNew
+                  onCreateNew={handleCreateNewEndpoint}
+                  triggerVariant="select"
+                />
               </div>
             </div>
             <DialogFooter>
@@ -2096,7 +2076,7 @@ export default function DomainDetailPage() {
                 onClick={() => {
                   setIsEndpointDialogOpen(false);
                   setSelectedEmailForEndpoint(null);
-                  setEndpointDialogSelectedId("none");
+                  setEndpointDialogSelectedId(null);
                 }}
               >
                 Cancel

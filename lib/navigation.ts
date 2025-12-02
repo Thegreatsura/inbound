@@ -13,11 +13,9 @@
 import Webhook from "@/components/icons/webhook"
 import Gear2 from "@/components/icons/gear-2"
 import Key2 from "@/components/icons/key-2"
-import Shield2 from "@/components/icons/shield-2"
 import Globe2 from "@/components/icons/globe-2"
 import Cloud2 from "@/components/icons/cloud-2"
 import Code2 from "@/components/icons/code-2"
-import StackPerspective2 from "@/components/icons/stack-perspective-2"
 import EmailFlow from "@/components/icons/email-flow"
 import UserGroup from "@/components/icons/user-group"
 import ShieldCheck from "@/components/icons/shield-check"
@@ -82,14 +80,14 @@ export const navigationConfig: NavigationConfig = {
   features: [],
   admin: [
     {
-      title: "Admin Panel",
-      url: "/admin",
-      icon: Shield2,
-      description: "Administrative controls and user management"
+      title: "Tenants",
+      url: "/admin/tenant",
+      icon: Cloud2,
+      description: "SES tenant monitoring, bounces and complaints"
     },
     {
-      title: "User Information",
-      url: "/admin/user-information",
+      title: "Users",
+      url: "/admin/users",
       icon: UserGroup,
       description: "User analytics and activity monitoring"
     },
@@ -98,12 +96,6 @@ export const navigationConfig: NavigationConfig = {
       url: "/admin/lambda",
       icon: Code2,
       description: "Lambda function monitoring and logs"
-    },
-    {
-      title: "Tenant Metrics",
-      url: "/admin/tenants",
-      icon: Cloud2,
-      description: "SES tenant monitoring, bounces and complaints"
     },
   ],
 }

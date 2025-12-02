@@ -6,6 +6,7 @@ import { Analytics } from "@vercel/analytics/next"
 import { Analytics as DubAnalytics } from '@dub/analytics/react';
 import { AutumnProvider } from "autumn-js/react";
 import { QueryProvider } from "@/components/providers/query-provider";
+import { RealtimeProvider } from "@/components/providers/realtime-provider";
 import { SpeedInsights } from "@vercel/speed-insights/next"
 import Script from "next/script";
 import { Databuddy } from "@databuddy/sdk"
@@ -149,16 +150,14 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        {/* Structured Data for SEO */}
+        {/* React Grab - AI Element Inspector (dev only) */}
         {process.env.NODE_ENV === "development" && (
           <Script
-            src="//unpkg.com/react-grab@0.0.31/dist/index.global.js"
+            src="//unpkg.com/react-grab/dist/index.global.js"
             crossOrigin="anonymous"
             strategy="beforeInteractive"
-            data-enabled="true"
           />
         )}
-
 
         {/* Twitter Conversion Tracking */}
         <Script
@@ -279,11 +278,13 @@ export default function RootLayout({
 
         <NuqsAdapter>
           <QueryProvider>
-            <AutumnProvider backendUrl={process.env.BETTER_AUTH_URL || ""}>
-              {children}
-              <Analytics />
-              <SpeedInsights />
-            </AutumnProvider>
+            <RealtimeProvider>
+              <AutumnProvider backendUrl={process.env.BETTER_AUTH_URL || ""}>
+                {children}
+                <Analytics />
+                <SpeedInsights />
+              </AutumnProvider>
+            </RealtimeProvider>
           </QueryProvider>
         </NuqsAdapter>
         <DubAnalytics 

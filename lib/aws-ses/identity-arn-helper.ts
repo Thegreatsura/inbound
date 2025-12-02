@@ -116,15 +116,20 @@ export async function getTenantSendingInfo(
           console.warn(`⚠️ Tenant ${domain.tenantId} has no configuration set - tenant-level tracking will not work`)
         }
       }
+      
+      // Build the identity ARN - domain has its own tenant/identity
+      // Format: arn:aws:ses:REGION:ACCOUNT_ID:identity/DOMAIN
+      const identityArn = `arn:aws:ses:${awsRegion}:${awsAccountId}:identity/${fromDomain}`
+      
+      console.log(`✅ Built identity ARN for tenant tracking: ${identityArn}`)
+      
+      return { identityArn, configurationSetName, tenantName }
     }
-
-    // Build the identity ARN
-    // Format: arn:aws:ses:REGION:ACCOUNT_ID:identity/DOMAIN
-    const identityArn = `arn:aws:ses:${awsRegion}:${awsAccountId}:identity/${fromDomain}`
     
-    console.log(`✅ Built identity ARN for tenant tracking: ${identityArn}`)
-    
-    return { identityArn, configurationSetName, tenantName }
+    // Domain exists but has no tenantId - this is likely a subdomain
+    // Return null to signal that we should check the parent domain
+    console.log(`⚠️ Domain ${fromDomain} has no tenant association - may be a subdomain needing parent lookup`)
+    return { identityArn: null, configurationSetName: null, tenantName: null }
 
   } catch (error) {
     console.error(`❌ Error getting tenant sending info for ${fromDomain}:`, error)
@@ -166,6 +171,9 @@ export async function getIdentityArnForDomainOrParent(
  * Get the complete tenant sending info (ARN + configuration set) for any verified domain
  * Useful when the domain might be a subdomain of a verified parent domain
  * 
+ * For subdomains: Uses the parent domain's SES identity since subdomains don't have
+ * their own SES identity - they inherit sending capability from the parent.
+ * 
  * @param userId - The user ID
  * @param fromDomain - The sending domain
  * @param parentDomain - Optional parent domain if fromDomain is a subdomain
@@ -175,7 +183,7 @@ export async function getTenantSendingInfoForDomainOrParent(
   fromDomain: string,
   parentDomain?: string
 ): Promise<TenantSendingInfo> {
-  // First try the exact domain
+  // First try the exact domain (this will return null for subdomains without tenantId)
   let result = await getTenantSendingInfo(userId, fromDomain)
   
   if (result.identityArn) {
@@ -184,12 +192,13 @@ export async function getTenantSendingInfoForDomainOrParent(
 
   // If not found and we have a parent domain, try that
   if (parentDomain && parentDomain !== fromDomain) {
-    console.log(`🔍 Trying parent domain ${parentDomain} for tenant sending info`)
+    console.log(`🔍 Trying parent domain ${parentDomain} for tenant sending info (subdomain: ${fromDomain})`)
     result = await getTenantSendingInfo(userId, parentDomain)
     
     if (result.identityArn) {
-      // Use the parent domain's info but note it's for a subdomain
-      console.log(`✅ Using parent domain ${parentDomain} sending info for subdomain ${fromDomain}`)
+      // Use the parent domain's identity ARN for the subdomain
+      // AWS SES allows sending from subdomains when the parent domain is verified
+      console.log(`✅ Using parent domain ${parentDomain} identity ARN for subdomain ${fromDomain}`)
       return result
     }
   }

@@ -927,7 +927,7 @@ export async function POST(
       // Send via SES using SESv2 SendEmailCommand with TenantName
       // Per AWS docs: https://docs.aws.amazon.com/ses/latest/dg/tenants.html
       const sesCommand = new SendEmailCommand({
-        FromEmailAddress: fromAddress,
+        FromEmailAddress: formattedFromAddress,
         ...(tenantSendingInfo.identityArn && { FromEmailAddressIdentityArn: tenantSendingInfo.identityArn }),
         Destination: {
           ToAddresses: toAddresses.map(extractEmailAddress),

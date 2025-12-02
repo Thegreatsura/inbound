@@ -1,5 +1,6 @@
 // Export all endpoint hooks
-export { useEndpointsQuery } from './useEndpointsQuery'
+export { useEndpointsQuery, type EndpointsQueryParams } from './useEndpointsQuery'
+export { useEndpointsInfiniteQuery, flattenEndpointPages, type EndpointsInfiniteQueryParams } from './useEndpointsInfiniteQuery'
 export { useCreateEndpointMutation } from './useCreateEndpointMutation'
 export { useUpdateEndpointMutation } from './useUpdateEndpointMutation'
 export { useDeleteEndpointMutation } from './useDeleteEndpointMutation'

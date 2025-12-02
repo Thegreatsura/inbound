@@ -3,8 +3,7 @@
  * Handles root domain extraction and subdomain detection
  */
 
-// @ts-expect-error - psl package has type definitions but they're not properly exported in package.json
-import { parse, type ParsedDomain, type ErrorResult } from 'psl'
+import { parse } from 'tldts'
 
 /**
  * Get the root domain from a domain string using the Public Suffix List
@@ -20,17 +19,13 @@ import { parse, type ParsedDomain, type ErrorResult } from 'psl'
 export function getRootDomain(domain: string): string | null {
   try {
     const parsed = parse(domain)
-    // Check if it's an error result (has 'error' property)
-    if ('error' in parsed) {
-      return null
-    }
-    // Check if domain is null or empty
-    if (!parsed.domain) {
+    // Check if it's an IP address or domain is null/empty
+    if (parsed.isIp || !parsed.domain) {
       return null
     }
     return parsed.domain
   } catch (error) {
-    // If psl.parse throws an error or returns invalid result, return null
+    // If parse throws an error, return null
     return null
   }
 }

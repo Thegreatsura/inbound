@@ -1,23 +1,21 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { track } from '@vercel/analytics'
-import type { CreateEndpointData, Endpoint } from '../types'
+import { client } from '@/lib/api/client'
+import type { CreateEndpointData, ApiEndpointResponse } from '../types'
 
-async function createEndpoint(data: CreateEndpointData): Promise<Endpoint> {
-  const response = await fetch('/api/v2/endpoints', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(data),
+async function createEndpoint(data: CreateEndpointData): Promise<ApiEndpointResponse> {
+  const { data: result, error } = await client.api.e2.endpoints.post({
+    name: data.name,
+    type: data.type,
+    config: data.config,
+    description: data.description,
   })
   
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.error || 'Failed to create endpoint')
+  if (error) {
+    throw new Error((error as any)?.error || (error as any)?.details || 'Failed to create endpoint')
   }
   
-  const result = await response.json()
-  return result
+  return result as ApiEndpointResponse
 }
 
 export const useCreateEndpointMutation = () => {

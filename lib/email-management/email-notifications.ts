@@ -2,6 +2,7 @@ import { Resend } from 'resend';
 import { render } from '@react-email/render';
 import DomainVerifiedEmail from '@/emails/domain-verified';
 import ReputationAlertEmail from '@/emails/reputation-alert';
+import LimitReachedEmail from '@/emails/limit-reached';
 import { Inbound } from '@inboundemail/sdk';
 
 // Initialize Resend client
@@ -27,6 +28,19 @@ export interface ReputationAlertNotificationData {
   triggeredAt: Date;
   recommendations?: string[];
   sendingPaused?: boolean; // True if sending was auto-paused due to critical threshold
+}
+
+export interface LimitReachedNotificationData {
+  userEmail: string;
+  userName: string | null;
+  userId: string;
+  limitType: 'inbound_triggers' | 'emails_sent' | 'domains';
+  currentUsage?: number;
+  limit?: number;
+  rejectedEmailCount?: number;
+  rejectedRecipient?: string;
+  domain?: string;
+  triggeredAt: Date;
 }
 
 /**
@@ -258,6 +272,140 @@ export async function sendTestReputationAlertEmail(
     threshold: alertType === 'bounce' ? 0.05 : alertType === 'complaint' ? 0.001 : 100,
     configurationSet: 'test-tenant-123',
     tenantName: 'Test Tenant',
+    triggeredAt: new Date()
+  });
+}
+
+// In-memory cache to prevent spamming users with limit notifications
+// Key: `${userId}:${limitType}`, Value: timestamp of last notification
+const limitNotificationCache = new Map<string, number>();
+const LIMIT_NOTIFICATION_COOLDOWN_MS = 60 * 60 * 1000; // 1 hour cooldown
+
+/**
+ * Send limit reached notification email to the user
+ * Includes rate limiting to prevent spamming users
+ */
+export async function sendLimitReachedNotification(
+  data: LimitReachedNotificationData
+): Promise<{ success: boolean; messageId?: string; error?: string; skipped?: boolean }> {
+  try {
+    const cacheKey = `${data.userId}:${data.limitType}`;
+    const lastNotification = limitNotificationCache.get(cacheKey);
+    const now = Date.now();
+
+    // Check if we should skip due to rate limiting
+    if (lastNotification && (now - lastNotification) < LIMIT_NOTIFICATION_COOLDOWN_MS) {
+      const minutesRemaining = Math.ceil((LIMIT_NOTIFICATION_COOLDOWN_MS - (now - lastNotification)) / 60000);
+      console.log(`⏭️ sendLimitReachedNotification - Skipping notification for user ${data.userId} (${data.limitType}) - cooldown active, ${minutesRemaining} minutes remaining`);
+      return {
+        success: true,
+        skipped: true,
+        error: `Notification skipped due to rate limiting (cooldown: ${minutesRemaining} minutes remaining)`
+      };
+    }
+
+    console.log(`⚠️ sendLimitReachedNotification - Sending ${data.limitType} limit notification to ${data.userEmail}`);
+
+    // Validate required environment variable
+    if (!process.env.INBOUND_API_KEY) {
+      console.error('❌ sendLimitReachedNotification - INBOUND_API_KEY not configured');
+      return {
+        success: false,
+        error: 'Email service not configured'
+      };
+    }
+
+    // Prepare email template props
+    const templateProps = {
+      userFirstname: data.userName?.split(' ')[0] || 'User',
+      limitType: data.limitType,
+      currentUsage: data.currentUsage,
+      limit: data.limit,
+      rejectedEmailCount: data.rejectedEmailCount || 1,
+      rejectedRecipient: data.rejectedRecipient,
+      domain: data.domain,
+      triggeredAt: data.triggeredAt.toLocaleString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZoneName: 'short'
+      }),
+    };
+
+    // Render the email template
+    const html = await render(LimitReachedEmail(templateProps));
+
+    // Create subject line based on limit type
+    const limitName = data.limitType === 'inbound_triggers' ? 'Inbound Email' : 
+                     data.limitType === 'emails_sent' ? 'Outbound Email' : 'Domain';
+    
+    const subject = `⚠️ ${limitName} Limit Reached - Action Required`;
+
+    // Determine the from address
+    const fromEmail = 'notifications@inbound.new';
+    const fromWithName = `inbound alerts <${fromEmail}>`;
+
+    // Send the email
+    const response = await inbound.emails.send({
+      from: fromWithName,
+      to: data.userEmail,
+      subject: subject,
+      html: html,
+      tags: [
+        { name: 'type', value: 'limit-reached' },
+        { name: 'limit_type', value: data.limitType },
+        { name: 'user_id', value: data.userId.replace(/[^a-zA-Z0-9_-]/g, '_') }
+      ]
+    });
+
+    if (response.error) {
+      console.error('❌ sendLimitReachedNotification - Inbound API error:', response.error);
+      return {
+        success: false,
+        error: `Email sending failed: ${response.error}`
+      };
+    }
+
+    // Update the cache to prevent future spam
+    limitNotificationCache.set(cacheKey, now);
+
+    console.log(`✅ sendLimitReachedNotification - Alert email sent successfully to ${data.userEmail}`);
+    console.log(`   📧 Message ID: ${response.data?.id}`);
+    console.log(`   🏷️ Limit type: ${data.limitType}`);
+
+    return {
+      success: true,
+      messageId: response.data?.id
+    };
+
+  } catch (error) {
+    console.error('❌ sendLimitReachedNotification - Unexpected error:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
+  }
+}
+
+/**
+ * Send a test limit reached email (for testing purposes)
+ */
+export async function sendTestLimitReachedEmail(
+  testEmail: string,
+  limitType: 'inbound_triggers' | 'emails_sent' | 'domains' = 'inbound_triggers'
+): Promise<{ success: boolean; messageId?: string; error?: string; skipped?: boolean }> {
+  return sendLimitReachedNotification({
+    userEmail: testEmail,
+    userName: 'Test User',
+    userId: 'test-user-123',
+    limitType: limitType,
+    currentUsage: 100,
+    limit: 100,
+    rejectedEmailCount: 1,
+    rejectedRecipient: 'test@example.com',
+    domain: 'example.com',
     triggeredAt: new Date()
   });
 } 

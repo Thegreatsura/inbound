@@ -1,18 +1,27 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { track } from '@vercel/analytics'
+import { client } from '@/lib/api/client'
 
-async function deleteEndpoint(id: string): Promise<{ message?: string; emailAddressesUpdated?: number }> {
-  const response = await fetch(`/api/v2/endpoints/${id}`, {
-    method: 'DELETE',
-  })
+type DeleteEndpointResponse = {
+  message?: string
+  cleanup?: {
+    emailAddressesUpdated: number
+    emailAddresses: string[]
+    domainsUpdated: number
+    domains: string[]
+    groupEmailsDeleted: number
+    deliveriesDeleted: number
+  }
+}
+
+async function deleteEndpoint(id: string): Promise<DeleteEndpointResponse> {
+  const { data, error } = await client.api.e2.endpoints({ id }).delete()
   
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.error || 'Failed to delete endpoint')
+  if (error) {
+    throw new Error((error as any)?.error || 'Failed to delete endpoint')
   }
   
-  const data = await response.json()
-  return data
+  return data as DeleteEndpointResponse
 }
 
 export const useDeleteEndpointMutation = () => {
@@ -28,6 +37,8 @@ export const useDeleteEndpointMutation = () => {
       
       // Invalidate and refetch endpoints list
       queryClient.invalidateQueries({ queryKey: ['endpoints'] })
+      // Also invalidate the specific endpoint query
+      queryClient.removeQueries({ queryKey: ['endpoint', endpointId] })
     },
   })
 } 

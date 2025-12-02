@@ -238,7 +238,7 @@ export const auth = betterAuth({
 
                 try {
                     const { data, error } = await inbound.emails.send({
-                        from: 'inbound <signin@inbound.new>',
+                        from: 'Inbound <noreply@notifications.inbound.new>',
                         to: email,
                         subject: 'Sign in to inbound',
                         html: await render(MagicLinkEmail(url)),

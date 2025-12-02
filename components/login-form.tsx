@@ -3,7 +3,6 @@
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { authClient } from "@/lib/auth/auth-client";
 import { useState, useEffect } from "react";
@@ -105,68 +104,12 @@ export function LoginForm({
 
   return (
     <form
-      className={cn("flex flex-col gap-4", className)}
+      className={cn("flex flex-col gap-6", className)}
       onSubmit={handleMagicLinkSignIn}
       {...props}
     >
-      {/* Magic Link Section */}
-      <div className="grid gap-1">
-        <Label htmlFor="email" className="text-sm font-medium">
-          Email Address
-        </Label>
-        <div className="grid gap-2">
-          <div className="relative">
-            <Envelope2
-              width="15"
-              height="15"
-              className="text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2"
-            />
-            <Input
-              className="pl-9"
-              id="email"
-              type="email"
-              placeholder="Enter your email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              disabled={isAnyLoading}
-              autoComplete="email"
-            />
-          </div>
-          <Button
-            type="submit"
-            variant={lastUsedMethod === "email" ? "primary" : "secondary"}
-            className="w-full"
-            disabled={isAnyLoading || !email.trim()}
-          >
-            {isMagicLinkLoading ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                Sending magic link...
-              </>
-            ) : (
-              <div className="flex items-center justify-center gap-2">
-                Send magic link
-                {lastUsedMethod === "email" && (
-                  <Badge variant="secondary" className="ml-1">
-                    Last used
-                  </Badge>
-                )}
-              </div>
-            )}
-          </Button>
-        </div>
-      </div>
-
-      {/* Divider */}
-      <div className="relative flex items-center justify-center text-xs uppercase">
-        <div className="w-full h-px bg-gradient-to-r from-transparent to-border" />
-        <span className="bg-card px-2 text-muted-foreground whitespace-nowrap">
-          or continue with
-        </span>
-        <div className="w-full h-px bg-gradient-to-l from-transparent to-border" />
-      </div>
-
-      <div className="grid gap-2">
+      {/* OAuth Buttons - Primary for new accounts */}
+      <div className="grid gap-3">
         {/* Google OAuth */}
         <Button
           type="button"
@@ -244,6 +187,58 @@ export function LoginForm({
               </Badge>
             )}
           </div>
+        </Button>
+      </div>
+
+      {/* Divider */}
+      <div className="relative flex items-center justify-center text-xs">
+        <div className="w-full h-px bg-border" />
+        <span className="bg-background px-3 text-muted-foreground whitespace-nowrap">
+          Existing account?
+        </span>
+        <div className="w-full h-px bg-border" />
+      </div>
+
+      {/* Magic Link Section - for existing accounts */}
+      <div className="grid gap-2">
+        <div className="relative">
+          <Envelope2
+            width="15"
+            height="15"
+            className="text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2"
+          />
+          <Input
+            className="pl-9"
+            id="email"
+            type="email"
+            placeholder="Enter your email…"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            disabled={isAnyLoading}
+            autoComplete="email"
+          />
+        </div>
+        <Button
+          type="submit"
+          variant={lastUsedMethod === "email" ? "primary" : "secondary"}
+          className="w-full"
+          disabled={isAnyLoading || !email.trim()}
+        >
+          {isMagicLinkLoading ? (
+            <>
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
+              Sending magic link…
+            </>
+          ) : (
+            <div className="flex items-center justify-center gap-2">
+              Sign in with magic link
+              {lastUsedMethod === "email" && (
+                <Badge variant="secondary" className="ml-1">
+                  Last used
+                </Badge>
+              )}
+            </div>
+          )}
         </Button>
       </div>
     </form>

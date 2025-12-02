@@ -538,7 +538,7 @@ export async function POST(request: NextRequest) {
             // Use SESv2 SendEmailCommand with TenantName for proper tenant-level tracking
             // Per AWS docs: https://docs.aws.amazon.com/ses/latest/dg/tenants.html
             const rawCommand = new SendEmailCommand({
-                FromEmailAddress: sourceEmail,
+                FromEmailAddress: formattedFromAddress,
                 // FromEmailAddressIdentityArn associates the email with the tenant's identity
                 ...(tenantSendingInfo.identityArn && { FromEmailAddressIdentityArn: tenantSendingInfo.identityArn }),
                 Destination: {

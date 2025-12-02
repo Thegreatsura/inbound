@@ -1,23 +1,23 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import type { UpdateEndpointData, Endpoint } from '../types'
+import { client } from '@/lib/api/client'
+import type { UpdateEndpointData, ApiEndpointUpdateResponse } from '../types'
 
-async function updateEndpoint(params: { id: string; data: UpdateEndpointData }): Promise<Endpoint> {
+async function updateEndpoint(params: { id: string; data: UpdateEndpointData }): Promise<ApiEndpointUpdateResponse> {
   const { id, data } = params
-  const response = await fetch(`/api/v2/endpoints/${id}`, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(data),
+  
+  const { data: result, error } = await client.api.e2.endpoints({ id }).put({
+    name: data.name,
+    description: data.description,
+    isActive: data.isActive,
+    config: data.config,
+    webhookFormat: data.webhookFormat,
   })
   
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.error || 'Failed to update endpoint')
+  if (error) {
+    throw new Error((error as any)?.error || (error as any)?.details || 'Failed to update endpoint')
   }
   
-  const result = await response.json()
-  return result
+  return result as ApiEndpointUpdateResponse
 }
 
 export const useUpdateEndpointMutation = () => {

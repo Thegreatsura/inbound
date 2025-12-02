@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -20,7 +20,7 @@ import {
   useCreateGuardRuleMutation,
   useGuardRulesQuery,
 } from "@/features/guard/hooks/useGuardHooks";
-import { useEndpointsQuery } from "@/features/endpoints/hooks";
+import { EndpointSelector } from "@/components/endpoints";
 import type {
   ExplicitRuleConfig,
   AiPromptRuleConfig,
@@ -28,7 +28,6 @@ import type {
   RuleAction,
   RuleActionConfig,
 } from "@/features/guard/types";
-import type { EndpointWithStats } from "@/features/endpoints/types";
 
 // Import icons
 import ArrowBoldLeft from "@/components/icons/arrow-bold-left";
@@ -38,53 +37,6 @@ import BoltLightning from "@/components/icons/bolt-lightning";
 import Trash2 from "@/components/icons/trash-2";
 import SidebarToggleButton from "@/components/sidebar-toggle-button";
 import { Badge } from "@/components/ui/badge";
-
-// Endpoint Select Component
-function EndpointSelect({
-  value,
-  onChange,
-  hasError,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  hasError: boolean;
-}) {
-  const { data: endpoints, isLoading } = useEndpointsQuery();
-  const activeEndpoints = (endpoints || []).filter(
-    (e: EndpointWithStats) => e.isActive
-  );
-
-  if (isLoading) {
-    return (
-      <Select disabled>
-        <SelectTrigger>
-          <SelectValue placeholder="Loading endpoints..." />
-        </SelectTrigger>
-      </Select>
-    );
-  }
-
-  return (
-    <Select value={value} onValueChange={onChange}>
-      <SelectTrigger className={hasError ? "border-destructive" : ""}>
-        <SelectValue placeholder="Choose an endpoint..." />
-      </SelectTrigger>
-      <SelectContent>
-        {activeEndpoints.length === 0 ? (
-          <div className="p-2 text-sm text-muted-foreground">
-            No active endpoints available
-          </div>
-        ) : (
-          activeEndpoints.map((endpoint: EndpointWithStats) => (
-            <SelectItem key={endpoint.id} value={endpoint.id}>
-              {endpoint.name} ({endpoint.type})
-            </SelectItem>
-          ))
-        )}
-      </SelectContent>
-    </Select>
-  );
-}
 
 export default function CreateGuardRulePage() {
   const router = useRouter();
@@ -727,23 +679,15 @@ export default function CreateGuardRulePage() {
               </ToggleGroupItem>
             </ToggleGroup>
             {action === "route" && (
-              <div>
+              <div className="space-y-2">
                 <Label htmlFor="endpoint">Select Endpoint *</Label>
-                <Suspense
-                  fallback={
-                    <Select disabled>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Loading endpoints..." />
-                      </SelectTrigger>
-                    </Select>
-                  }
-                >
-                  <EndpointSelect
-                    value={routeEndpointId}
-                    onChange={setRouteEndpointId}
-                    hasError={!!errors.action}
-                  />
-                </Suspense>
+                <EndpointSelector
+                  value={routeEndpointId || null}
+                  onChange={(value) => setRouteEndpointId(value || "")}
+                  placeholder="Choose an endpoint..."
+                  filterActive={true}
+                  className={errors.action ? "border-destructive" : ""}
+                />
                 {errors.action && (
                   <p className="text-sm text-destructive mt-1">
                     {errors.action}
