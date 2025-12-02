@@ -7,7 +7,7 @@
  * and returns their daily sending limits.
  */
 
-const isDev = true;
+const isDev = process.env.NODE_ENV === "development";
 
 import { getCurrentSession } from "@/lib/auth/auth-utils"
 import { db } from "@/lib/db"

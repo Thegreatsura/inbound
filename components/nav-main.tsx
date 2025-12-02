@@ -1,9 +1,6 @@
 "use client"
 
-import EnvelopePlus from "@/components/icons/envelope-plus"
 import { OptimizedLink } from "@/components/optimized-link"
-
-import { Button } from "@/components/ui/button"
 import {
   SidebarGroup,
   SidebarGroupContent,
@@ -13,6 +10,8 @@ import {
 } from "@/components/ui/sidebar"
 import { NavigationItem, isNavigationItemActive } from "@/lib/navigation"
 import { useNavigation } from "@/contexts/navigation-context"
+import { signOut } from "@/lib/auth/auth-client"
+import DoorOpen from "@/components/icons/door-open"
 
 export function NavMain({
   items,
@@ -20,6 +19,17 @@ export function NavMain({
   items: NavigationItem[]
 }) {
   const { currentPath } = useNavigation()
+
+  const handleSignOut = async () => {
+    await signOut({
+      fetchOptions: {
+        onSuccess: () => {
+          window.location.href = "/"
+        }
+      }
+    })
+  }
+
   return (
     <SidebarGroup>
       <SidebarGroupContent className="flex flex-col gap-2">
@@ -54,6 +64,16 @@ export function NavMain({
               </SidebarMenuItem>
             )
           })}
+          <SidebarMenuItem>
+            <SidebarMenuButton 
+              tooltip="Sign Out"
+              onClick={handleSignOut}
+              className="text-red-500 hover:!bg-red-500/20 hover:text-red-500"
+            >
+              <DoorOpen className="h-4 w-4" />
+              <span>Sign Out</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
         </SidebarMenu>
       </SidebarGroupContent>
     </SidebarGroup>
