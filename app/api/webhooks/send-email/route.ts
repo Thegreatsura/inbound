@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { Receiver } from '@upstash/qstash'
 import { db } from '@/lib/db'
 import { scheduledEmails, sentEmails, SCHEDULED_EMAIL_STATUS, SENT_EMAIL_STATUS } from '@/lib/db/schema'
+import { user } from '@/lib/db/auth-schema'
 import { eq } from 'drizzle-orm'
 import { SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2'
 import { buildRawEmailMessage } from '../../v2/helper/email-builder'
@@ -58,6 +59,45 @@ interface QStashPayload {
     emailData?: PostEmailsRequest  // for batch
     batchId?: string           // for batch
     batchIndex?: number        // for batch
+}
+
+/**
+ * Check if a user is banned
+ * Returns true if banned (and ban hasn't expired), false otherwise
+ */
+async function isUserBanned(userId: string): Promise<{ banned: boolean; reason?: string }> {
+    try {
+        const [userRecord] = await db
+            .select({
+                banned: user.banned,
+                banReason: user.banReason,
+                banExpires: user.banExpires
+            })
+            .from(user)
+            .where(eq(user.id, userId))
+            .limit(1)
+
+        if (!userRecord) {
+            // User not found - treat as not banned but log it
+            console.warn(`⚠️ User ${userId} not found when checking ban status`)
+            return { banned: false }
+        }
+
+        if (userRecord.banned) {
+            // Check if ban has expired
+            if (userRecord.banExpires && new Date(userRecord.banExpires) < new Date()) {
+                console.log(`🔓 User ${userId} ban has expired, allowing email`)
+                return { banned: false }
+            }
+            return { banned: true, reason: userRecord.banReason || 'Account suspended' }
+        }
+
+        return { banned: false }
+    } catch (error) {
+        console.error(`❌ Error checking ban status for user ${userId}:`, error)
+        // On error, allow the email (fail open) to prevent blocking legitimate emails
+        return { banned: false }
+    }
 }
 
 export async function POST(request: NextRequest) {
@@ -147,6 +187,28 @@ async function handleScheduledEmail(payload: QStashPayload) {
         if (scheduledEmail.status === SCHEDULED_EMAIL_STATUS.CANCELLED) {
             console.log('⏭️ Email was cancelled, skipping:', scheduledEmailId)
             return NextResponse.json({ message: 'Email was cancelled' }, { status: 200 })
+        }
+
+        // Check if user is banned before sending
+        const banCheck = await isUserBanned(scheduledEmail.userId)
+        if (banCheck.banned) {
+            console.log(`🚫 Blocking scheduled email for banned user ${scheduledEmail.userId}: ${banCheck.reason}`)
+            
+            // Update scheduled email status to failed
+            await db
+                .update(scheduledEmails)
+                .set({
+                    status: SCHEDULED_EMAIL_STATUS.FAILED,
+                    lastError: `Email blocked: User account suspended - ${banCheck.reason}`,
+                    updatedAt: new Date()
+                })
+                .where(eq(scheduledEmails.id, scheduledEmailId))
+            
+            // Return 200 so QStash doesn't retry - this is intentional blocking
+            return NextResponse.json({ 
+                error: 'User account suspended',
+                reason: banCheck.reason 
+            }, { status: 200 })
         }
 
         // Mark as processing to prevent duplicate processing
@@ -415,6 +477,28 @@ async function handleBatchEmail(
 
     if (sentEmail.status === SENT_EMAIL_STATUS.FAILED) {
         console.log('⚠️ Email previously failed, retrying:', emailId)
+    }
+
+    // Check if user is banned before sending
+    const banCheck = await isUserBanned(userId)
+    if (banCheck.banned) {
+        console.log(`🚫 Blocking batch email for banned user ${userId}: ${banCheck.reason}`)
+        
+        // Update sent email status to failed
+        await db
+            .update(sentEmails)
+            .set({
+                status: SENT_EMAIL_STATUS.FAILED,
+                failureReason: `Email blocked: User account suspended - ${banCheck.reason}`,
+                updatedAt: new Date()
+            })
+            .where(eq(sentEmails.id, emailId))
+        
+        // Return 200 so QStash doesn't retry - this is intentional blocking
+        return NextResponse.json({ 
+            error: 'User account suspended',
+            reason: banCheck.reason 
+        }, { status: 200 })
     }
 
     try {
