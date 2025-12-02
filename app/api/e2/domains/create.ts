@@ -9,9 +9,14 @@ import { initiateDomainVerification } from "@/lib/domains-and-dns/domain-verific
 import { Autumn as autumn } from "autumn-js"
 import { isSubdomain } from "@/lib/domains-and-dns/domain-utils"
 import { nanoid } from "nanoid"
+import { AWSSESReceiptRuleManager } from "@/lib/aws-ses/aws-ses-rules"
+import { BatchRuleManager } from "@/lib/aws-ses/batch-rule-manager"
 
 // AWS Region for MX record
 const awsRegion = process.env.AWS_REGION || "us-east-2"
+const lambdaFunctionName = process.env.LAMBDA_FUNCTION_NAME || "email-processor"
+const s3BucketName = process.env.S3_BUCKET_NAME
+const awsAccountId = process.env.AWS_ACCOUNT_ID
 
 // Request/Response Types (OpenAPI-compatible)
 const CreateDomainBody = t.Object({
@@ -237,6 +242,62 @@ export const createDomain = new Elysia().post(
         })
         console.log(`💾 Saved MX record to database for subdomain: ${domain}`)
 
+        // Configure SES batch receipt rule for subdomain receiving
+        // This is the same as enabling catch-all - adds the domain to AWS SES batch rule
+        let catchAllReceiptRuleName: string | null = null
+        
+        if (s3BucketName && awsAccountId) {
+          try {
+            console.log(`🔧 Configuring SES receipt rule for subdomain: ${domain}`)
+            
+            const lambdaArn = AWSSESReceiptRuleManager.getLambdaFunctionArn(
+              lambdaFunctionName,
+              awsAccountId,
+              awsRegion
+            )
+
+            const batchManager = new BatchRuleManager("inbound-catchall-domain-default")
+            const sesManager = new AWSSESReceiptRuleManager(awsRegion)
+
+            // Find or create rule with capacity
+            const rule = await batchManager.findOrCreateRuleWithCapacity(1)
+            console.log(
+              `📋 Using batch rule for subdomain: ${rule.ruleName} (${rule.currentCapacity}/${rule.availableSlots + rule.currentCapacity})`
+            )
+
+            // Add subdomain to batch rule (same as catch-all)
+            await sesManager.configureBatchCatchAllRule({
+              domains: [domain],
+              lambdaFunctionArn: lambdaArn,
+              s3BucketName,
+              ruleSetName: "inbound-catchall-domain-default",
+              ruleName: rule.ruleName,
+            })
+
+            // Increment rule capacity
+            await batchManager.incrementRuleCapacity(rule.id, 1)
+
+            catchAllReceiptRuleName = rule.ruleName
+            console.log(`✅ Subdomain ${domain} added to SES batch rule: ${rule.ruleName}`)
+            
+            // Update domain with receipt rule name
+            await db
+              .update(emailDomains)
+              .set({
+                catchAllReceiptRuleName: catchAllReceiptRuleName,
+                updatedAt: new Date(),
+              })
+              .where(eq(emailDomains.id, domainRecord.id))
+            console.log(`💾 Updated domain with receipt rule: ${catchAllReceiptRuleName}`)
+          } catch (sesError) {
+            console.error(`⚠️ Failed to configure SES receipt rule for subdomain ${domain}:`, sesError)
+            // Don't fail the request - domain is created, but may need manual SES setup
+            // User can enable catch-all later to trigger receipt rule creation
+          }
+        } else {
+          console.warn(`⚠️ AWS configuration incomplete for subdomain ${domain}. Missing S3_BUCKET_NAME or AWS_ACCOUNT_ID. Subdomain created but cannot receive emails until catch-all is enabled.`)
+        }
+
         // Return simplified response with only MX record
         const response = {
           id: domainRecord.id,
@@ -261,11 +322,13 @@ export const createDomain = new Elysia().post(
           parentDomain: parent.domain,
           message: dnsConflict 
             ? `Subdomain inherits verification from ${parent.domain}. Note: ${dnsConflict.message}`
-            : `Subdomain inherits verification from ${parent.domain}. Only MX record needed for receiving.`,
+            : catchAllReceiptRuleName
+              ? `Subdomain inherits verification from ${parent.domain}. SES receipt rule configured - ready to receive emails once MX record is added.`
+              : `Subdomain inherits verification from ${parent.domain}. Only MX record needed for receiving.`,
         }
 
         console.log(
-          `✅ Subdomain created with parent verification: ${domain} inherits from ${parent.domain}`
+          `✅ Subdomain created with parent verification: ${domain} inherits from ${parent.domain}${catchAllReceiptRuleName ? `, SES rule: ${catchAllReceiptRuleName}` : ''}`
         )
         set.status = 201
         return response

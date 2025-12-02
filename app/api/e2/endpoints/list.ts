@@ -2,7 +2,7 @@ import { Elysia, t } from "elysia"
 import { validateAndRateLimit } from "../lib/auth"
 import { db } from "@/lib/db"
 import { endpoints, emailGroups, endpointDeliveries } from "@/lib/db/schema"
-import { eq, and, desc, asc, count, ilike } from "drizzle-orm"
+import { eq, and, desc, asc, count, ilike, or } from "drizzle-orm"
 
 // Request/Response Types (OpenAPI-compatible)
 const ListEndpointsQuery = t.Object({
@@ -106,8 +106,14 @@ export const listEndpoints = new Elysia().get(
     }
 
     if (search) {
-      conditions.push(ilike(endpoints.name, `%${search}%`))
-      console.log("🔍 Searching by name:", search)
+      // Search by name OR config (which contains webhook URL, email addresses, etc.)
+      conditions.push(
+        or(
+          ilike(endpoints.name, `%${search}%`),
+          ilike(endpoints.config, `%${search}%`)
+        )!
+      )
+      console.log("🔍 Searching by name or config:", search)
     }
 
     const whereConditions =

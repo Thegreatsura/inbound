@@ -24,6 +24,18 @@ import type {
 export interface DomainDetailsResponse extends GetDomainByIdResponse {
     inheritsFromParent?: boolean
     parentDomain?: string | null
+    // DNS records are always included in e2 response
+    dnsRecords?: Array<{
+        id: string
+        domainId: string
+        recordType: string
+        name: string
+        value: string
+        isRequired: boolean
+        isVerified: boolean
+        lastChecked: Date | null
+        createdAt: Date
+    }>
 }
 
 // Query keys for v2 domain API

@@ -516,7 +516,26 @@ export const getDomain = new Elysia().get(
 
         const allDnsVerified =
           verificationResults.length > 0 && verificationResults.every((r) => r.isVerified)
-        const isFullyVerified = allDnsVerified && sesStatus === "Success"
+        
+        // For subdomains that inherit from parent, they're fully verified when DNS (MX) is verified
+        // They inherit SES/DKIM/MAIL FROM from the parent domain
+        const sesVerifiedOrInherited = sesStatus === "Success" || sesStatus === "InheritedFromParent"
+        const isFullyVerified = allDnsVerified && sesVerifiedOrInherited
+        
+        // Update domain status for subdomains that inherit from verified parent
+        if (inheritsFromParent && allDnsVerified && domain.status !== "verified") {
+          console.log(`✅ Marking subdomain ${domain.domain} as verified (inherits from parent, DNS verified)`)
+          await db.update(emailDomains).set({
+            status: "verified",
+            canReceiveEmails: true,
+            hasMxRecords: true,
+            updatedAt: new Date(),
+          }).where(eq(emailDomains.id, domain.id))
+          response.status = "verified"
+          response.canReceiveEmails = true
+          response.hasMxRecords = true
+          response.updatedAt = new Date()
+        }
 
         response.verificationCheck = {
           dnsRecords: verificationResults,

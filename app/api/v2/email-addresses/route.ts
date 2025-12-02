@@ -49,6 +49,8 @@ export interface EmailAddressWithDomain {
         name: string | null
         config?: any
         isActive: boolean
+        /** The endpoint type (webhook, email, or email_group) - only present when type is 'endpoint' */
+        endpointType?: 'webhook' | 'email' | 'email_group'
     }
 }
 
@@ -201,7 +203,8 @@ export async function GET(request: NextRequest) {
                         id: endpoint[0].id,
                         name: endpoint[0].name,
                         config: JSON.parse(endpoint[0].config),
-                        isActive: endpoint[0].isActive || false
+                        isActive: endpoint[0].isActive || false,
+                        endpointType: endpoint[0].type as 'webhook' | 'email' | 'email_group'
                     }
                 }
             } else if (emailAddress.webhookId) {

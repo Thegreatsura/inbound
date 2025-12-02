@@ -46,18 +46,11 @@ import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 import { DOMAIN_STATUS } from "@/lib/db/schema";
 import { cn } from "@/lib/utils";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-dialog";
 
 // React Query hooks for v2 API
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEndpointsQuery } from "@/features/endpoints/hooks";
+import { EndpointSelector } from "@/components/endpoints/EndpointSelector";
 import {
   useDomainDetailsV2Query,
   useDomainVerificationCheckV2,
@@ -76,6 +69,7 @@ import type {
   GetDomainByIdResponse,
   PutDomainByIdRequest,
 } from "@/app/api/v2/domains/[id]/route";
+import { client } from "@/lib/api/client";
 import type {
   GetEmailAddressesResponse,
   EmailAddressWithDomain,
@@ -149,11 +143,7 @@ export default function DomainDetailPage() {
     gcTime: 10 * 60 * 1000, // 10 minutes
   });
 
-  const { 
-    data: userEndpoints = [], 
-    isLoading: isEndpointsLoading, 
-    refetch: refetchEndpoints 
-  } = useEndpointsQuery();
+  // Note: EndpointSelector components handle their own data fetching with search + pagination
 
   // Get auth recommendations for verified domains
   const {
@@ -176,7 +166,7 @@ export default function DomainDetailPage() {
 
   // Local state for UI interactions
   const [newEmailAddress, setNewEmailAddress] = useState("");
-  const [selectedEndpointId, setSelectedEndpointId] = useState<string>("none");
+  const [selectedEndpointId, setSelectedEndpointId] = useState<string | null>(null);
   const [emailError, setEmailError] = useState<string | null>(null);
   const [isRefreshingVerification, setIsRefreshingVerification] =
     useState(false);
@@ -197,10 +187,10 @@ export default function DomainDetailPage() {
   const [selectedEmailForEndpoint, setSelectedEmailForEndpoint] =
     useState<EmailAddressWithDomain | null>(null);
   const [endpointDialogSelectedId, setEndpointDialogSelectedId] =
-    useState<string>("none");
+    useState<string | null>(null);
 
   // Catch-all state
-  const [catchAllEndpointId, setCatchAllEndpointId] = useState<string>("none");
+  const [catchAllEndpointId, setCatchAllEndpointId] = useState<string | null>(null);
 
   // Email deletion confirmation state
   const [emailToDelete, setEmailToDelete] = useState<{
@@ -212,18 +202,6 @@ export default function DomainDetailPage() {
 
   // Zone file generation state
   const [isGeneratingZoneFile, setIsGeneratingZoneFile] = useState(false);
-
-  // Refetch endpoints when navigating to this page to ensure fresh data
-  useEffect(() => {
-    if (domainId) {
-      // Small delay to ensure any pending endpoint creations are completed
-      const timer = setTimeout(() => {
-        refetchEndpoints();
-      }, 100);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [domainId, refetchEndpoints]);
 
   // Set catch-all endpoint ID when data loads
   useEffect(() => {
@@ -292,14 +270,18 @@ export default function DomainDetailPage() {
         }
       }
 
-      // Use check=true to force a fresh verification check
-      const response = await fetch(`/api/v2/domains/${domainId}?check=true`);
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Failed to check domain verification");
+      // Use check=true to force a fresh verification check via Elysia e2 API
+      const { data: updatedDomain, error } = await client.api.e2.domains({ id: domainId }).get({
+        query: { check: 'true' }
+      });
+      
+      if (error) {
+        throw new Error((error as any)?.error || "Failed to check domain verification");
       }
-
-      const updatedDomain = await response.json();
+      
+      if (!updatedDomain) {
+        throw new Error("No data returned from verification check");
+      }
 
       // Manually update the query cache with the fresh data
       queryClient.setQueryData(domainV2Keys.detail(domainId), updatedDomain);
@@ -469,8 +451,7 @@ export default function DomainDetailPage() {
       await addEmailMutation.mutateAsync({
         address: fullEmailAddress,
         domainId: domainId,
-        endpointId:
-          selectedEndpointId === "none" ? undefined : selectedEndpointId,
+        endpointId: selectedEndpointId ?? undefined,
       });
 
       setNewEmailAddress("");
@@ -561,8 +542,7 @@ export default function DomainDetailPage() {
     console.log("🔄 Updating email endpoint:", {
       emailId: selectedEmailForEndpoint.id,
       currentEndpointId: selectedEmailForEndpoint.endpointId,
-      newEndpointId:
-        endpointDialogSelectedId === "none" ? null : endpointDialogSelectedId,
+      newEndpointId: endpointDialogSelectedId,
       domainId: domainId,
     });
 
@@ -594,32 +574,12 @@ export default function DomainDetailPage() {
   const openEndpointDialog = (email: EmailAddressWithDomain) => {
     setSelectedEmailForEndpoint(email);
     // Prioritize endpointId over webhookId (for migrated webhooks)
-    setEndpointDialogSelectedId(email.endpointId || email.webhookId || "none");
+    setEndpointDialogSelectedId(email.endpointId || email.webhookId || null);
     setIsEndpointDialogOpen(true);
   };
 
-  const handleEndpointSelection = (value: string) => {
-    if (value === "create-new") {
-      router.push("/endpoints");
-    } else {
-      setSelectedEndpointId(value);
-    }
-  };
-
-  const handleEndpointDialogSelection = (value: string) => {
-    if (value === "create-new") {
-      router.push("/endpoints");
-    } else {
-      setEndpointDialogSelectedId(value);
-    }
-  };
-
-  const handleCatchAllEndpointSelection = (value: string) => {
-    if (value === "create-new") {
-      router.push("/endpoints");
-    } else {
-      setCatchAllEndpointId(value);
-    }
+  const handleCreateNewEndpoint = () => {
+    router.push("/endpoints");
   };
 
   const toggleCatchAll = async () => {
@@ -634,11 +594,6 @@ export default function DomainDetailPage() {
         });
         toast.success("Catch-all disabled successfully");
       } else {
-        if (catchAllEndpointId === "none") {
-          toast.error("Please select an endpoint for catch-all emails");
-          return;
-        }
-
         await updateCatchAllMutation.mutateAsync({
           domainId,
           isCatchAllEnabled: true,
@@ -1641,48 +1596,17 @@ export default function DomainDetailPage() {
                     </div>
                   </div>
                   <div className="flex gap-2 w-full sm:flex-1">
-                    <Select
+                    <EndpointSelector
                       value={selectedEndpointId}
-                      onValueChange={handleEndpointSelection}
-                      disabled={isEndpointsLoading}
-                    >
-                      <SelectTrigger className="flex-1 h-10 min-w-0">
-                        <SelectValue placeholder="Endpoint (optional)" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">Store in Inbound</SelectItem>
-                        <SelectItem
-                          value="create-new"
-                          className="text-blue-600 font-medium"
-                        >
-                          <div className="flex items-center gap-2">
-                            <CirclePlus width="16" height="16" />
-                            Create Endpoint
-                          </div>
-                        </SelectItem>
-                        {userEndpoints.length > 0 && (
-                          <>
-                            <div className="px-2 py-1 text-xs font-medium text-muted-foreground border-t">
-                              Endpoints
-                            </div>
-                            {userEndpoints.map((endpoint) => (
-                              <SelectItem key={endpoint.id} value={endpoint.id}>
-                                <div className="flex items-center gap-2">
-                                  <CustomInboundIcon
-                                    Icon={getEndpointIcon(endpoint)}
-                                    size={16}
-                                    backgroundColor={getEndpointIconColor(
-                                      endpoint
-                                    )}
-                                  />
-                                  {endpoint.name} ({endpoint.type})
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </>
-                        )}
-                      </SelectContent>
-                    </Select>
+                      onChange={setSelectedEndpointId}
+                      placeholder="Endpoint (optional)"
+                      allowNone
+                      noneLabel="Store in Inbound"
+                      showCreateNew
+                      onCreateNew={handleCreateNewEndpoint}
+                      className="flex-1 h-10 min-w-0"
+                      triggerVariant="select"
+                    />
                     <Button
                       onClick={addEmailAddressHandler}
                       disabled={!newEmailAddress.trim()}
@@ -1791,40 +1715,32 @@ export default function DomainDetailPage() {
                         <div className="flex items-center gap-2">
                           <div className="text-sm text-muted-foreground">
                             {(() => {
-                              console.log("🔍 Routing:", email.routing);
                               // Use the routing information from the email
                               const routing = email.routing;
 
                               if (routing.type === "endpoint" && routing.id) {
-                                const endpoint = userEndpoints.find(
-                                  (ep) => ep.id === routing.id
-                                );
-                                if (endpoint) {
-                                  const EndpointIcon =
-                                    getEndpointIcon(endpoint);
-                                  return (
-                                    <Link
-                                      href={`/endpoints/${routing.id}`}
-                                      className="flex items-center gap-1.5 hover:opacity-80 transition-opacity"
+                                // Use endpoint type from routing to determine icon
+                                const endpointType = routing.endpointType || 'webhook';
+                                const EndpointIcon = getEndpointIcon({ type: endpointType });
+                                const iconColor = getEndpointIconColor({ type: endpointType, isActive: routing.isActive });
+                                return (
+                                  <Link
+                                    href={`/endpoints/${routing.id}`}
+                                    className="flex items-center gap-1.5 hover:opacity-80 transition-opacity"
+                                  >
+                                    <CustomInboundIcon
+                                      Icon={EndpointIcon}
+                                      size={25}
+                                      backgroundColor={iconColor}
+                                    />
+                                    <span
+                                      className={`font-medium hover:underline`}
+                                      style={{ color: iconColor }}
                                     >
-                                      <CustomInboundIcon
-                                        Icon={EndpointIcon}
-                                        size={25}
-                                        backgroundColor={getEndpointIconColor(
-                                          endpoint
-                                        )}
-                                      />
-                                      <span
-                                        className={`font-medium hover:underline`}
-                                        style={{
-                                          color: getEndpointIconColor(endpoint),
-                                        }}
-                                      >
-                                        {routing.name}
-                                      </span>
-                                    </Link>
-                                  );
-                                }
+                                      {routing.name}
+                                    </span>
+                                  </Link>
+                                );
                               } else if (
                                 routing.type === "webhook" &&
                                 routing.id
@@ -1955,53 +1871,17 @@ export default function DomainDetailPage() {
                         </div>
                       ) : (
                         <div className="flex-1">
-                          <Select
+                          <EndpointSelector
                             value={catchAllEndpointId}
-                            onValueChange={handleCatchAllEndpointSelection}
-                            disabled={isEndpointsLoading}
-                          >
-                            <SelectTrigger className="w-full h-10">
-                              <SelectValue placeholder="Select endpoint" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">
-                                Store in Inbound
-                              </SelectItem>
-                              <SelectItem
-                                value="create-new"
-                                className="text-blue-600 font-medium"
-                              >
-                                <div className="flex items-center gap-2">
-                                  <CirclePlus width="16" height="16" />
-                                  Create Endpoint
-                                </div>
-                              </SelectItem>
-                              {userEndpoints.length > 0 && (
-                                <>
-                                  <div className="px-2 py-1 text-xs font-medium text-muted-foreground border-t">
-                                    Endpoints
-                                  </div>
-                                  {userEndpoints.map((endpoint) => (
-                                    <SelectItem
-                                      key={endpoint.id}
-                                      value={endpoint.id}
-                                    >
-                                      <div className="flex items-center gap-2">
-                                        <CustomInboundIcon
-                                          Icon={getEndpointIcon(endpoint)}
-                                          size={16}
-                                          backgroundColor={getEndpointIconColor(
-                                            endpoint
-                                          )}
-                                        />
-                                        {endpoint.name} ({endpoint.type})
-                                      </div>
-                                    </SelectItem>
-                                  ))}
-                                </>
-                              )}
-                            </SelectContent>
-                          </Select>
+                            onChange={setCatchAllEndpointId}
+                            placeholder="Select endpoint"
+                            allowNone
+                            noneLabel="Store in Inbound"
+                            showCreateNew
+                            onCreateNew={handleCreateNewEndpoint}
+                            className="w-full h-10"
+                            triggerVariant="select"
+                          />
                         </div>
                       )}
                       <div className={"w-full sm:w-auto sm:min-w-[140px]"}>
@@ -2013,10 +1893,7 @@ export default function DomainDetailPage() {
                           }
                           className="h-10 w-full"
                           onClick={toggleCatchAll}
-                          disabled={
-                            !domainDetailsData.isCatchAllEnabled &&
-                            catchAllEndpointId === "none"
-                          }
+                          disabled={false}
                         >
                           {domainDetailsData.isCatchAllEnabled
                             ? "Disable Catch-all"
@@ -2181,48 +2058,16 @@ export default function DomainDetailPage() {
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
                 <Label htmlFor="endpoint-assignment">Endpoint Assignment</Label>
-                <Select
+                <EndpointSelector
                   value={endpointDialogSelectedId}
-                  onValueChange={handleEndpointDialogSelection}
-                  disabled={isEndpointsLoading}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Store in Inbound" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Store in Inbound</SelectItem>
-                    <SelectItem
-                      value="create-new"
-                      className="text-blue-600 font-medium"
-                    >
-                      <div className="flex items-center gap-2">
-                        <CirclePlus width="16" height="16" />
-                        Create New Endpoint
-                      </div>
-                    </SelectItem>
-                    {userEndpoints.length > 0 && (
-                      <>
-                        <div className="px-2 py-1 text-xs font-medium text-muted-foreground border-t">
-                          Existing Endpoints
-                        </div>
-                        {userEndpoints.map((endpoint) => (
-                          <SelectItem key={endpoint.id} value={endpoint.id}>
-                            <div className="flex items-center gap-2">
-                              <CustomInboundIcon
-                                Icon={getEndpointIcon(endpoint)}
-                                size={16}
-                                backgroundColor={getEndpointIconColor(endpoint)}
-                              />
-                              <span>
-                                {endpoint.name} ({endpoint.type})
-                              </span>
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </>
-                    )}
-                  </SelectContent>
-                </Select>
+                  onChange={setEndpointDialogSelectedId}
+                  placeholder="Store in Inbound"
+                  allowNone
+                  noneLabel="Store in Inbound"
+                  showCreateNew
+                  onCreateNew={handleCreateNewEndpoint}
+                  triggerVariant="select"
+                />
               </div>
             </div>
             <DialogFooter>
@@ -2231,7 +2076,7 @@ export default function DomainDetailPage() {
                 onClick={() => {
                   setIsEndpointDialogOpen(false);
                   setSelectedEmailForEndpoint(null);
-                  setEndpointDialogSelectedId("none");
+                  setEndpointDialogSelectedId(null);
                 }}
               >
                 Cancel

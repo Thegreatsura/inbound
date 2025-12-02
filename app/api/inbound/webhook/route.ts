@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { sesEvents, structuredEmails, emailDomains, emailAddresses, endpointDeliveries } from '@/lib/db/schema'
+import { user } from '@/lib/db/auth-schema'
 import { nanoid } from 'nanoid'
 import { eq, and } from 'drizzle-orm'
 import { Autumn as autumn } from 'autumn-js'
@@ -10,6 +11,7 @@ import { parseEmail, type ParsedEmailData } from '@/lib/email-management/email-p
 import { type SESEvent, type SESRecord } from '@/lib/aws-ses/aws-ses'
 import { isEmailBlocked } from '@/lib/email-management/email-blocking'
 import { routeEmail } from '@/lib/email-management/email-router'
+import { sendLimitReachedNotification } from '@/lib/email-management/email-notifications'
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3'
 import { createHash } from 'crypto'
 
@@ -475,6 +477,36 @@ export async function POST(request: NextRequest) {
               reason: triggerResult.error || 'Inbound trigger limit reached',
               subject: mail.commonHeaders.subject,
             })
+            
+            // Send limit reached notification to user (async, don't wait)
+            // Look up user details first
+            const domain = extractDomain(recipient)
+            db.select({ email: user.email, name: user.name })
+              .from(user)
+              .where(eq(user.id, userId))
+              .limit(1)
+              .then(async (userResult) => {
+                if (userResult[0]?.email) {
+                  try {
+                    await sendLimitReachedNotification({
+                      userEmail: userResult[0].email,
+                      userName: userResult[0].name,
+                      userId: userId,
+                      limitType: 'inbound_triggers',
+                      rejectedEmailCount: 1,
+                      rejectedRecipient: recipient,
+                      domain: domain,
+                      triggeredAt: new Date(),
+                    })
+                  } catch (notificationError) {
+                    console.error(`❌ Webhook - Failed to send limit reached notification to ${userResult[0].email}:`, notificationError)
+                  }
+                }
+              })
+              .catch((err) => {
+                console.error(`❌ Webhook - Failed to look up user ${userId} for limit notification:`, err)
+              })
+            
             continue // Skip processing this recipient
           }
 

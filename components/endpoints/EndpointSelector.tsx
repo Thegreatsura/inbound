@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/popover"
 import { useDebouncedValue } from "@/hooks/useDebouncedValue"
 import { useEndpointsInfiniteQuery, flattenEndpointPages } from "@/features/endpoints/hooks"
+import { useEndpointByIdQuery } from "@/features/endpoints/hooks"
 import type { EndpointWithStats } from "@/features/endpoints/types"
 
 // Icons
@@ -41,6 +42,8 @@ export type EndpointSelectorProps = {
   showCreateNew?: boolean
   onCreateNew?: () => void
   className?: string
+  /** Trigger variant - 'button' is default, 'select' looks like shadcn Select */
+  triggerVariant?: 'button' | 'select'
 }
 
 function getEndpointIcon(type: string) {
@@ -96,6 +99,7 @@ export function EndpointSelector({
   showCreateNew = false,
   onCreateNew,
   className,
+  triggerVariant = 'button',
 }: EndpointSelectorProps) {
   const [open, setOpen] = React.useState(false)
   const [search, setSearch] = React.useState("")
@@ -122,11 +126,40 @@ export function EndpointSelector({
     return filterActive ? all.filter(e => e.isActive) : all
   }, [data?.pages, filterActive])
 
-  // Find selected endpoint for display
-  const selectedEndpoint = React.useMemo(() => {
+  // Check if the selected value is in the loaded endpoints
+  const selectedInPages = React.useMemo(() => {
     if (!value) return null
     return endpoints.find(e => e.id === value) || null
   }, [value, endpoints])
+
+  // Fetch the selected endpoint by ID if it's not in the loaded pages
+  // This handles the case where the user has an endpoint selected that isn't in the first page
+  const { data: fetchedEndpoint, isLoading: isFetchingSelected } = useEndpointByIdQuery(
+    value && !selectedInPages ? value : null
+  )
+
+  // Combine: use endpoint from pages if available, otherwise use fetched endpoint
+  const selectedEndpoint = React.useMemo((): EndpointWithStats | null => {
+    if (selectedInPages) return selectedInPages
+    if (fetchedEndpoint) {
+      // Convert ApiEndpointDetailResponse to EndpointWithStats
+      return {
+        id: fetchedEndpoint.id,
+        name: fetchedEndpoint.name,
+        type: fetchedEndpoint.type,
+        config: fetchedEndpoint.config,
+        isActive: fetchedEndpoint.isActive,
+        description: fetchedEndpoint.description,
+        userId: fetchedEndpoint.userId,
+        createdAt: fetchedEndpoint.createdAt ? new Date(fetchedEndpoint.createdAt) : null,
+        updatedAt: fetchedEndpoint.updatedAt ? new Date(fetchedEndpoint.updatedAt) : null,
+        webhookFormat: null,
+        groupEmails: fetchedEndpoint.groupEmails,
+        deliveryStats: fetchedEndpoint.deliveryStats,
+      }
+    }
+    return null
+  }, [selectedInPages, fetchedEndpoint])
 
   // Infinite scroll with IntersectionObserver
   React.useEffect(() => {
@@ -158,6 +191,20 @@ export function EndpointSelector({
     }
   }, [open])
 
+  const isLoadingDisplay = isLoading || (value && !selectedEndpoint && isFetchingSelected)
+
+  // Fallback: fetch next page on scroll proximity to bottom
+  const handleScroll = React.useCallback(
+    (e: React.UIEvent<HTMLDivElement>) => {
+      const target = e.currentTarget
+      const distanceFromBottom = target.scrollHeight - target.scrollTop - target.clientHeight
+      if (distanceFromBottom < 64 && hasNextPage && !isFetchingNextPage) {
+        fetchNextPage()
+      }
+    },
+    [fetchNextPage, hasNextPage, isFetchingNextPage]
+  )
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -168,6 +215,7 @@ export function EndpointSelector({
           className={cn(
             "w-full justify-between font-normal",
             !value && "text-muted-foreground",
+            triggerVariant === 'select' && "h-10",
             className
           )}
           disabled={disabled}
@@ -193,7 +241,7 @@ export function EndpointSelector({
           ) : value === null && allowNone ? (
             <span>{noneLabel}</span>
           ) : (
-            <span>{isLoading ? "Loading..." : placeholder}</span>
+            <span>{isLoadingDisplay ? "Loading..." : placeholder}</span>
           )}
           <DoubleChevronDown
             width="16"
@@ -202,18 +250,24 @@ export function EndpointSelector({
           />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
-        <Command shouldFilter={false}>
+      <PopoverContent
+        className="w-[var(--radix-popover-trigger-width)] p-0 overflow-hidden"
+        align="start"
+        side="top"
+        sideOffset={6}
+        avoidCollisions={false}
+      >
+        <Command shouldFilter={false} className="rounded-lg">
           <CommandInput
-            placeholder="Search endpoints..."
+            placeholder="Search by name, URL, or email..."
             value={search}
             onValueChange={setSearch}
           />
-          <CommandList ref={listRef} className="max-h-[300px]">
+          <CommandList ref={listRef} className="max-h-[280px]" onScroll={handleScroll}>
             <CommandEmpty>
               {isLoading ? "Loading..." : "No endpoints found."}
             </CommandEmpty>
-            <CommandGroup>
+            <CommandGroup className="p-1">
               {allowNone && (
                 <CommandItem
                   value="__none__"
@@ -221,17 +275,17 @@ export function EndpointSelector({
                     onChange(null)
                     setOpen(false)
                   }}
-                  className="px-3 py-2.5"
+                  className="relative px-2 py-2 rounded-md"
                 >
                   <Check2
-                    width="16"
-                    height="16"
+                    width="14"
+                    height="14"
                     className={cn(
-                      "mr-2 h-4 w-4",
+                      "absolute left-2 top-1/2 -translate-y-1/2",
                       value === null ? "opacity-100" : "opacity-0"
                     )}
                   />
-                  <span className="text-muted-foreground">{noneLabel}</span>
+                  <span className="text-muted-foreground pl-6">{noneLabel}</span>
                 </CommandItem>
               )}
               {showCreateNew && (
@@ -241,12 +295,12 @@ export function EndpointSelector({
                     setOpen(false)
                     onCreateNew?.()
                   }}
-                  className="px-3 py-2.5"
+                  className="gap-2 px-2 py-2 rounded-md"
                 >
                   <CirclePlus
-                    width="16"
-                    height="16"
-                    className="mr-2 h-4 w-4 text-primary"
+                    width="14"
+                    height="14"
+                    className="shrink-0 text-primary"
                   />
                   <span className="text-primary font-medium">Create New Endpoint</span>
                 </CommandItem>
@@ -262,40 +316,38 @@ export function EndpointSelector({
                       onChange(endpoint.id)
                       setOpen(false)
                     }}
-                    className="px-3 py-2.5"
+                    className="relative px-2 py-2 rounded-md"
                   >
                     <Check2
-                      width="16"
-                      height="16"
+                      width="14"
+                      height="14"
                       className={cn(
-                        "mr-2 h-4 w-4 flex-shrink-0",
+                        "absolute left-2 top-1/2 -translate-y-1/2",
                         isSelected ? "opacity-100" : "opacity-0"
                       )}
                     />
-                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                      <Icon
-                        width="16"
-                        height="16"
-                        style={{ color: getEndpointIconColor(endpoint) }}
-                        className="flex-shrink-0"
-                      />
-                      <span className="truncate">{endpoint.name}</span>
-                      <span className="text-xs text-muted-foreground flex-shrink-0">
-                        ({getEndpointTypeLabel(endpoint.type)})
-                      </span>
-                    </div>
+                    <Icon
+                      width="16"
+                      height="16"
+                      style={{ color: getEndpointIconColor(endpoint) }}
+                      className="shrink-0 mr-2"
+                    />
+                    <span className="truncate flex-1">{endpoint.name}</span>
+                    <span className="text-xs text-muted-foreground shrink-0">
+                      ({getEndpointTypeLabel(endpoint.type)})
+                    </span>
                   </CommandItem>
                 )
               })}
               {/* Load more trigger */}
-              <div ref={loadMoreRef} className="h-1" />
+              <div ref={loadMoreRef} className="h-px" />
               {isFetchingNextPage && (
                 <div className="flex items-center justify-center py-2">
-                  <Loader width="16" height="16" className="animate-spin text-muted-foreground" />
+                  <Loader width="14" height="14" className="animate-spin text-muted-foreground" />
                 </div>
               )}
               {hasNextPage && !isFetchingNextPage && endpoints.length > 0 && (
-                <div className="text-xs text-center text-muted-foreground py-2">
+                <div className="text-xs text-center text-muted-foreground py-1.5">
                   Scroll for more...
                 </div>
               )}
