@@ -1,19 +1,13 @@
 import {
   Body,
   Container,
-  Font,
   Head,
   Html,
-  Img,
   Link,
   Preview,
-  Section,
-  Heading,
   Tailwind,
   Text,
-} from '@react-email/components';
-import * as React from 'react';
-import { INBOUND_WORDMARK } from './utils';
+} from "@react-email/components";
 
 interface DomainVerifiedEmailProps {
   userFirstname?: string;
@@ -22,94 +16,49 @@ interface DomainVerifiedEmailProps {
 }
 
 export const DomainVerifiedEmail = ({
-  userFirstname = 'User',
-  domain = 'example.com',
+  userFirstname = "User",
+  domain = "example.com",
   verifiedAt = new Date().toLocaleDateString(),
 }: DomainVerifiedEmailProps) => (
   <Html>
-    <Head>
-      <Font
-        fontFamily="Outfit"
-        fallbackFontFamily="Arial"
-        webFont={{
-          url: "https://fonts.gstatic.com/s/outfit/v15/QGYyz_MVcBeNP4NjuGObqx1XmO1I4e6yO4a0FQItq6fNIg.woff",
-          format: "woff",
-        }}
-        fontWeight={600}
-        fontStyle="normal"
-      />
-      <Font
-        fontFamily="Geist"
-        fallbackFontFamily="Arial"
-        webFont={{
-          url: "https://fonts.gstatic.com/s/geist/v4/gyBhhwUxId8gMGYQMKR3pzfaWI_RnOMImpnc6VEdtaiL.woff",
-          format: "woff",
-        }}
-        fontWeight={500}
-        fontStyle="normal"
-      />
-    </Head>
-    <Preview>🎉 {domain} verified and ready</Preview>
-    <Tailwind
-      config={{
-        theme: {
-          extend: {
-            colors: {
-              brand: '#7C3AED',
-            },
-            fontFamily: {
-              outfit: ['Outfit', 'Arial', 'sans-serif'],
-              geist: ['Geist', 'Arial', 'sans-serif'],
-            },
-          },
-        },
-      }}
-    >
-      <Body className="mx-auto my-auto font-geist text-slate-700">
-        <Container className="mx-auto my-10 max-w-[600px] rounded border border-solid border-neutral-200 bg-white px-10 py-5">
-          <Section className="mt-8">
-            <Img src={INBOUND_WORDMARK} height="32" alt="inbound" />
-          </Section>
-          <Heading className="mx-0 my-7 p-0 text-2xl font-semibold text-black">Domain verified</Heading>
-          <Text className="text-sm leading-6 text-black">🎉 Congratulations, {userFirstname}!</Text>
-          <Text className="text-sm leading-6 text-black">Your domain <strong>{domain}</strong> is now verified and ready to receive emails through inbound.</Text>
+    <Head />
+    <Preview>Domain verified: {domain}</Preview>
+    <Tailwind>
+      <Body className="bg-white font-sans text-neutral-800" style={{ margin: "32px" }}>
+        <Container style={{ maxWidth: "480px", margin: "0", padding: "0 16px" }}>
+          <Text className="text-base leading-7">
+            Hi {userFirstname}, your domain <strong>{domain}</strong> is now verified and ready to receive emails through inbound.
+          </Text>
+          <Text className="m-0 mt-4 text-sm leading-6">- Verified on {verifiedAt}</Text>
+          <Text className="m-0 text-sm leading-6">- Email receiving active</Text>
+          <Text className="m-0 text-sm leading-6">- Email sending active</Text>
 
-          <Section className="my-6">
-            <div className="rounded-lg border border-[#e6ebf1] bg-slate-50 p-4">
-              <Text className="text-sm leading-6 text-black">✅ Verified on {verifiedAt}</Text>
-              <Text className="text-sm leading-6 text-black">✅ Email receiving active</Text>
-              <Text className="text-sm leading-6 text-black">✅ Email sending active</Text>
-          </div>
-          </Section>
-
-          <Section className="my-8">
+          <Text className="my-6">
             <Link
-              className="rounded-lg bg-brand px-6 py-3 text-center text-[12px] font-semibold text-white no-underline"
               href="https://inbound.new/dashboard"
+              className="text-violet-600 underline"
             >
-              Open Dashboard
+              Open Dashboard →
             </Link>
-          </Section>
-
-          <Text className="text-sm leading-6 text-black">
-            Your domain is ready. Visit your{' '}
-            <Link className="font-medium text-brand no-underline" href="https://inbound.new/dashboard">dashboard</Link>{' '}
-            or read the{' '}
-            <Link className="font-medium text-brand no-underline" href="https://docs.inbound.new">docs</Link> to get started.
           </Text>
-          <Text className="text-sm leading-6 text-black">Reply to this email if you have any questions—we read every email.</Text>
-          <Text className="text-sm leading-6 text-black">— the inbound team</Text>
 
-          <Section className="mt-8">
-            <Text className="text-xs leading-4 text-neutral-500">
-            inbound by exon
-            <br />
-            <br />
-            4674 Town Center Parkway, Jacksonville, FL 32246
+          <Text className="text-base leading-7">
+            Visit your{" "}
+            <Link href="https://inbound.new/dashboard" className="text-violet-600 underline">
+              dashboard
+            </Link>{" "}
+            or read the{" "}
+            <Link href="https://docs.inbound.new" className="text-violet-600 underline">
+              docs
+            </Link>{" "}
+            to get started. Reply to this email if you have any questions.
           </Text>
-        </Section>
-      </Container>
-    </Body>
+
+          <Text className="mt-8 text-sm text-neutral-500">
+            — inbound
+          </Text>
+        </Container>
+      </Body>
     </Tailwind>
   </Html>
 );

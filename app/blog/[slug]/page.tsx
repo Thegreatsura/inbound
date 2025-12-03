@@ -14,12 +14,14 @@ import { notFound } from "next/navigation";
 import { MarketingNav, MarketingFooter } from "@/components/marketing-nav";
 
 interface BlogPostPageProps {
-  params: {
+  params: Promise<{
     slug: string;
-  };
+  }>;
 }
 
 export default async function BlogPostPage({ params }: BlogPostPageProps) {
+  const { slug } = await params;
+  
   return (
     <div className="min-h-screen bg-[#fafaf9] text-[#1c1917] selection:bg-[#8161FF]/20">
       <div className="max-w-2xl mx-auto px-6">
@@ -36,14 +38,14 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
           {async ([{ blogPosts }]) => {
             "use server";
 
-            const blog = getBlogPostBySlug(blogPosts, params.slug);
+            const blog = getBlogPostBySlug(blogPosts, slug);
 
             if (!blog) {
               notFound();
             }
 
-            const previousPost = getPreviousBlogPost(blogPosts, params.slug);
-            const nextPost = getNextBlogPost(blogPosts, params.slug);
+            const previousPost = getPreviousBlogPost(blogPosts, slug);
+            const nextPost = getNextBlogPost(blogPosts, slug);
 
             return (
               <article>
@@ -159,13 +161,15 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
   );
 }
 
-export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  
   const { blogPosts } = await basehub().query({
     blogPosts: generateBlogPostsQuery(),
   });
 
   const { getBlogPostBySlug } = await import("@/features/blog/utils/blog-mapper");
-  const blog = getBlogPostBySlug(blogPosts, params.slug);
+  const blog = getBlogPostBySlug(blogPosts, slug);
 
   if (!blog) {
     return {
