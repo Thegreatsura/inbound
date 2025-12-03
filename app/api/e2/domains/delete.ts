@@ -242,8 +242,18 @@ export const deleteDomain = new Elysia().delete(
     detail: {
       tags: ["Domains"],
       summary: "Delete domain",
-      description:
-        "Delete a domain and all associated resources including email addresses, DNS records, and SES configurations.",
+      description: "Delete a domain and all associated resources including email addresses, DNS records, and SES configurations. Root domains with subdomains must have subdomains deleted first.",
+      "x-codeSamples": [
+        {
+          lang: "javascript",
+          label: "Node.js",
+          source: `import { Inbound } from 'inboundemail'
+
+const inbound = new Inbound(process.env.INBOUND_API_KEY)
+
+const { data: result } = await inbound.domains.delete('dom_abc123')`,
+        },
+      ],
     },
   }
 )

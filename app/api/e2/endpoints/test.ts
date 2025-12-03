@@ -635,6 +635,19 @@ export const testEndpoint = new Elysia().post(
       summary: "Test endpoint",
       description:
         "Test an endpoint by sending a test payload. For webhooks, supports inbound, discord, and slack formats. For email endpoints, simulates the forwarding process.",
+      "x-codeSamples": [
+        {
+          lang: "javascript",
+          label: "Node.js",
+          source: `import { Inbound } from 'inboundemail'
+
+const inbound = new Inbound(process.env.INBOUND_API_KEY)
+
+const { data: result } = await inbound.endpoints.test('endp_abc123', {
+  webhookFormat: 'inbound'
+})`,
+        },
+      ],
     },
   }
 )

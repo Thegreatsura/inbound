@@ -414,8 +414,24 @@ export const listDomains = new Elysia().get(
     detail: {
       tags: ["Domains"],
       summary: "List all domains",
-      description:
-        "Get paginated list of domains for authenticated user with optional filtering",
+      description: "Get paginated list of domains for authenticated user with optional filtering.",
+      "x-codeSamples": [
+        {
+          lang: "javascript",
+          label: "Node.js",
+          source: `import { Inbound } from 'inboundemail'
+
+const inbound = new Inbound(process.env.INBOUND_API_KEY)
+
+const { data: domains } = await inbound.domains.list()
+
+// With filters
+const { data: verified } = await inbound.domains.list({
+  status: 'verified',
+  limit: 10
+})`,
+        },
+      ],
     },
   }
 )

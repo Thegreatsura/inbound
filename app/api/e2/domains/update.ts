@@ -231,8 +231,21 @@ export const updateDomain = new Elysia().patch(
     detail: {
       tags: ["Domains"],
       summary: "Update domain catch-all settings",
-      description:
-        "Update catch-all email settings for a domain. Domain must be verified to configure catch-all.",
+      description: "Update catch-all email settings for a domain. Catch-all receives emails sent to any address on your domain. Domain must be verified first.",
+      "x-codeSamples": [
+        {
+          lang: "javascript",
+          label: "Node.js",
+          source: `import { Inbound } from 'inboundemail'
+
+const inbound = new Inbound(process.env.INBOUND_API_KEY)
+
+const { data: domain } = await inbound.domains.update('dom_abc123', {
+  isCatchAllEnabled: true,
+  catchAllEndpointId: 'endp_xyz789'
+})`,
+        },
+      ],
     },
   }
 )

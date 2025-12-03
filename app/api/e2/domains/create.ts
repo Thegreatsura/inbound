@@ -407,8 +407,20 @@ export const createDomain = new Elysia().post(
     detail: {
       tags: ["Domains"],
       summary: "Create new domain",
-      description:
-        "Add a new domain for email receiving. Automatically initiates SES verification and returns required DNS records.",
+      description: "Add a new domain for email receiving. Automatically initiates SES verification and returns required DNS records. Subdomains inherit verification from their verified parent domain.",
+      "x-codeSamples": [
+        {
+          lang: "javascript",
+          label: "Node.js",
+          source: `import { Inbound } from 'inboundemail'
+
+const inbound = new Inbound(process.env.INBOUND_API_KEY)
+
+const { data: domain } = await inbound.domains.create({
+  domain: 'example.com'
+})`,
+        },
+      ],
     },
   }
 )

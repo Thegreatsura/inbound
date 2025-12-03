@@ -636,8 +636,23 @@ export const getDomain = new Elysia().get(
     detail: {
       tags: ["Domains"],
       summary: "Get domain by ID",
-      description:
-        "Get detailed information about a specific domain including DNS records. Use ?check=true for live verification.",
+      description: "Get detailed information about a specific domain including DNS records. Use `?check=true` for live DNS and SES verification.",
+      "x-codeSamples": [
+        {
+          lang: "javascript",
+          label: "Node.js",
+          source: `import { Inbound } from 'inboundemail'
+
+const inbound = new Inbound(process.env.INBOUND_API_KEY)
+
+const { data: domain } = await inbound.domains.retrieve('dom_abc123')
+
+// With live verification
+const { data: verified } = await inbound.domains.retrieve('dom_abc123', {
+  check: 'true'
+})`,
+        },
+      ],
     },
   }
 )
