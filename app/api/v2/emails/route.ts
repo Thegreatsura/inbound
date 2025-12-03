@@ -13,6 +13,7 @@ import { parseScheduledAt, validateScheduledDate, formatScheduledDate } from '@/
 import { Client as QStashClient } from '@upstash/qstash'
 import { waitUntil } from '@vercel/functions'
 import { evaluateSending } from '@/lib/email-management/email-evaluation'
+import { checkSendingSpike } from '@/lib/email-management/sending-spike-detector'
 import { isSubdomain, getRootDomain } from '@/lib/domains-and-dns/domain-utils'
 import { getTenantSendingInfoForDomainOrParent, getAgentIdentityArn, type TenantSendingInfo } from '@/lib/aws-ses/identity-arn-helper'
 
@@ -600,6 +601,9 @@ export async function POST(request: NextRequest) {
                     htmlBody: body.html,
                 })
             )
+
+            // Check for sending spikes (non-blocking)
+            waitUntil(checkSendingSpike(userId))
 
             console.log('✅ Email processing complete')
             const response: PostEmailsResponse = {

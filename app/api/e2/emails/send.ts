@@ -30,6 +30,7 @@ import {
 } from "../../v2/helper/attachment-processor"
 import { buildRawEmailMessage } from "../../v2/helper/email-builder"
 import { evaluateSending } from "@/lib/email-management/email-evaluation"
+import { checkSendingSpike } from "@/lib/email-management/sending-spike-detector"
 import { isSubdomain, getRootDomain } from "@/lib/domains-and-dns/domain-utils"
 import {
   getTenantSendingInfoForDomainOrParent,
@@ -634,6 +635,9 @@ export const sendEmail = new Elysia().post(
           htmlBody: body.html,
         })
       )
+
+      // Check for sending spikes (non-blocking)
+      waitUntil(checkSendingSpike(userId))
 
       console.log("✅ Email processing complete")
       return {

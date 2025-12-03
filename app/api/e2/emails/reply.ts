@@ -23,6 +23,7 @@ import {
   attachmentsToStorageFormat,
 } from "../../v2/helper/attachment-processor"
 import { evaluateSending } from "@/lib/email-management/email-evaluation"
+import { checkSendingSpike } from "@/lib/email-management/sending-spike-detector"
 import { isSubdomain, getRootDomain } from "@/lib/domains-and-dns/domain-utils"
 import {
   getTenantSendingInfoForDomainOrParent,
@@ -769,6 +770,9 @@ export const replyToEmail = new Elysia().post(
           htmlBody: body.html,
         })
       )
+
+      // Check for sending spikes (non-blocking)
+      waitUntil(checkSendingSpike(userId))
 
       console.log("✅ Reply processing complete")
       return {

@@ -10,6 +10,7 @@ import { extractEmailAddress, extractDomain, canUserSendFromEmail } from '@/lib/
 import { nanoid } from 'nanoid'
 import { waitUntil } from '@vercel/functions'
 import { evaluateSending } from '@/lib/email-management/email-evaluation'
+import { checkSendingSpike } from '@/lib/email-management/sending-spike-detector'
 import type { PostEmailsRequest } from '../../v2/emails/route'
 import { getTenantSendingInfoForDomainOrParent, getAgentIdentityArn, type TenantSendingInfo } from '@/lib/aws-ses/identity-arn-helper'
 import { isSubdomain, getRootDomain } from '@/lib/domains-and-dns/domain-utils'
@@ -401,6 +402,9 @@ async function handleScheduledEmail(payload: QStashPayload) {
             })
         )
 
+        // Check for sending spikes (non-blocking)
+        waitUntil(checkSendingSpike(scheduledEmail.userId))
+
         console.log('✅ Scheduled email processed successfully:', scheduledEmailId)
 
         return NextResponse.json({
@@ -666,6 +670,9 @@ async function handleBatchEmail(
                 htmlBody: sentEmail.htmlBody || undefined,
             })
         )
+
+        // Check for sending spikes (non-blocking)
+        waitUntil(checkSendingSpike(userId))
 
         console.log('✅ Batch email processed successfully:', emailId)
 

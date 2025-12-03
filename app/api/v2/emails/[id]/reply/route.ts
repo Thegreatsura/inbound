@@ -24,6 +24,7 @@ import {
 } from "@/lib/email-management/agent-email-helper";
 import { waitUntil } from "@vercel/functions";
 import { evaluateSending } from "@/lib/email-management/email-evaluation";
+import { checkSendingSpike } from "@/lib/email-management/sending-spike-detector";
 import { EmailThreader } from "@/lib/email-management/email-threader";
 import { isSubdomain, getRootDomain } from "@/lib/domains-and-dns/domain-utils";
 import { getTenantSendingInfoForDomainOrParent, type TenantSendingInfo } from "@/lib/aws-ses/identity-arn-helper";
@@ -983,6 +984,9 @@ export async function POST(
           htmlBody: body.html,
         })
       )
+
+      // Check for sending spikes (non-blocking)
+      waitUntil(checkSendingSpike(userId))
 
       console.log("✅ Reply processing complete");
       const response: PostEmailReplyNewResponse = {
