@@ -4,6 +4,7 @@ import DomainVerifiedEmail from '@/emails/domain-verified';
 import ReputationAlertEmail from '@/emails/reputation-alert';
 import LimitReachedEmail from '@/emails/limit-reached';
 import { Inbound } from '@inboundemail/sdk';
+import { redis } from '@/lib/redis';
 
 // Initialize Resend client
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -276,32 +277,41 @@ export async function sendTestReputationAlertEmail(
   });
 }
 
-// In-memory cache to prevent spamming users with limit notifications
-// Key: `${userId}:${limitType}`, Value: timestamp of last notification
-const limitNotificationCache = new Map<string, number>();
-const LIMIT_NOTIFICATION_COOLDOWN_MS = 60 * 60 * 1000; // 1 hour cooldown
+// Redis key prefix for limit notification rate limiting
+const LIMIT_NOTIFICATION_REDIS_PREFIX = 'limit-notification:';
+const LIMIT_NOTIFICATION_COOLDOWN_SECONDS = 24 * 60 * 60; // 24 hour cooldown
 
 /**
  * Send limit reached notification email to the user
- * Includes rate limiting to prevent spamming users
+ * Includes rate limiting to prevent spamming users (uses Redis for persistence)
  */
 export async function sendLimitReachedNotification(
   data: LimitReachedNotificationData
 ): Promise<{ success: boolean; messageId?: string; error?: string; skipped?: boolean }> {
   try {
-    const cacheKey = `${data.userId}:${data.limitType}`;
-    const lastNotification = limitNotificationCache.get(cacheKey);
-    const now = Date.now();
-
-    // Check if we should skip due to rate limiting
-    if (lastNotification && (now - lastNotification) < LIMIT_NOTIFICATION_COOLDOWN_MS) {
-      const minutesRemaining = Math.ceil((LIMIT_NOTIFICATION_COOLDOWN_MS - (now - lastNotification)) / 60000);
-      console.log(`⏭️ sendLimitReachedNotification - Skipping notification for user ${data.userId} (${data.limitType}) - cooldown active, ${minutesRemaining} minutes remaining`);
-      return {
-        success: true,
-        skipped: true,
-        error: `Notification skipped due to rate limiting (cooldown: ${minutesRemaining} minutes remaining)`
-      };
+    const redisKey = `${LIMIT_NOTIFICATION_REDIS_PREFIX}${data.userId}:${data.limitType}`;
+    
+    // Check if we should skip due to rate limiting (using Redis for persistence across serverless invocations)
+    try {
+      const lastNotification = await redis.get<number>(redisKey);
+      if (lastNotification) {
+        const now = Date.now();
+        const timeSinceLastMs = now - lastNotification;
+        const cooldownMs = LIMIT_NOTIFICATION_COOLDOWN_SECONDS * 1000;
+        
+        if (timeSinceLastMs < cooldownMs) {
+          const hoursRemaining = Math.ceil((cooldownMs - timeSinceLastMs) / (60 * 60 * 1000));
+          console.log(`⏭️ sendLimitReachedNotification - Skipping notification for user ${data.userId} (${data.limitType}) - cooldown active, ~${hoursRemaining} hours remaining`);
+          return {
+            success: true,
+            skipped: true,
+            error: `Notification skipped due to rate limiting (cooldown: ~${hoursRemaining} hours remaining)`
+          };
+        }
+      }
+    } catch (redisError) {
+      // If Redis fails, log but continue sending (better to occasionally double-send than never send)
+      console.warn('⚠️ sendLimitReachedNotification - Redis check failed, proceeding with notification:', redisError);
     }
 
     console.log(`⚠️ sendLimitReachedNotification - Sending ${data.limitType} limit notification to ${data.userEmail}`);
@@ -368,8 +378,12 @@ export async function sendLimitReachedNotification(
       };
     }
 
-    // Update the cache to prevent future spam
-    limitNotificationCache.set(cacheKey, now);
+    // Update Redis to prevent future spam (set with TTL for automatic cleanup)
+    try {
+      await redis.set(redisKey, Date.now(), { ex: LIMIT_NOTIFICATION_COOLDOWN_SECONDS });
+    } catch (redisError) {
+      console.warn('⚠️ sendLimitReachedNotification - Failed to set Redis cooldown:', redisError);
+    }
 
     console.log(`✅ sendLimitReachedNotification - Alert email sent successfully to ${data.userEmail}`);
     console.log(`   📧 Message ID: ${response.data?.id}`);
