@@ -116,14 +116,45 @@ export async function POST(request: NextRequest) {
       console.log('   Topic ARN:', parsedNotification.topicArn);
       console.log('   Subscribe URL:', body.SubscribeURL);
       
-      // In production, you might want to automatically confirm subscriptions
-      // For now, we'll just log and return success
+      // Automatically confirm the subscription by making a GET request to the SubscribeURL
+      if (body.SubscribeURL) {
+        try {
+          console.log('🔄 Auto-confirming SNS subscription...');
+          const confirmResponse = await fetch(body.SubscribeURL);
+          
+          if (confirmResponse.ok) {
+            console.log('✅ SNS subscription confirmed successfully!');
+            return NextResponse.json({ 
+              status: 'healthy',
+              timestamp: new Date().toISOString(),
+              message: 'Subscription confirmed successfully',
+              topicArn: parsedNotification.topicArn
+            });
+          } else {
+            console.error('❌ Failed to confirm subscription:', confirmResponse.status, confirmResponse.statusText);
+            return NextResponse.json({ 
+              status: 'error',
+              timestamp: new Date().toISOString(),
+              message: 'Failed to confirm subscription',
+              error: `HTTP ${confirmResponse.status}: ${confirmResponse.statusText}`
+            }, { status: 500 });
+          }
+        } catch (confirmError) {
+          console.error('❌ Error confirming subscription:', confirmError);
+          return NextResponse.json({ 
+            status: 'error',
+            timestamp: new Date().toISOString(),
+            message: 'Error confirming subscription',
+            error: confirmError instanceof Error ? confirmError.message : 'Unknown error'
+          }, { status: 500 });
+        }
+      }
+      
       return NextResponse.json({ 
-        status: 'healthy',
+        status: 'error',
         timestamp: new Date().toISOString(),
-        message: 'Subscription confirmation received - please manually confirm via AWS console',
-        subscribeUrl: body.SubscribeURL
-      });
+        message: 'No SubscribeURL provided in confirmation request'
+      }, { status: 400 });
     }
     
     // Log the notification
