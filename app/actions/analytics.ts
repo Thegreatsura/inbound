@@ -445,22 +445,22 @@ export const invalidateAnalyticsCache = async (userId: string, type?: 'stats' | 
     
     switch (type) {
       case 'stats':
-        revalidateTag('analytics-stats')
+        revalidateTag('analytics-stats', 'max')
         console.log(`🗑️ Invalidated stats cache for user ${userId}`)
         break
       case 'emails':
-        revalidateTag('analytics-emails')
+        revalidateTag('analytics-emails', 'max')
         console.log(`🗑️ Invalidated emails cache for user ${userId}`)
         break
       case 'aggregated':
-        revalidateTag('analytics-aggregated')
+        revalidateTag('analytics-aggregated', 'max')
         console.log(`🗑️ Invalidated aggregated cache for user ${userId}`)
         break
       default:
         // Invalidate all analytics cache for user
-        revalidateTag('analytics-stats')
-        revalidateTag('analytics-emails')
-        revalidateTag('analytics-aggregated')
+        revalidateTag('analytics-stats', 'max')
+        revalidateTag('analytics-emails', 'max')
+        revalidateTag('analytics-aggregated', 'max')
         console.log(`🗑️ Invalidated all analytics cache for user ${userId}`)
     }
   } catch (error) {

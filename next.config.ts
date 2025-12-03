@@ -83,15 +83,6 @@ const nextConfig: NextConfig = {
       }
     ]
   },
-  // Ignore SDK directory during build
-  webpack: (config, { buildId, dev, isServer, defaultLoaders, webpack }) => {
-    // Ignore the SDK directory from webpack processing
-    config.watchOptions = {
-      ...config.watchOptions,
-      ignored: ['**/node_modules/**', '**/@inboundemail/**']
-    };
-    return config;
-  },
 };
 
 export default withSentryConfig(nextConfig, {
