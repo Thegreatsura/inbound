@@ -1,69 +1,66 @@
-import InboundIcon from "@/components/icons/inbound";
+import { MarketingNav, MarketingFooter } from "@/components/marketing-nav";
 
 export default function PrivacyPage() {
   return (
-    <div className="min-h-screen bg-white">
-      {/* Header */}
-      <header className="px-6 py-6 border-b border-gray-100">
-        <div className="flex items-center justify-between max-w-6xl mx-auto">
-          <div className="flex items-center gap-2">
-            <InboundIcon  width={32} height={32} />
-            <span className="text-2xl font-bold text-black">inbound</span>
-          </div>
-          <a href="/" className="text-gray-600 hover:text-gray-900 transition-colors">
-            ← Back to Home
-          </a>
-        </div>
-      </header>
+    <div className="min-h-screen bg-[#fafaf9] text-[#1c1917] selection:bg-[#8161FF]/20">
+      <div className="max-w-2xl mx-auto px-6">
+        <MarketingNav />
+
+        {/* Hero */}
+        <section className="pt-20 pb-12">
+          <h1 className="font-heading text-[32px] leading-[1.2] tracking-tight mb-2">Privacy Policy</h1>
+          <p className="text-[#52525b] leading-relaxed">
+            <strong>Effective Date:</strong> January 1, 2025 · <strong>Last Updated:</strong> January 1, 2025
+          </p>
+        </section>
 
       {/* Content */}
-      <main className="px-6 py-12">
-        <div className="max-w-4xl mx-auto">
-          <h1 className="text-4xl text-gray-900 mb-8">Privacy Policy</h1>
-          
-          <div className="prose prose-lg max-w-none">
-            <p className="text-gray-600 mb-8">
-              <strong>Effective Date:</strong> January 1, 2025<br />
-              <strong>Last Updated:</strong> January 1, 2025
-            </p>
-
-            <section className="mb-8">
-              <h2 className="text-2xl font-semibold text-gray-900 mb-4">1. Introduction</h2>
-              <p className="text-gray-700 leading-relaxed mb-4">
+        <section className="py-8 border-t border-[#e7e5e4]">
+          <div className="space-y-10">
+            <div>
+              <h2 className="font-heading text-xl font-semibold tracking-tight mb-4">1. Introduction</h2>
+              <p className="text-[#3f3f46] leading-relaxed">
                 EXON ENTERPRISE LLC ("we," "our," or "us") operates the Inbound email receiving service (the "Service"). 
                 This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our Service.
               </p>
-            </section>
+            </div>
 
-            <section className="mb-8">
-              <h2 className="text-2xl font-semibold text-gray-900 mb-4">2. Information We Collect</h2>
-              
-              <h3 className="text-xl font-semibold text-gray-800 mb-3">2.1 Information You Provide</h3>
-              <ul className="list-disc pl-6 text-gray-700 mb-4">
+            <div>
+              <h2 className="font-heading text-xl font-semibold tracking-tight mb-4">2. Information We Collect</h2>
+              <div className="space-y-6 text-[#3f3f46] leading-relaxed">
+                <div>
+                  <h3 className="font-medium text-[#1c1917] mb-2">2.1 Information You Provide</h3>
+                  <ul className="list-disc pl-6 space-y-1.5">
                 <li>Account information (email address, name)</li>
                 <li>Domain information and DNS settings</li>
                 <li>Webhook endpoint URLs</li>
                 <li>Payment information (processed by third-party providers)</li>
               </ul>
+                </div>
 
-              <h3 className="text-xl font-semibold text-gray-800 mb-3">2.2 Email Data</h3>
-              <ul className="list-disc pl-6 text-gray-700 mb-4">
+                <div>
+                  <h3 className="font-medium text-[#1c1917] mb-2">2.2 Email Data</h3>
+                  <ul className="list-disc pl-6 space-y-1.5">
                 <li>Email content received through your configured domains</li>
                 <li>Email metadata (sender, recipient, subject, timestamps)</li>
                 <li>Email delivery status and processing information</li>
               </ul>
+                </div>
 
-              <h3 className="text-xl font-semibold text-gray-800 mb-3">2.3 Automatically Collected Information</h3>
-              <ul className="list-disc pl-6 text-gray-700 mb-4">
+                <div>
+                  <h3 className="font-medium text-[#1c1917] mb-2">2.3 Automatically Collected Information</h3>
+                  <ul className="list-disc pl-6 space-y-1.5">
                 <li>Usage data and analytics</li>
                 <li>IP addresses and device information</li>
                 <li>Service performance metrics</li>
               </ul>
-            </section>
+                </div>
+              </div>
+            </div>
 
-            <section className="mb-8">
-              <h2 className="text-2xl font-semibold text-gray-900 mb-4">3. How We Use Your Information</h2>
-              <ul className="list-disc pl-6 text-gray-700">
+            <div>
+              <h2 className="font-heading text-xl font-semibold tracking-tight mb-4">3. How We Use Your Information</h2>
+              <ul className="list-disc pl-6 space-y-1.5 text-[#3f3f46] leading-relaxed">
                 <li>To provide and maintain the email receiving service</li>
                 <li>To process and deliver emails to your webhook endpoints</li>
                 <li>To provide customer support and respond to inquiries</li>
@@ -71,112 +68,96 @@ export default function PrivacyPage() {
                 <li>To prevent fraud and ensure security</li>
                 <li>To comply with legal obligations</li>
               </ul>
-            </section>
+            </div>
 
-            <section className="mb-8">
-              <h2 className="text-2xl font-semibold text-gray-900 mb-4">4. Data Sharing and Disclosure</h2>
-              <p className="text-gray-700 leading-relaxed mb-4">
-                We do not sell, trade, or otherwise transfer your personal information to third parties except as described below:
-              </p>
-              <ul className="list-disc pl-6 text-gray-700">
+            <div>
+              <h2 className="font-heading text-xl font-semibold tracking-tight mb-4">4. Data Sharing and Disclosure</h2>
+              <div className="space-y-3 text-[#3f3f46] leading-relaxed">
+                <p>We do not sell, trade, or otherwise transfer your personal information to third parties except as described below:</p>
+                <ul className="list-disc pl-6 space-y-1.5">
                 <li>With your explicit consent</li>
                 <li>To service providers who assist in our operations (AWS, payment processors)</li>
                 <li>When required by law or to protect our rights</li>
                 <li>In connection with a business transfer or acquisition</li>
               </ul>
-            </section>
+              </div>
+            </div>
 
-            <section className="mb-8">
-              <h2 className="text-2xl font-semibold text-gray-900 mb-4">5. Data Security</h2>
-              <p className="text-gray-700 leading-relaxed mb-4">
-                We implement appropriate technical and organizational security measures to protect your information:
-              </p>
-              <ul className="list-disc pl-6 text-gray-700">
+            <div>
+              <h2 className="font-heading text-xl font-semibold tracking-tight mb-4">5. Data Security</h2>
+              <div className="space-y-3 text-[#3f3f46] leading-relaxed">
+                <p>We implement appropriate technical and organizational security measures to protect your information:</p>
+                <ul className="list-disc pl-6 space-y-1.5">
                 <li>Encryption in transit and at rest</li>
                 <li>Regular security audits and monitoring</li>
                 <li>Access controls and authentication</li>
                 <li>Secure cloud infrastructure (AWS)</li>
               </ul>
-            </section>
+              </div>
+            </div>
 
-            <section className="mb-8">
-              <h2 className="text-2xl font-semibold text-gray-900 mb-4">6. Data Retention</h2>
-              <p className="text-gray-700 leading-relaxed">
+            <div>
+              <h2 className="font-heading text-xl font-semibold tracking-tight mb-4">6. Data Retention</h2>
+              <p className="text-[#3f3f46] leading-relaxed">
                 We retain your information for as long as necessary to provide our services and comply with legal obligations. 
                 Email data is typically retained for 30 days unless you configure different retention settings. 
                 You may request deletion of your data at any time.
               </p>
-            </section>
+            </div>
 
-            <section className="mb-8">
-              <h2 className="text-2xl font-semibold text-gray-900 mb-4">7. Your Rights</h2>
-              <p className="text-gray-700 leading-relaxed mb-4">
-                Depending on your location, you may have the following rights:
-              </p>
-              <ul className="list-disc pl-6 text-gray-700">
+            <div>
+              <h2 className="font-heading text-xl font-semibold tracking-tight mb-4">7. Your Rights</h2>
+              <div className="space-y-3 text-[#3f3f46] leading-relaxed">
+                <p>Depending on your location, you may have the following rights:</p>
+                <ul className="list-disc pl-6 space-y-1.5">
                 <li>Access to your personal information</li>
                 <li>Correction of inaccurate data</li>
                 <li>Deletion of your personal information</li>
                 <li>Data portability</li>
                 <li>Objection to processing</li>
               </ul>
-            </section>
+              </div>
+            </div>
 
-            <section className="mb-8">
-              <h2 className="text-2xl font-semibold text-gray-900 mb-4">8. Cookies and Tracking</h2>
-              <p className="text-gray-700 leading-relaxed">
+            <div>
+              <h2 className="font-heading text-xl font-semibold tracking-tight mb-4">8. Cookies and Tracking</h2>
+              <p className="text-[#3f3f46] leading-relaxed">
                 We use cookies and similar technologies to improve your experience, analyze usage, and provide personalized content. 
                 You can control cookie preferences through your browser settings.
               </p>
-            </section>
+            </div>
 
-            <section className="mb-8">
-              <h2 className="text-2xl font-semibold text-gray-900 mb-4">9. International Data Transfers</h2>
-              <p className="text-gray-700 leading-relaxed">
+            <div>
+              <h2 className="font-heading text-xl font-semibold tracking-tight mb-4">9. International Data Transfers</h2>
+              <p className="text-[#3f3f46] leading-relaxed">
                 Your information may be transferred to and processed in countries other than your own. 
                 We ensure appropriate safeguards are in place for such transfers.
               </p>
-            </section>
+            </div>
 
-            <section className="mb-8">
-              <h2 className="text-2xl font-semibold text-gray-900 mb-4">10. Changes to This Policy</h2>
-              <p className="text-gray-700 leading-relaxed">
+            <div>
+              <h2 className="font-heading text-xl font-semibold tracking-tight mb-4">10. Changes to This Policy</h2>
+              <p className="text-[#3f3f46] leading-relaxed">
                 We may update this Privacy Policy from time to time. We will notify you of material changes by email or through our service.
               </p>
-            </section>
+            </div>
 
-            <section className="mb-8">
-              <h2 className="text-2xl font-semibold text-gray-900 mb-4">11. Contact Us</h2>
-              <p className="text-gray-700 leading-relaxed">
-                If you have questions about this Privacy Policy, please contact us at:
-              </p>
-              <div className="bg-gray-50 p-4 rounded-lg mt-4">
-                <p className="text-gray-700">
-                  <strong>EXON ENTERPRISE LLC</strong><br />
-                  Email: privacy@inbound.new<br />
-                  Website: inbound.new
-                </p>
+            <div>
+              <h2 className="font-heading text-xl font-semibold tracking-tight mb-4">11. Contact Us</h2>
+              <div className="space-y-3 text-[#3f3f46] leading-relaxed">
+                <p>If you have questions about this Privacy Policy, please contact us at:</p>
+                <div className="bg-white border border-[#e7e5e4] rounded-lg p-4">
+                  <p className="font-medium text-[#1c1917]">EXON ENTERPRISE LLC</p>
+                  <p className="text-sm mt-1">Email: privacy@inbound.new</p>
+                  <p className="text-sm">Website: inbound.new</p>
               </div>
-            </section>
           </div>
         </div>
-      </main>
+          </div>
+        </section>
 
-      {/* Footer */}
-      <footer className="border-t border-gray-100 px-6 py-8">
-        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between">
-          <div className="flex items-center gap-2 mb-4 md:mb-0">
-            <InboundIcon  width={24} height={24} />
-            <span className="text-lg font-bold text-gray-900">inbound</span>
-          </div>
-          <div className="flex items-center gap-6 text-sm text-gray-500">
-            <a href="/privacy" className="hover:text-gray-700 transition-colors">Privacy</a>
-            <a href="/terms" className="hover:text-gray-700 transition-colors">Terms</a>
-            <a href="/docs" className="hover:text-gray-700 transition-colors">Docs</a>
-            <a href="mailto:support@inbound.new" className="hover:text-gray-700 transition-colors">Support</a>
-          </div>
+        <MarketingFooter />
         </div>
-      </footer>
     </div>
-  )
+  );
 } 
