@@ -102,13 +102,13 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
                 {/* Featured image */}
                 {blog.image?.url && (
                   <div className="py-8">
-                    <div className="w-full aspect-[16/9] bg-[#f5f5f4] rounded-xl overflow-hidden">
+                    <div className="w-full bg-[#f5f5f4] rounded-xl overflow-hidden">
                       <BaseHubImage
                         src={blog.image.url}
                         alt={blog.title}
                         width={800}
                         height={450}
-                        className="object-cover w-full h-full"
+                        className="w-full h-auto"
                       />
                     </div>
                   </div>

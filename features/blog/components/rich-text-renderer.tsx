@@ -100,19 +100,19 @@ export function RichTextRenderer({ content }: RichTextRendererProps) {
 
         // Enhanced list items
         ul: ({ children, ...props }) => (
-          <ul className="list-disc list-outside space-y-2 my-4 ml-6 pl-0" {...props}>
+          <ul className="list-disc list-outside ml-6 pl-0 [&_p]:mb-0 [&_p]:leading-normal" {...props}>
             {children}
           </ul>
         ),
         
         ol: ({ children, ...props }) => (
-          <ol className="list-decimal list-outside space-y-2 my-4 ml-6 pl-0" {...props}>
+          <ol className="list-decimal list-outside my-2 ml-6 pl-0 [&_p]:mb-0 [&_p]:leading-normal" {...props}>
             {children}
           </ol>
         ),
         
         li: ({ children, ...props }) => (
-          <li className="leading-7" {...props}>
+          <li className="leading-normal mb-1" {...props}>
             {children}
           </li>
         ),
