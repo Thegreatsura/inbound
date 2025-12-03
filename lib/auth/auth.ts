@@ -4,6 +4,7 @@ import { Dub } from "dub";
 import { dubAnalytics } from "@dub/better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { stripe } from "@better-auth/stripe";
+import { passkey } from "@better-auth/passkey";
 import { admin, apiKey, oAuthProxy } from "better-auth/plugins";
 import { magicLink } from "better-auth/plugins";
 import { createAuthMiddleware } from "better-auth/api";
@@ -178,14 +179,12 @@ export const auth = betterAuth({
         github: {
             clientId: process.env.GITHUB_CLIENT_ID as string,
             clientSecret: process.env.GITHUB_CLIENT_SECRET as string,
-            // Always use production URL for OAuth proxy to work properly
             redirectURI: "https://inbound.new/api/auth/callback/github"
         },
         google: { 
             prompt: "select_account", 
             clientId: process.env.GOOGLE_CLIENT_ID as string, 
             clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
-            // Always use production URL for OAuth proxy to work properly
             redirectURI: "https://inbound.new/api/auth/callback/google"
         },
     },
@@ -224,6 +223,13 @@ export const auth = betterAuth({
             }
         }),
         admin(),
+        passkey({
+            rpID: process.env.NODE_ENV === 'development' ? 'dev.inbound.new' : 'inbound.new',
+            rpName: 'Inbound',
+            origin: process.env.NODE_ENV === 'development' 
+                ? 'https://dev.inbound.new' 
+                : 'https://inbound.new',
+        }),
         magicLink({
             expiresIn: 300, // 5 minutes
             disableSignUp: process.env.NODE_ENV === 'development' ? false : true, // Only allow magic link for existing accounts - new users must use Google OAuth

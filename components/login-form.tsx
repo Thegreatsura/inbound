@@ -8,6 +8,7 @@ import { authClient } from "@/lib/auth/auth-client";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import Envelope2 from "@/components/icons/envelope-2";
+import { Fingerprint } from "lucide-react";
 
 interface LoginFormProps extends React.ComponentPropsWithoutRef<"form"> {
   onMagicLinkSent?: (email: string) => void;
@@ -21,14 +22,23 @@ export function LoginForm({
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [isGitHubLoading, setIsGitHubLoading] = useState(false);
   const [isMagicLinkLoading, setIsMagicLinkLoading] = useState(false);
+  const [isPasskeyLoading, setIsPasskeyLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [lastUsedMethod, setLastUsedMethod] = useState<string | null>(null);
+  const [passkeyAvailable, setPasskeyAvailable] = useState(false);
 
-  // Get the last used login method on component mount
+  // Get the last used login method on component mount and check passkey support
   useEffect(() => {
     // Use type assertion since TypeScript might not recognize the method yet
     const lastMethod = (authClient as any).getLastUsedLoginMethod?.();
     setLastUsedMethod(lastMethod || null);
+
+    // Check if WebAuthn/Passkeys are available
+    if (typeof window !== 'undefined' && window.PublicKeyCredential) {
+      PublicKeyCredential.isConditionalMediationAvailable?.()
+        .then((available) => setPasskeyAvailable(available || false))
+        .catch(() => setPasskeyAvailable(false));
+    }
   }, []);
 
   const handleGitHubSignIn = async () => {
@@ -99,8 +109,33 @@ export function LoginForm({
     }
   };
 
+  const handlePasskeySignIn = async () => {
+    setIsPasskeyLoading(true);
+    try {
+      const { data, error } = await authClient.signIn.passkey();
+      
+      if (error) {
+        throw new Error(error.message || "Failed to sign in with passkey");
+      }
+      
+      // Successful passkey sign-in - redirect will happen automatically
+      toast.success("Signed in with passkey!");
+      window.location.href = "/logs";
+    } catch (error) {
+      console.error("Passkey sign in error:", error);
+      // Don't show error if user cancelled the operation
+      if (error instanceof Error && !error.message.includes("cancelled") && !error.message.includes("aborted")) {
+        toast.error(
+          error instanceof Error ? error.message : "Failed to sign in with passkey"
+        );
+      }
+    } finally {
+      setIsPasskeyLoading(false);
+    }
+  };
+
   // Disable buttons if any login is in progress
-  const isAnyLoading = isGoogleLoading || isGitHubLoading || isMagicLinkLoading;
+  const isAnyLoading = isGoogleLoading || isGitHubLoading || isMagicLinkLoading || isPasskeyLoading;
 
   return (
     <form
@@ -199,6 +234,36 @@ export function LoginForm({
         <div className="w-full h-px bg-border" />
       </div>
 
+      {/* Passkey Sign-In - for existing accounts with passkey */}
+      {passkeyAvailable && (
+        <Button
+          type="button"
+          variant={lastUsedMethod === "passkey" ? "primary" : "secondary"}
+          className="w-full"
+          onClick={handlePasskeySignIn}
+          disabled={isAnyLoading}
+        >
+          <div className="flex items-center justify-center gap-2 w-full">
+            {isPasskeyLoading ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
+                <span>Authenticating…</span>
+              </>
+            ) : (
+              <>
+                <Fingerprint className="w-5 h-5" />
+                <span>Sign in with passkey</span>
+                {lastUsedMethod === "passkey" && (
+                  <Badge variant="secondary" className="ml-1">
+                    Last used
+                  </Badge>
+                )}
+              </>
+            )}
+          </div>
+        </Button>
+      )}
+
       {/* Magic Link Section - for existing accounts */}
       <div className="grid gap-2">
         <div className="relative">
@@ -215,7 +280,7 @@ export function LoginForm({
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             disabled={isAnyLoading}
-            autoComplete="email"
+            autoComplete="email webauthn"
           />
         </div>
         <Button

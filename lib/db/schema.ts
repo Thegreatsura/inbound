@@ -1,5 +1,5 @@
 import { pgTable, varchar, text, timestamp, boolean, integer, index, unique } from 'drizzle-orm/pg-core';
-import { user, session, account, verification, apikey } from './auth-schema';
+import { user, session, account, verification, apikey, passkey } from './auth-schema';
 
 // Additional app-specific tables
 export const subscriptions = pgTable('subscriptions', {
@@ -590,7 +590,7 @@ export const SCHEDULED_EMAIL_STATUS = {
 } as const;
 
 // Export types for Better Auth tables (using the imported tables)
-export { user, session, account, verification, apikey };
+export { user, session, account, verification, apikey, passkey };
 
 export type User = typeof user.$inferSelect;
 export type NewUser = typeof user.$inferInsert;

@@ -2,6 +2,7 @@ import { stripeClient } from "@better-auth/stripe/client"
 import { createAuthClient } from "better-auth/react"
 import { adminClient, apiKeyClient } from "better-auth/client/plugins"
 import { magicLinkClient } from "better-auth/client/plugins";
+import { passkeyClient } from "@better-auth/passkey/client";
 
 export const authClient = createAuthClient({
     baseURL: typeof window !== 'undefined' 
@@ -15,7 +16,8 @@ export const authClient = createAuthClient({
         }), // Type assertion to resolve version compatibility issue
         adminClient(),
         apiKeyClient(),
-        magicLinkClient()
+        magicLinkClient(),
+        passkeyClient()
     ]
 })
 

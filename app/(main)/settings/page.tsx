@@ -1,6 +1,6 @@
 "use client"
 
-import { useSession, signOut } from '@/lib/auth/auth-client'
+import { useSession, signOut, authClient } from '@/lib/auth/auth-client'
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import {
@@ -13,10 +13,19 @@ import {
 import { useRouter, useSearchParams } from 'next/navigation'
 import { trackPurchaseConversion } from '@/lib/utils/twitter-tracking'
 import { updateUserProfile } from '@/app/actions/primary'
-import { Check, ChevronRight, Plus, Minus, LogOut, ExternalLink, Loader2 } from 'lucide-react'
+import { Check, ChevronRight, Plus, Minus, LogOut, ExternalLink, Loader2, Fingerprint, Trash2, KeyRound } from 'lucide-react'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { PricingTable, plans } from '@/components/pricing-table'
 import { useAutumn } from 'autumn-js/react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+
+// Passkey type from better-auth
+interface Passkey {
+  id: string;
+  name: string | null;
+  createdAt: Date;
+  deviceType: string;
+}
 
 export default function SettingsPage() {
   const { data: session, isPending } = useSession()
@@ -33,6 +42,11 @@ export default function SettingsPage() {
   // Profile editing state
   const [editingProfile, setEditingProfile] = useState(false)
   const [nameValue, setNameValue] = useState('')
+  
+  // Passkey state
+  const [isAddingPasskey, setIsAddingPasskey] = useState(false)
+  const [passkeySupported, setPasskeySupported] = useState(false)
+  const queryClient = useQueryClient()
   
   const { 
     data: customerData, 
@@ -57,6 +71,36 @@ export default function SettingsPage() {
   
   const billingPortalMutation = useBillingPortalMutation()
   
+  // Passkey queries and mutations
+  const { 
+    data: passkeys, 
+    isLoading: isLoadingPasskeys,
+    refetch: refetchPasskeys
+  } = useQuery({
+    queryKey: ['passkeys'],
+    queryFn: async () => {
+      const { data, error } = await authClient.passkey.listUserPasskeys()
+      if (error) throw new Error(error.message)
+      return data as Passkey[]
+    },
+    enabled: !!session,
+  })
+  
+  const deletePasskeyMutation = useMutation({
+    mutationFn: async (passkeyId: string) => {
+      const { data, error } = await authClient.passkey.deletePasskey({ id: passkeyId })
+      if (error) throw new Error(error.message)
+      return data
+    },
+    onSuccess: () => {
+      toast.success('Passkey removed')
+      queryClient.invalidateQueries({ queryKey: ['passkeys'] })
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Failed to remove passkey')
+    }
+  })
+  
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -65,6 +109,15 @@ export default function SettingsPage() {
       setNameValue(session.user.name)
     }
   }, [session?.user?.name])
+  
+  // Check passkey support
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.PublicKeyCredential) {
+      PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable?.()
+        .then(setPasskeySupported)
+        .catch(() => setPasskeySupported(false))
+    }
+  }, [])
 
   // Extract existing add-on quantities from customer data
   // Cast to any to access items property which exists at runtime but not in SDK types
@@ -123,6 +176,37 @@ export default function SettingsPage() {
     } finally {
       setIsLoading(false)
     }
+  }
+  
+  const handleAddPasskey = async () => {
+    setIsAddingPasskey(true)
+    try {
+      const { data, error } = await authClient.passkey.addPasskey({
+        name: `${session?.user?.name || 'User'}'s Passkey`,
+      })
+      
+      if (error) {
+        throw new Error(error.message)
+      }
+      
+      toast.success('Passkey added successfully! You can now use it to sign in.')
+      refetchPasskeys()
+    } catch (error) {
+      console.error('Failed to add passkey:', error)
+      // Don't show error if user cancelled
+      if (error instanceof Error && !error.message.includes('cancelled') && !error.message.includes('aborted')) {
+        toast.error(error instanceof Error ? error.message : 'Failed to add passkey')
+      }
+    } finally {
+      setIsAddingPasskey(false)
+    }
+  }
+  
+  const handleDeletePasskey = async (passkeyId: string) => {
+    if (!confirm('Are you sure you want to remove this passkey? You will no longer be able to use it to sign in.')) {
+      return
+    }
+    deletePasskeyMutation.mutate(passkeyId)
   }
 
   const handleManageBilling = async () => {
@@ -729,6 +813,101 @@ export default function SettingsPage() {
               </div>
             </div>
           </div>
+        </section>
+
+        {/* Passkeys / Security */}
+        <section className="py-8 border-t border-[#e7e5e4]">
+          <div className="flex items-start justify-between mb-6">
+            <div>
+              <h2 className="font-heading text-lg font-semibold tracking-tight flex items-center gap-2">
+                <KeyRound className="w-5 h-5" />
+                Passkeys
+              </h2>
+              <p className="text-sm text-[#52525b] mt-1">
+                Sign in securely with fingerprint, face, or device PIN.
+              </p>
+            </div>
+            {passkeySupported && (
+              <button
+                onClick={handleAddPasskey}
+                disabled={isAddingPasskey}
+                className="bg-[#8161FF] hover:bg-[#6b4fd9] disabled:opacity-50 text-white text-sm px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
+              >
+                {isAddingPasskey ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    Adding…
+                  </>
+                ) : (
+                  <>
+                    <Plus className="w-3.5 h-3.5" />
+                    Add passkey
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+          
+          {!passkeySupported ? (
+            <div className="p-4 bg-[#fef3c7] border border-[#fde68a] rounded-lg">
+              <p className="text-sm text-[#92400e]">
+                Passkeys are not supported on this device or browser. Try using a modern browser like Chrome, Safari, or Edge.
+              </p>
+            </div>
+          ) : isLoadingPasskeys ? (
+            <div className="space-y-3">
+              <div className="h-16 bg-[#e7e5e4] rounded-lg animate-pulse" />
+              <div className="h-16 bg-[#e7e5e4] rounded-lg animate-pulse" />
+            </div>
+          ) : passkeys && passkeys.length > 0 ? (
+            <div className="space-y-2">
+              {passkeys.map((passkey) => (
+                <div 
+                  key={passkey.id} 
+                  className="flex items-center justify-between py-3 px-4 bg-[#f5f5f4] rounded-lg"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-[#e7e5e4] rounded-full flex items-center justify-center">
+                      <Fingerprint className="w-5 h-5 text-[#52525b]" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-[#1c1917]">
+                        {passkey.name || 'Passkey'}
+                      </p>
+                      <p className="text-xs text-[#78716c]">
+                        Added {new Date(passkey.createdAt).toLocaleDateString('en-US', { 
+                          month: 'short', 
+                          day: 'numeric',
+                          year: 'numeric' 
+                        })}
+                        {passkey.deviceType && ` · ${passkey.deviceType}`}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleDeletePasskey(passkey.id)}
+                    disabled={deletePasskeyMutation.isPending}
+                    className="text-[#78716c] hover:text-[#dc2626] transition-colors p-2 rounded-lg hover:bg-[#fef2f2]"
+                    title="Remove passkey"
+                  >
+                    {deletePasskeyMutation.isPending ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 px-4 bg-[#f5f5f4] rounded-lg">
+              <Fingerprint className="w-10 h-10 text-[#a8a29e] mx-auto mb-3" />
+              <p className="text-[#52525b] mb-1">No passkeys yet</p>
+              <p className="text-sm text-[#78716c]">
+                Add a passkey to sign in faster and more securely using your device's biometrics.
+              </p>
+            </div>
+          )}
         </section>
 
         {/* Sign out */}
