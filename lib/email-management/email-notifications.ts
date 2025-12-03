@@ -10,6 +10,9 @@ import { redis } from '@/lib/redis';
 const resend = new Resend(process.env.RESEND_API_KEY);
 const inbound = new Inbound(process.env.INBOUND_API_KEY!);
 
+// Slack webhook for admin notifications
+const SLACK_ADMIN_WEBHOOK_URL = process.env.SLACK_ADMIN_WEBHOOK_URL;
+
 export interface DomainVerificationNotificationData {
   userEmail: string;
   userName: string | null;
@@ -325,6 +328,93 @@ const LIMIT_NOTIFICATION_REDIS_PREFIX = 'limit-notification:';
 const LIMIT_NOTIFICATION_COOLDOWN_SECONDS = 24 * 60 * 60; // 24 hour cooldown
 
 /**
+ * Send Slack notification when a user hits their limit
+ */
+async function sendLimitReachedSlackNotification(data: LimitReachedNotificationData): Promise<void> {
+  if (!SLACK_ADMIN_WEBHOOK_URL) {
+    console.log('⚠️ SLACK_ADMIN_WEBHOOK_URL not configured, skipping limit reached Slack notification');
+    return;
+  }
+
+  try {
+    const limitName = data.limitType === 'inbound_triggers' ? 'Inbound Email' : 
+                     data.limitType === 'emails_sent' ? 'Outbound Email' : 'Domain';
+
+    const slackMessage = {
+      blocks: [
+        {
+          type: 'header',
+          text: {
+            type: 'plain_text',
+            text: `⚠️ ${limitName} Limit Reached`,
+            emoji: true
+          }
+        },
+        {
+          type: 'section',
+          fields: [
+            {
+              type: 'mrkdwn',
+              text: `*User:*\n${data.userName || 'Unknown'}`
+            },
+            {
+              type: 'mrkdwn',
+              text: `*Email:*\n${data.userEmail}`
+            },
+            {
+              type: 'mrkdwn',
+              text: `*User ID:*\n\`${data.userId}\``
+            },
+            {
+              type: 'mrkdwn',
+              text: `*Limit Type:*\n${limitName}`
+            },
+            {
+              type: 'mrkdwn',
+              text: `*Usage:*\n${data.currentUsage?.toLocaleString() ?? 'N/A'} / ${data.limit?.toLocaleString() ?? 'N/A'}`
+            },
+            {
+              type: 'mrkdwn',
+              text: `*Rejected:*\n${data.rejectedEmailCount ?? 1} email(s)`
+            }
+          ]
+        },
+        ...(data.domain ? [{
+          type: 'section' as const,
+          text: {
+            type: 'mrkdwn' as const,
+            text: `*Domain:* ${data.domain}`
+          }
+        }] : []),
+        {
+          type: 'context',
+          elements: [
+            {
+              type: 'mrkdwn',
+              text: `Triggered at ${data.triggeredAt.toLocaleString()} • <https://inbound.new/admin|View Admin Dashboard>`
+            }
+          ]
+        }
+      ]
+    };
+
+    const response = await fetch(SLACK_ADMIN_WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(slackMessage)
+    });
+
+    if (!response.ok) {
+      console.error(`❌ Slack limit reached notification failed: ${response.status} ${response.statusText}`);
+    } else {
+      console.log(`✅ Slack notification sent for limit reached: ${data.userEmail} (${data.limitType})`);
+    }
+  } catch (error) {
+    console.error('❌ Failed to send Slack limit reached notification:', error);
+  }
+}
+
+/**
  * Send limit reached notification email to the user
  * Includes rate limiting to prevent spamming users (uses Redis for persistence)
  */
@@ -431,6 +521,11 @@ export async function sendLimitReachedNotification(
     console.log(`✅ sendLimitReachedNotification - Alert email sent successfully to ${data.userEmail}`);
     console.log(`   📧 Message ID: ${response.data?.id}`);
     console.log(`   🏷️ Limit type: ${data.limitType}`);
+
+    // Send Slack notification to admin channel (fire and forget, don't block on this)
+    sendLimitReachedSlackNotification(data).catch((err) => {
+      console.error('❌ sendLimitReachedNotification - Slack notification error:', err);
+    });
 
     return {
       success: true,
