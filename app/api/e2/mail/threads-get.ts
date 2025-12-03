@@ -33,15 +33,15 @@ const ThreadMessageSchema = t.Object({
   is_read: t.Boolean(),
   read_at: t.Optional(t.Nullable(t.String())),
   has_attachments: t.Boolean(),
-  attachments: t.Array(t.Any()),
+  attachments: t.Array(t.Any({ "x-stainless-any": true })),
 
   // Threading metadata
   in_reply_to: t.Optional(t.Nullable(t.String())),
   references: t.Array(t.String()),
 
   // Headers and tags
-  headers: t.Any(),
-  tags: t.Array(t.Any()),
+  headers: t.Any({ "x-stainless-any": true }),
+  tags: t.Array(t.Any({ "x-stainless-any": true })),
 
   // Status (for sent emails)
   status: t.Optional(t.String()),

@@ -53,8 +53,8 @@ const CreateDomainResponse = t.Object({
   mailFromDomainStatus: t.Optional(t.String()),
   dnsRecords: t.Array(DnsRecordSchema),
   dnsConflict: t.Optional(DnsConflictSchema),
-  createdAt: t.Date(),
-  updatedAt: t.Date(),
+  createdAt: t.String({ format: "date-time" }),
+  updatedAt: t.String({ format: "date-time" }),
   parentDomain: t.Optional(t.String()),
   message: t.Optional(t.String()),
 })
@@ -219,12 +219,14 @@ export const createDomain = new Elysia().post(
         parentDomain = parent.domain
 
         // Mark domain as verified immediately (inherits from parent)
+        // Create timestamp once to ensure consistency between DB and response
+        const subdomainVerifiedAt = new Date()
         await db
           .update(emailDomains)
           .set({
             status: "verified",
             verificationToken: null, // Not needed
-            updatedAt: new Date(),
+            updatedAt: subdomainVerifiedAt,
           })
           .where(eq(emailDomains.id, domainRecord.id))
 
@@ -245,6 +247,7 @@ export const createDomain = new Elysia().post(
         // Configure SES batch receipt rule for subdomain receiving
         // This is the same as enabling catch-all - adds the domain to AWS SES batch rule
         let catchAllReceiptRuleName: string | null = null
+        let subdomainUpdatedAt: Date | null = null
         
         if (s3BucketName && awsAccountId) {
           try {
@@ -280,15 +283,20 @@ export const createDomain = new Elysia().post(
             catchAllReceiptRuleName = rule.ruleName
             console.log(`✅ Subdomain ${domain} added to SES batch rule: ${rule.ruleName}`)
             
+            // Create timestamp once to ensure consistency between DB and response
+            const receiptRuleUpdateTime = new Date()
             // Update domain with receipt rule name
             await db
               .update(emailDomains)
               .set({
                 catchAllReceiptRuleName: catchAllReceiptRuleName,
-                updatedAt: new Date(),
+                updatedAt: receiptRuleUpdateTime,
               })
               .where(eq(emailDomains.id, domainRecord.id))
             console.log(`💾 Updated domain with receipt rule: ${catchAllReceiptRuleName}`)
+            
+            // Store the update time for response
+            subdomainUpdatedAt = receiptRuleUpdateTime
           } catch (sesError) {
             console.error(`⚠️ Failed to configure SES receipt rule for subdomain ${domain}:`, sesError)
             // Don't fail the request - domain is created, but may need manual SES setup
@@ -299,6 +307,8 @@ export const createDomain = new Elysia().post(
         }
 
         // Return simplified response with only MX record
+        // Use the most recent timestamp: receiptRule update > verification update > createdAt
+        const responseUpdatedAt = subdomainUpdatedAt || subdomainVerifiedAt
         const response = {
           id: domainRecord.id,
           domain: domainRecord.domain,
@@ -317,8 +327,8 @@ export const createDomain = new Elysia().post(
             },
           ],
           dnsConflict,
-          createdAt: domainRecord.createdAt || new Date(),
-          updatedAt: new Date(),
+          createdAt: (domainRecord.createdAt || new Date()).toISOString(),
+          updatedAt: responseUpdatedAt.toISOString(),
           parentDomain: parent.domain,
           message: dnsConflict 
             ? `Subdomain inherits verification from ${parent.domain}. Note: ${dnsConflict.message}`
@@ -373,8 +383,8 @@ export const createDomain = new Elysia().post(
         isRequired: true,
       })),
       dnsConflict,
-      createdAt: domainRecord.createdAt || new Date(),
-      updatedAt: domainRecord.updatedAt || new Date(),
+      createdAt: (domainRecord.createdAt || new Date()).toISOString(),
+      updatedAt: (domainRecord.updatedAt || new Date()).toISOString(),
       message: dnsConflict 
         ? `Domain created with DNS conflict warning: ${dnsConflict.message}`
         : undefined,

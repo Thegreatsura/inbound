@@ -79,7 +79,7 @@ const SendEmailBodySchema = t.Object({
   cc: t.Optional(t.Union([t.String(), t.Array(t.String())])),
   bcc: t.Optional(t.Union([t.String(), t.Array(t.String())])),
   reply_to: t.Optional(t.Union([t.String(), t.Array(t.String())])),
-  headers: t.Optional(t.Record(t.String(), t.String())),
+  headers: t.Optional(t.Record(t.String(), t.String(), { description: "Custom email headers" })),
   attachments: t.Optional(t.Array(AttachmentSchema)),
   tags: t.Optional(t.Array(TagSchema)),
   scheduled_at: t.Optional(

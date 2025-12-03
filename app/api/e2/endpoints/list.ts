@@ -20,7 +20,8 @@ const ListEndpointsQuery = t.Object({
   search: t.Optional(t.String({ maxLength: 100 })),
 })
 
-const EndpointConfigSchema = t.Any()
+// Using x-stainless-any: true to indicate this is intentionally dynamic/any type
+const EndpointConfigSchema = t.Any({ "x-stainless-any": true })
 
 const DeliveryStatsSchema = t.Object({
   total: t.Number(),

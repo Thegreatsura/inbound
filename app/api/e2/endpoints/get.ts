@@ -29,7 +29,7 @@ const DeliveryItemSchema = t.Object({
   status: t.String(),
   attempts: t.Number(),
   lastAttemptAt: t.Nullable(t.String()),
-  responseData: t.Any(),
+  responseData: t.Any({ "x-stainless-any": true }),
   createdAt: t.Nullable(t.String()),
 })
 
@@ -54,7 +54,7 @@ const EndpointDetailResponse = t.Object({
     t.Literal("email"),
     t.Literal("email_group"),
   ]),
-  config: t.Any(),
+  config: t.Any({ "x-stainless-any": true }),
   isActive: t.Boolean(),
   description: t.Nullable(t.String()),
   userId: t.String(),

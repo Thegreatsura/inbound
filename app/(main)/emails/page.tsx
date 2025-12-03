@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { format } from 'date-fns'
 import Link from 'next/link'
 import { useQueryStates, parseAsString } from 'nuqs'
-import { useDomainsListV2Query } from '@/features/domains/hooks/useDomainV2Hooks'
+import { useDomainsListV2Query, type E2DomainWithStats } from '@/features/domains/hooks/useDomainV2Hooks'
 import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 
 
@@ -19,8 +19,6 @@ import Refresh2 from '@/components/icons/refresh-2'
 import CircleXmark from '@/components/icons/circle-xmark'
 import Magnifier2 from '@/components/icons/magnifier-2'
 import Filter2 from '@/components/icons/filter-2'
-
-import type { DomainWithStats } from '@/app/api/v2/domains/route'
 import { ApiIdLabel } from '@/components/api-id-label'
 import SidebarToggleButton from '@/components/sidebar-toggle-button'
 
@@ -52,13 +50,13 @@ export default function EmailsPage() {
 
 
   // Helper functions for domain status (only Active/Inactive)
-  const isActive = (d: DomainWithStats) => d.status === 'verified' && d.canReceiveEmails
+  const isActive = (d: E2DomainWithStats) => d.status === 'verified' && d.canReceiveEmails
 
-  const getDomainStatusDot = (domain: DomainWithStats) => {
+  const getDomainStatusDot = (domain: E2DomainWithStats) => {
     return <div className={`w-2 h-2 rounded-full ${isActive(domain) ? 'bg-green-500' : 'bg-red-500'}`} />
   }
 
-  const getDomainStatusText = (domain: DomainWithStats) => {
+  const getDomainStatusText = (domain: E2DomainWithStats) => {
     return isActive(domain) ? "Active" : "Inactive"
   }
 
@@ -68,7 +66,7 @@ export default function EmailsPage() {
 
   // Filter domains based on search query and status dropdown
   const q = debouncedSearch.trim().toLowerCase()
-  const statusMatch = (d: DomainWithStats) =>
+  const statusMatch = (d: E2DomainWithStats) =>
     debouncedStatus === 'all'
       ? true
       : debouncedStatus === 'active'

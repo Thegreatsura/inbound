@@ -30,7 +30,7 @@ const UpdateDomainResponse = t.Object({
   isCatchAllEnabled: t.Boolean(),
   catchAllEndpointId: t.Nullable(t.String()),
   catchAllEndpoint: CatchAllEndpointSchema,
-  updatedAt: t.Date(),
+  updatedAt: t.String({ format: "date-time" }),
 })
 
 // Error response schema
@@ -213,7 +213,7 @@ export const updateDomain = new Elysia().patch(
       isCatchAllEnabled: updatedDomain.isCatchAllEnabled || false,
       catchAllEndpointId: updatedDomain.catchAllEndpointId,
       catchAllEndpoint,
-      updatedAt: updatedDomain.updatedAt || new Date(),
+      updatedAt: (updatedDomain.updatedAt || new Date()).toISOString(),
     }
   },
   {

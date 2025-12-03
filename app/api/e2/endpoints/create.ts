@@ -10,7 +10,7 @@ const WebhookConfigSchema = t.Object({
   url: t.String(),
   timeout: t.Optional(t.Number({ minimum: 1, maximum: 300 })),
   retryAttempts: t.Optional(t.Number({ minimum: 0, maximum: 10 })),
-  headers: t.Optional(t.Record(t.String(), t.String())),
+  headers: t.Optional(t.Record(t.String(), t.String(), { description: "Custom headers to include with webhook requests" })),
 })
 
 const EmailConfigSchema = t.Object({
@@ -49,7 +49,7 @@ const EndpointResponse = t.Object({
     t.Literal("email"),
     t.Literal("email_group"),
   ]),
-  config: t.Any(),
+  config: t.Any({ "x-stainless-any": true }),
   isActive: t.Boolean(),
   description: t.Nullable(t.String()),
   userId: t.String(),

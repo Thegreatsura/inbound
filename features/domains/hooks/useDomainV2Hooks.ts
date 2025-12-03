@@ -2,7 +2,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { track } from '@vercel/analytics'
 import { client } from '@/lib/api/client'
 import type { 
-    GetDomainsResponse,
     GetDomainsRequest,
     DomainWithStats
 } from '@/app/api/v2/domains/route'
@@ -20,8 +19,135 @@ import type {
     DeleteEmailAddressByIdResponse
 } from '@/app/api/v2/email-addresses/[id]/route'
 
+// E2 API Domain type (uses string dates instead of Date objects)
+export interface E2DomainWithStats {
+    id: string
+    domain: string
+    status: string
+    canReceiveEmails: boolean
+    hasMxRecords: boolean
+    domainProvider: string | null
+    providerConfidence: string | null
+    lastDnsCheck: string | null
+    lastSesCheck: string | null
+    isCatchAllEnabled: boolean
+    catchAllEndpointId: string | null
+    mailFromDomain: string | null
+    mailFromDomainStatus: string | null
+    mailFromDomainVerifiedAt: string | null
+    receiveDmarcEmails: boolean
+    createdAt: string
+    updatedAt: string
+    userId: string
+    stats: {
+        totalEmailAddresses: number
+        activeEmailAddresses: number
+        hasCatchAll: boolean
+    }
+    catchAllEndpoint?: {
+        id: string
+        name: string
+        type: string
+        isActive: boolean
+    } | null
+    verificationCheck?: {
+        dnsRecords: Array<{
+            type: string
+            name: string
+            value: string
+            isVerified: boolean
+            error?: string
+        }>
+        sesStatus: string
+        isFullyVerified: boolean
+        lastChecked: string
+    }
+}
+
+// E2 API List Response type
+export interface E2DomainsListResponse {
+    data: E2DomainWithStats[]
+    pagination: {
+        limit: number
+        offset: number
+        total: number
+        hasMore: boolean
+    }
+}
+
+// Extended response with meta for cache/UI compatibility  
+export interface GetDomainsResponse extends E2DomainsListResponse {
+    meta: {
+        totalCount: number
+        verifiedCount: number
+        withCatchAllCount: number
+        statusBreakdown: {
+            verified: number
+            pending: number
+            failed: number
+        }
+    }
+}
+
 // Extended domain response type that includes the new inheritance fields from e2 API
-export interface DomainDetailsResponse extends GetDomainByIdResponse {
+// Note: Uses string dates as returned by the e2 API (ISO 8601 format)
+export interface DomainDetailsResponse {
+    id: string
+    domain: string
+    status: string
+    canReceiveEmails: boolean
+    hasMxRecords: boolean
+    domainProvider: string | null
+    providerConfidence: string | null
+    lastDnsCheck: string | null
+    lastSesCheck: string | null
+    isCatchAllEnabled: boolean
+    catchAllEndpointId: string | null
+    mailFromDomain: string | null
+    mailFromDomainStatus: string | null
+    mailFromDomainVerifiedAt: string | null
+    receiveDmarcEmails?: boolean // Optional - not returned by e2 API
+    createdAt: string
+    updatedAt: string
+    userId: string
+    stats: {
+        totalEmailAddresses: number
+        activeEmailAddresses: number
+        hasCatchAll?: boolean // Optional - different structure in get vs list
+        emailsLast24h?: number // Only in get response
+        emailsLast7d?: number
+        emailsLast30d?: number
+    }
+    catchAllEndpoint?: {
+        id: string
+        name: string
+        type: string
+        isActive: boolean
+    } | null
+    verificationCheck?: {
+        dnsRecords: Array<{
+            type: string
+            name: string
+            value: string
+            isVerified: boolean
+            error?: string
+        }>
+        sesStatus: string
+        isFullyVerified: boolean
+        lastChecked: string
+        mailFromDomain?: string
+        mailFromStatus?: string
+        mailFromVerified?: boolean
+        dkimStatus?: string
+        dkimVerified?: boolean
+        dkimTokens?: string[]
+    }
+    authRecommendations?: {
+        spf?: { name: string; value: string; description: string }
+        dkim?: { name: string; value: string; description: string }
+        dmarc?: { name: string; value: string; description: string }
+    }
+    // E2 API specific fields
     inheritsFromParent?: boolean
     parentDomain?: string | null
     // DNS records are always included in e2 response
@@ -33,8 +159,8 @@ export interface DomainDetailsResponse extends GetDomainByIdResponse {
         value: string
         isRequired: boolean
         isVerified: boolean
-        lastChecked: Date | null
-        createdAt: Date
+        lastChecked: string | null
+        createdAt: string
     }>
 }
 
@@ -66,7 +192,28 @@ export const useDomainsListV2Query = (params?: GetDomainsRequest) => {
                 throw new Error((error as any)?.error || 'Failed to fetch domains')
             }
 
-            return data as GetDomainsResponse
+            // Type the e2 API response
+            const e2Response = data as E2DomainsListResponse
+
+            // Calculate meta statistics from the data
+            const verifiedCount = e2Response.data.filter(d => d.status === 'verified').length
+            const withCatchAllCount = e2Response.data.filter(d => d.stats.hasCatchAll).length
+            const statusBreakdown = {
+                verified: e2Response.data.filter(d => d.status === 'verified').length,
+                pending: e2Response.data.filter(d => d.status === 'pending').length,
+                failed: e2Response.data.filter(d => d.status === 'failed').length
+            }
+
+            // Return with computed meta to match GetDomainsResponse
+            return {
+                ...e2Response,
+                meta: {
+                    totalCount: e2Response.pagination.total,
+                    verifiedCount,
+                    withCatchAllCount,
+                    statusBreakdown
+                }
+            }
         },
         staleTime: 2 * 60 * 1000, // 2 minutes
         gcTime: 5 * 60 * 1000, // 5 minutes

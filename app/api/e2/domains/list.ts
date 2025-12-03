@@ -71,7 +71,7 @@ const VerificationCheckSchema = t.Optional(
     dnsRecords: t.Array(VerificationDnsRecordSchema),
     sesStatus: t.String(),
     isFullyVerified: t.Boolean(),
-    lastChecked: t.Date(),
+    lastChecked: t.String({ format: "date-time" }),
   })
 )
 
@@ -83,16 +83,16 @@ const DomainSchema = t.Object({
   hasMxRecords: t.Boolean(),
   domainProvider: t.Nullable(t.String()),
   providerConfidence: t.Nullable(t.String()),
-  lastDnsCheck: t.Nullable(t.Date()),
-  lastSesCheck: t.Nullable(t.Date()),
+  lastDnsCheck: t.Nullable(t.String({ format: "date-time" })),
+  lastSesCheck: t.Nullable(t.String({ format: "date-time" })),
   isCatchAllEnabled: t.Boolean(),
   catchAllEndpointId: t.Nullable(t.String()),
   mailFromDomain: t.Nullable(t.String()),
   mailFromDomainStatus: t.Nullable(t.String()),
-  mailFromDomainVerifiedAt: t.Nullable(t.Date()),
+  mailFromDomainVerifiedAt: t.Nullable(t.String({ format: "date-time" })),
   receiveDmarcEmails: t.Boolean(),
-  createdAt: t.Date(),
-  updatedAt: t.Date(),
+  createdAt: t.String({ format: "date-time" }),
+  updatedAt: t.String({ format: "date-time" }),
   userId: t.String(),
   stats: DomainStatsSchema,
   catchAllEndpoint: CatchAllEndpointSchema,
@@ -251,8 +251,11 @@ export const listDomains = new Elysia().get(
           hasMxRecords: domain.hasMxRecords || false,
           isCatchAllEnabled: domain.isCatchAllEnabled || false,
           receiveDmarcEmails: domain.receiveDmarcEmails || false,
-          createdAt: domain.createdAt || new Date(),
-          updatedAt: domain.updatedAt || new Date(),
+          lastDnsCheck: domain.lastDnsCheck?.toISOString() || null,
+          lastSesCheck: domain.lastSesCheck?.toISOString() || null,
+          mailFromDomainVerifiedAt: domain.mailFromDomainVerifiedAt?.toISOString() || null,
+          createdAt: (domain.createdAt || new Date()).toISOString(),
+          updatedAt: (domain.updatedAt || new Date()).toISOString(),
           stats: {
             totalEmailAddresses: emailCount,
             activeEmailAddresses: activeEmailCount,
@@ -369,7 +372,7 @@ export const listDomains = new Elysia().get(
               dnsRecords: verificationResults,
               sesStatus,
               isFullyVerified,
-              lastChecked: new Date(),
+              lastChecked: new Date().toISOString(),
             }
 
             console.log(`✅ Verification check complete for ${domain.domain}:`, {
@@ -383,7 +386,7 @@ export const listDomains = new Elysia().get(
               dnsRecords: [],
               sesStatus: "Error",
               isFullyVerified: false,
-              lastChecked: new Date(),
+              lastChecked: new Date().toISOString(),
             }
           }
         }

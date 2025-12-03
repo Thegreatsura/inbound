@@ -9,7 +9,7 @@ const RoutingSchema = t.Object({
   type: t.Union([t.Literal("webhook"), t.Literal("endpoint"), t.Literal("none")]),
   id: t.Nullable(t.String()),
   name: t.Nullable(t.String()),
-  config: t.Optional(t.Any()),
+  config: t.Optional(t.Any({ "x-stainless-any": true })),
   isActive: t.Boolean(),
 })
 
@@ -28,8 +28,8 @@ const EmailAddressResponse = t.Object({
   isActive: t.Boolean(),
   isReceiptRuleConfigured: t.Boolean(),
   receiptRuleName: t.Nullable(t.String()),
-  createdAt: t.Date(),
-  updatedAt: t.Date(),
+  createdAt: t.String({ format: "date-time" }),
+  updatedAt: t.String({ format: "date-time" }),
   userId: t.String(),
   domain: DomainRefSchema,
   routing: RoutingSchema,
@@ -152,8 +152,8 @@ export const getEmailAddress = new Elysia().get(
       isActive: emailAddress.isActive || false,
       isReceiptRuleConfigured: emailAddress.isReceiptRuleConfigured || false,
       receiptRuleName: emailAddress.receiptRuleName,
-      createdAt: emailAddress.createdAt || new Date(),
-      updatedAt: emailAddress.updatedAt || new Date(),
+      createdAt: (emailAddress.createdAt || new Date()).toISOString(),
+      updatedAt: (emailAddress.updatedAt || new Date()).toISOString(),
       userId: emailAddress.userId,
       domain: {
         id: emailAddress.domainId,

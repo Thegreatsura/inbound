@@ -71,7 +71,7 @@ const ReplyEmailBodySchema = t.Object({
   subject: t.Optional(t.String({ description: "Email subject - defaults to Re: original subject" })),
   html: t.Optional(t.String({ description: "HTML content of the email" })),
   text: t.Optional(t.String({ description: "Plain text content of the email" })),
-  headers: t.Optional(t.Record(t.String(), t.String())),
+  headers: t.Optional(t.Record(t.String(), t.String(), { description: "Custom email headers" })),
   attachments: t.Optional(t.Array(AttachmentSchema)),
   reply_all: t.Optional(t.Boolean({ description: "Include original CC recipients" })),
   tags: t.Optional(t.Array(TagSchema)),

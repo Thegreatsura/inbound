@@ -66,7 +66,6 @@ import {
 
 // v2 API types
 import type {
-  GetDomainByIdResponse,
   PutDomainByIdRequest,
 } from "@/app/api/v2/domains/[id]/route";
 import { client } from "@/lib/api/client";
@@ -771,13 +770,8 @@ export default function DomainDetailPage() {
       })
     : null;
 
-  // Type assertion for MAIL FROM properties (until TypeScript cache refreshes)
-  const domainWithMailFrom = domainDetailsData as GetDomainByIdResponse & {
-    mailFromDomain?: string | null;
-    mailFromDomainStatus?: string | null;
-    mailFromDomainVerifiedAt?: Date | null;
-    receiveDmarcEmails?: boolean;
-  };
+  // domainDetailsData already has mailFrom and receiveDmarcEmails properties via DomainDetailsResponse
+  const domainWithMailFrom = domainDetailsData;
 
   // Helper functions for endpoint icons and colors
   const getEndpointIcon = (endpoint: any) => {

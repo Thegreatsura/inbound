@@ -62,8 +62,8 @@ const DnsRecordSchema = t.Object({
   value: t.String(),
   isRequired: t.Boolean(),
   isVerified: t.Boolean(),
-  lastChecked: t.Nullable(t.Date()),
-  createdAt: t.Date(),
+  lastChecked: t.Nullable(t.String({ format: "date-time" })),
+  createdAt: t.String({ format: "date-time" }),
 })
 
 const VerificationDnsRecordSchema = t.Object({
@@ -85,7 +85,7 @@ const VerificationCheckSchema = t.Optional(
     mailFromStatus: t.Optional(t.String()),
     mailFromVerified: t.Optional(t.Boolean()),
     isFullyVerified: t.Boolean(),
-    lastChecked: t.Date(),
+    lastChecked: t.String({ format: "date-time" }),
   })
 )
 
@@ -115,15 +115,15 @@ const GetDomainResponse = t.Object({
   hasMxRecords: t.Boolean(),
   domainProvider: t.Nullable(t.String()),
   providerConfidence: t.Nullable(t.String()),
-  lastDnsCheck: t.Nullable(t.Date()),
-  lastSesCheck: t.Nullable(t.Date()),
+  lastDnsCheck: t.Nullable(t.String({ format: "date-time" })),
+  lastSesCheck: t.Nullable(t.String({ format: "date-time" })),
   isCatchAllEnabled: t.Boolean(),
   catchAllEndpointId: t.Nullable(t.String()),
   mailFromDomain: t.Nullable(t.String()),
   mailFromDomainStatus: t.Nullable(t.String()),
-  mailFromDomainVerifiedAt: t.Nullable(t.Date()),
-  createdAt: t.Date(),
-  updatedAt: t.Date(),
+  mailFromDomainVerifiedAt: t.Nullable(t.String({ format: "date-time" })),
+  createdAt: t.String({ format: "date-time" }),
+  updatedAt: t.String({ format: "date-time" }),
   userId: t.String(),
   stats: DomainStatsSchema,
   catchAllEndpoint: CatchAllEndpointSchema,
@@ -249,8 +249,8 @@ export const getDomain = new Elysia().get(
       value: record.value,
       isRequired: record.isRequired || false,
       isVerified: record.isVerified || false,
-      lastChecked: record.lastChecked,
-      createdAt: record.createdAt || new Date(),
+      lastChecked: record.lastChecked?.toISOString() || null,
+      createdAt: (record.createdAt || new Date()).toISOString(),
     }))
 
     // Calculate time-based email statistics
@@ -271,15 +271,15 @@ export const getDomain = new Elysia().get(
       hasMxRecords: domain.hasMxRecords || false,
       domainProvider: domain.domainProvider,
       providerConfidence: domain.providerConfidence,
-      lastDnsCheck: domain.lastDnsCheck,
-      lastSesCheck: domain.lastSesCheck,
+      lastDnsCheck: domain.lastDnsCheck?.toISOString() || null,
+      lastSesCheck: domain.lastSesCheck?.toISOString() || null,
       isCatchAllEnabled: domain.isCatchAllEnabled || false,
       catchAllEndpointId: domain.catchAllEndpointId,
       mailFromDomain: domain.mailFromDomain,
       mailFromDomainStatus: domain.mailFromDomainStatus,
-      mailFromDomainVerifiedAt: domain.mailFromDomainVerifiedAt,
-      createdAt: domain.createdAt || new Date(),
-      updatedAt: domain.updatedAt || new Date(),
+      mailFromDomainVerifiedAt: domain.mailFromDomainVerifiedAt?.toISOString() || null,
+      createdAt: (domain.createdAt || new Date()).toISOString(),
+      updatedAt: (domain.updatedAt || new Date()).toISOString(),
       userId: domain.userId,
       stats,
       catchAllEndpoint,
@@ -477,36 +477,38 @@ export const getDomain = new Elysia().get(
             }
 
             // Update domain status based on SES verification
+            // Create timestamps once to ensure consistency between DB and response
+            const now = new Date()
             const updateData: any = {
-              lastSesCheck: new Date(),
-              updatedAt: new Date(),
+              lastSesCheck: now,
+              updatedAt: now,
             }
 
             if (mailFromDomain && mailFromStatus) {
               updateData.mailFromDomain = mailFromDomain
               updateData.mailFromDomainStatus = mailFromStatus
               if (mailFromStatus === "Success") {
-                updateData.mailFromDomainVerifiedAt = new Date()
+                updateData.mailFromDomainVerifiedAt = now
               }
               response.mailFromDomain = mailFromDomain
               response.mailFromDomainStatus = mailFromStatus
               response.mailFromDomainVerifiedAt =
-                mailFromStatus === "Success" ? new Date() : response.mailFromDomainVerifiedAt
+                mailFromStatus === "Success" ? now.toISOString() : response.mailFromDomainVerifiedAt
             }
 
             if (sesStatus === "Success" && domain.status !== "verified") {
               updateData.status = "verified"
               await db.update(emailDomains).set(updateData).where(eq(emailDomains.id, domain.id))
               response.status = "verified"
-              response.updatedAt = updateData.updatedAt
+              response.updatedAt = updateData.updatedAt.toISOString()
             } else if (sesStatus === "Failed" && domain.status !== "failed") {
               updateData.status = "failed"
               await db.update(emailDomains).set(updateData).where(eq(emailDomains.id, domain.id))
               response.status = "failed"
-              response.updatedAt = updateData.updatedAt
+              response.updatedAt = updateData.updatedAt.toISOString()
             } else {
               await db.update(emailDomains).set(updateData).where(eq(emailDomains.id, domain.id))
-              response.updatedAt = updateData.updatedAt
+              response.updatedAt = updateData.updatedAt.toISOString()
             }
           } catch (sesError) {
             console.error(`❌ SES verification check failed:`, sesError)
@@ -525,16 +527,18 @@ export const getDomain = new Elysia().get(
         // Update domain status for subdomains that inherit from verified parent
         if (inheritsFromParent && allDnsVerified && domain.status !== "verified") {
           console.log(`✅ Marking subdomain ${domain.domain} as verified (inherits from parent, DNS verified)`)
+          // Create timestamp once to ensure consistency between DB and response
+          const subdomainUpdateTime = new Date()
           await db.update(emailDomains).set({
             status: "verified",
             canReceiveEmails: true,
             hasMxRecords: true,
-            updatedAt: new Date(),
+            updatedAt: subdomainUpdateTime,
           }).where(eq(emailDomains.id, domain.id))
           response.status = "verified"
           response.canReceiveEmails = true
           response.hasMxRecords = true
-          response.updatedAt = new Date()
+          response.updatedAt = subdomainUpdateTime.toISOString()
         }
 
         response.verificationCheck = {
@@ -547,7 +551,7 @@ export const getDomain = new Elysia().get(
           mailFromStatus,
           mailFromVerified,
           isFullyVerified,
-          lastChecked: new Date(),
+          lastChecked: new Date().toISOString(),
         }
 
         console.log(`✅ Verification check complete for ${domain.domain}:`, {
@@ -568,7 +572,7 @@ export const getDomain = new Elysia().get(
           mailFromStatus: "Unknown",
           mailFromVerified: false,
           isFullyVerified: false,
-          lastChecked: new Date(),
+          lastChecked: new Date().toISOString(),
         }
       }
 
