@@ -254,7 +254,6 @@ export default function SettingsPage() {
   const emailRetentionFeature = customerData?.features?.['email_retention']
 
   const currentDomainCount = domainStats?.totalDomains || 0
-  const maxDomains = domainsFeature?.balance || 0
 
   const showUpgradeButton = !activeProduct || !activeProduct.name?.toLowerCase().includes('scale')
 
@@ -321,24 +320,29 @@ export default function SettingsPage() {
               <div className="space-y-4">
                 <p className="text-xs text-[#78716c] uppercase tracking-wide mb-3">Usage</p>
                 
-                {domainsFeature && (
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-sm text-[#3f3f46]">Domains</span>
-                      <span className="text-xs text-[#78716c] font-mono">
-                        {domainsFeature.unlimited ? '∞' : `${currentDomainCount} / ${maxDomains}`}
-                      </span>
-                    </div>
-                    {!domainsFeature.unlimited && maxDomains > 0 && (
-                      <div className="h-1.5 w-full rounded-full bg-[#e7e5e4] overflow-hidden">
-                        <div
-                          className="h-1.5 rounded-full bg-[#8161FF] transition-all"
-                          style={{ width: `${Math.min((currentDomainCount / maxDomains) * 100, 100)}%` }}
-                        />
+                {domainsFeature && (() => {
+                  const usage = currentDomainCount
+                  const remaining = domainsFeature.balance || 0
+                  const total = (domainsFeature.usage || 0) + remaining
+                  return (
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-sm text-[#3f3f46]">Domains</span>
+                        <span className="text-xs text-[#78716c] font-mono">
+                          {domainsFeature.unlimited ? '∞' : `${usage} / ${total}`}
+                        </span>
                       </div>
-                    )}
-                  </div>
-                )}
+                      {!domainsFeature.unlimited && total > 0 && (
+                        <div className="h-1.5 w-full rounded-full bg-[#e7e5e4] overflow-hidden">
+                          <div
+                            className="h-1.5 rounded-full bg-[#8161FF] transition-all"
+                            style={{ width: `${Math.min((usage / total) * 100, 100)}%` }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
 
                 {inboundTriggersFeature && (() => {
                   const usage = inboundTriggersFeature.usage || 0

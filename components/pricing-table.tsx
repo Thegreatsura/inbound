@@ -4,10 +4,10 @@ import Link from "next/link"
 
 const plans = [
   {
-    name: 'Starter',
-    price: 3,
+    name: 'Default',
+    price: 4,
     description: '5,000 emails/mo · Basic support',
-    autumn_id: 'free'
+    autumn_id: 'inbound_default_test'
   },
   {
     name: 'Pro',
