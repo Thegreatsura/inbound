@@ -16,10 +16,13 @@ import { updateUserProfile } from '@/app/actions/primary'
 import { Check, ChevronRight, Plus, Minus, LogOut, ExternalLink, Loader2 } from 'lucide-react'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { PricingTable, plans } from '@/components/pricing-table'
+import { useAutumn } from 'autumn-js/react'
 
 export default function SettingsPage() {
   const { data: session, isPending } = useSession()
+  const { attach } = useAutumn()
   const [isLoading, setIsLoading] = useState(false)
+  const [isAddingAddons, setIsAddingAddons] = useState(false)
   const [isUpgradeDialogOpen, setIsUpgradeDialogOpen] = useState(false)
   const [isUpgradeSuccessOpen, setIsUpgradeSuccessOpen] = useState(false)
   
@@ -63,6 +66,35 @@ export default function SettingsPage() {
     }
   }, [session?.user?.name])
 
+  // Extract existing add-on quantities from customer data
+  const existingExtraDomainsProduct = customerData?.products?.find(
+    (p: any) => p.id === 'extra_domains' && (p.status === 'active' || p.status === 'trialing')
+  )
+  const existingEmailPacksProduct = customerData?.products?.find(
+    (p: any) => p.id === '50k_email_blocks' && (p.status === 'active' || p.status === 'trialing')
+  )
+  
+  // Get quantities from existing products
+  // For domains, quantity is the actual number of domains (billing_units: 1)
+  const existingDomainsQuantity = existingExtraDomainsProduct?.items?.find(
+    (item: any) => item.feature_id === 'domains'
+  )?.quantity || 0
+  
+  // For email packs, Autumn stores the raw email count (e.g., 50000)
+  // We need to divide by 50000 to get the number of packs
+  const rawEmailPacksQuantity = existingEmailPacksProduct?.items?.find(
+    (item: any) => item.feature_id === 'inbound_triggers'
+  )?.quantity || 0
+  const existingEmailPacksQuantity = Math.floor(rawEmailPacksQuantity / 50000)
+
+  // Initialize add-on quantities from customer data when it loads
+  useEffect(() => {
+    if (customerData && !isLoadingCustomer) {
+      setExtraDomains(existingDomainsQuantity)
+      setExtraEmailPacks(existingEmailPacksQuantity)
+    }
+  }, [customerData, isLoadingCustomer, existingDomainsQuantity, existingEmailPacksQuantity])
+
   const handleSignOut = async () => {
     try {
       await signOut()
@@ -102,22 +134,78 @@ export default function SettingsPage() {
     }
   }
 
-  const handleAddAddons = () => {
-    // TODO: Connect to backend - purchase add-ons
-    const parts = []
-    if (extraDomains > 0) {
-      parts.push(`${extraDomains} domain${extraDomains !== 1 ? 's' : ''} ($${extraDomains * 10}/mo)`)
+  // Check if quantities have changed from existing values
+  const domainsChanged = extraDomains !== existingDomainsQuantity
+  const emailPacksChanged = extraEmailPacks !== existingEmailPacksQuantity
+  const hasChanges = domainsChanged || emailPacksChanged
+  const hasAnyAddons = extraDomains > 0 || extraEmailPacks > 0
+
+  const handleAddAddons = async () => {
+    if (!hasChanges) return
+    
+    setIsAddingAddons(true)
+    let didRedirect = false
+    
+    try {
+      // Handle reducing to 0 - user should manage via billing portal
+      if ((domainsChanged && extraDomains === 0) || (emailPacksChanged && extraEmailPacks === 0)) {
+        toast.info('To remove add-ons, please use the billing portal.')
+        handleManageBilling()
+        return
+      }
+      
+      // Update extra domains add-on if changed
+      if (domainsChanged && extraDomains > 0) {
+        const result = await attach({
+          productId: 'extra_domains',
+          options: [
+            { featureId: 'domains', quantity: extraDomains }
+          ],
+          successUrl: `${window.location.origin}/settings?addon=extra_domains&quantity=${extraDomains}`,
+        })
+        // If attach returns a checkoutUrl, user will be redirected
+        if (result?.checkoutUrl) {
+          didRedirect = true
+        }
+      }
+      
+      // Update email capacity add-on if changed
+      // Note: quantity must be the raw email count (pack count × 50,000), not the pack count
+      if (emailPacksChanged && extraEmailPacks > 0 && !didRedirect) {
+        const rawEmailQuantity = extraEmailPacks * 50000
+        const result = await attach({
+          productId: '50k_email_blocks',
+          options: [
+            { featureId: 'inbound_triggers', quantity: rawEmailQuantity },
+            { featureId: 'emails_sent', quantity: rawEmailQuantity }
+          ],
+          successUrl: `${window.location.origin}/settings?addon=50k_email_blocks&quantity=${extraEmailPacks}`,
+        })
+        if (result?.checkoutUrl) {
+          didRedirect = true
+        }
+      }
+      
+      // Only refetch and show success if no redirect happened (payment method on file)
+      if (!didRedirect) {
+        toast.success('Add-ons updated successfully!')
+        refetchCustomer()
+      }
+    } catch (error) {
+      console.error('Error updating add-ons:', error)
+      toast.error('Failed to update add-ons. Please try again.')
+    } finally {
+      setIsAddingAddons(false)
     }
-    if (extraEmailPacks > 0) {
-      parts.push(`${extraEmailPacks} email pack${extraEmailPacks !== 1 ? 's' : ''} ($${extraEmailPacks * 15}/mo)`)
-    }
-    toast.info(`Adding: ${parts.join(' + ')}`)
   }
 
-  // Check for upgrade success parameter
+  // Check for upgrade/addon success parameter
   useEffect(() => {
     const upgradeParam = searchParams.get('upgrade')
     const productParam = searchParams.get('product')
+    const addonParam = searchParams.get('addon')
+    const quantityParam = searchParams.get('quantity')
+    
     if (upgradeParam === 'true') {
       setIsUpgradeSuccessOpen(true)
       
@@ -131,7 +219,19 @@ export default function SettingsPage() {
       newUrl.searchParams.delete('product')
       router.replace(newUrl.pathname + newUrl.search)
     }
-  }, [searchParams, router, session?.user?.email])
+    
+    // Handle addon purchase success
+    if (addonParam) {
+      const addonName = addonParam === 'extra_domains' ? 'Extra domains' : 'Email capacity pack'
+      toast.success(`Successfully added ${quantityParam || 1}x ${addonName}!`)
+      refetchCustomer()
+      
+      const newUrl = new URL(window.location.href)
+      newUrl.searchParams.delete('addon')
+      newUrl.searchParams.delete('quantity')
+      router.replace(newUrl.pathname + newUrl.search)
+    }
+  }, [searchParams, router, session?.user?.email, refetchCustomer])
 
   if (isPending) {
     return (
@@ -464,7 +564,14 @@ export default function SettingsPage() {
             {/* Extra domains */}
             <div className="flex items-center justify-between py-3 border-b border-[#e7e5e4]">
               <div>
-                <p className="font-medium text-[#1c1917]">Extra domains</p>
+                <div className="flex items-center gap-2">
+                  <p className="font-medium text-[#1c1917]">Extra domains</p>
+                  {existingDomainsQuantity > 0 && (
+                    <span className="text-xs px-1.5 py-0.5 rounded bg-[#dcfce7] text-[#166534]">
+                      {existingDomainsQuantity} active
+                    </span>
+                  )}
+                </div>
                 <p className="text-sm text-[#52525b] mt-0.5">$10/domain per month</p>
               </div>
               <div className="flex items-center gap-2 bg-[#f5f5f4] rounded-lg p-1">
@@ -475,7 +582,9 @@ export default function SettingsPage() {
                 >
                   <Minus className="w-4 h-4" />
                 </button>
-                <span className="w-8 text-center font-mono text-sm">{extraDomains}</span>
+                <span className={`w-8 text-center font-mono text-sm ${domainsChanged ? 'text-[#8161FF] font-semibold' : ''}`}>
+                  {extraDomains}
+                </span>
                 <button
                   onClick={() => setExtraDomains(extraDomains + 1)}
                   className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white transition-colors"
@@ -488,8 +597,15 @@ export default function SettingsPage() {
             {/* Extra email capacity */}
             <div className="flex items-center justify-between py-3 border-b border-[#e7e5e4]">
               <div>
-                <p className="font-medium text-[#1c1917]">Extra email capacity</p>
-                <p className="text-sm text-[#52525b] mt-0.5">$15/pack per month · +50,000 emails</p>
+                <div className="flex items-center gap-2">
+                  <p className="font-medium text-[#1c1917]">Extra email capacity</p>
+                  {existingEmailPacksQuantity > 0 && (
+                    <span className="text-xs px-1.5 py-0.5 rounded bg-[#dcfce7] text-[#166534]">
+                      {existingEmailPacksQuantity} active
+                    </span>
+                  )}
+                </div>
+                <p className="text-sm text-[#52525b] mt-0.5">$16/pack per month · +50,000 emails</p>
               </div>
               <div className="flex items-center gap-2 bg-[#f5f5f4] rounded-lg p-1">
                 <button
@@ -499,7 +615,9 @@ export default function SettingsPage() {
                 >
                   <Minus className="w-4 h-4" />
                 </button>
-                <span className="w-8 text-center font-mono text-sm">{extraEmailPacks}</span>
+                <span className={`w-8 text-center font-mono text-sm ${emailPacksChanged ? 'text-[#8161FF] font-semibold' : ''}`}>
+                  {extraEmailPacks}
+                </span>
                 <button
                   onClick={() => setExtraEmailPacks(extraEmailPacks + 1)}
                   className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white transition-colors"
@@ -513,12 +631,19 @@ export default function SettingsPage() {
           <div className="mt-6 flex justify-end">
             <button
               onClick={handleAddAddons}
-              disabled={extraDomains === 0 && extraEmailPacks === 0}
-              className="bg-[#8161FF] hover:bg-[#6b4fd9] disabled:bg-[#e7e5e4] disabled:text-[#a8a29e] text-white text-sm px-4 py-2 rounded-lg transition-colors font-medium"
+              disabled={!hasChanges || isAddingAddons}
+              className="bg-[#8161FF] hover:bg-[#6b4fd9] disabled:bg-[#e7e5e4] disabled:text-[#a8a29e] text-white text-sm px-4 py-2 rounded-lg transition-colors font-medium flex items-center gap-2"
             >
-              {extraDomains === 0 && extraEmailPacks === 0 
-                ? 'Select add-ons above' 
-                : `Add to subscription · $${(extraDomains * 10) + (extraEmailPacks * 15)}/mo`}
+              {isAddingAddons ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Processing…
+                </>
+              ) : !hasChanges 
+                ? (hasAnyAddons ? 'No changes' : 'Select add-ons above')
+                : (existingDomainsQuantity > 0 || existingEmailPacksQuantity > 0)
+                  ? `Update subscription · $${(extraDomains * 10) + (extraEmailPacks * 16)}/mo`
+                  : `Add to subscription · $${(extraDomains * 10) + (extraEmailPacks * 16)}/mo`}
             </button>
           </div>
         </section>

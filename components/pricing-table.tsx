@@ -98,9 +98,13 @@ export function PricingTable({
             </div>
           )
         ))}
-        <div className="flex justify-between py-3">
+        <div className="flex justify-between py-3 border-b border-[#e7e5e4]">
           <span className="text-[#3f3f46]">Additional domains</span>
-          <span className="text-[#1c1917]">$10/domain</span>
+          <span className="text-[#1c1917]">$10/domain/mo</span>
+        </div>
+        <div className="flex justify-between py-3">
+          <span className="text-[#3f3f46]">Additional email capacity</span>
+          <span className="text-[#1c1917]">$16/50k emails/mo</span>
         </div>
       </div>
     </section>

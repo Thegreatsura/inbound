@@ -7,16 +7,16 @@ import {
 } from "atmn";
 
 // Features
-export const simpleAiFeatures = feature({
-	id: "simple_ai_features",
-	name: "Simple AI Features",
+export const vipByok = feature({
+	id: "vip-byok",
+	name: "vip-byok",
 	type: "boolean",
 });
 
-export const inboundTriggers = feature({
-	id: "inbound_triggers",
-	name: "Emails Received ",
-	type: "single_use",
+export const domains = feature({
+	id: "domains",
+	name: "Domains",
+	type: "continuous_use",
 });
 
 export const emailRetention = feature({
@@ -25,10 +25,10 @@ export const emailRetention = feature({
 	type: "continuous_use",
 });
 
-export const vipByok = feature({
-	id: "vip-byok",
-	name: "vip-byok",
-	type: "boolean",
+export const inboundTriggers = feature({
+	id: "inbound_triggers",
+	name: "Emails Received ",
+	type: "single_use",
 });
 
 export const emailsSent = feature({
@@ -43,21 +43,21 @@ export const emailSupport = feature({
 	type: "boolean",
 });
 
-export const advancedAiFeatures = feature({
-	id: "advanced_ai_features",
-	name: "Advanced AI Features",
-	type: "boolean",
-});
-
-export const domains = feature({
-	id: "domains",
-	name: "Domains",
-	type: "continuous_use",
-});
-
 export const slackSupport = feature({
 	id: "slack_support",
 	name: "Slack Support",
+	type: "boolean",
+});
+
+export const simpleAiFeatures = feature({
+	id: "simple_ai_features",
+	name: "Simple AI Features",
+	type: "boolean",
+});
+
+export const advancedAiFeatures = feature({
+	id: "advanced_ai_features",
+	name: "Advanced AI Features",
 	type: "boolean",
 });
 
@@ -74,7 +74,34 @@ export const freeTier = product({
 	items: [
 		featureItem({
 			feature_id: domains.id,
-			included_usage: 2,
+			included_usage: 1,
+		}),
+
+		featureItem({
+			feature_id: inboundTriggers.id,
+			included_usage: 10,
+			reset_usage_when_enabled: false,
+		}),
+
+		featureItem({
+			feature_id: emailsSent.id,
+			included_usage: 10,
+		}),
+	],
+});
+
+export const inboundDefaultTest = product({
+	id: "inbound_default_test",
+	name: "Inbound Default",
+	items: [
+		priceItem({
+			price: 4,
+			interval: "month",
+		}),
+
+		featureItem({
+			feature_id: domains.id,
+			included_usage: 1,
 		}),
 
 		featureItem({
@@ -84,7 +111,7 @@ export const freeTier = product({
 
 		featureItem({
 			feature_id: emailSupport.id,
-			included_usage: undefined,
+			included_usage: 0,
 		}),
 
 		featureItem({
@@ -123,7 +150,7 @@ export const pro = product({
 
 		featureItem({
 			feature_id: emailSupport.id,
-			included_usage: undefined,
+			included_usage: 0,
 		}),
 
 		featureItem({
@@ -139,16 +166,15 @@ export const pro = product({
 		}),
 
 		featureItem({
+			feature_id: inboundGuard.id,
+			included_usage: 0,
+		}),
+
+		featureItem({
 			feature_id: simpleAiFeatures.id,
-			included_usage: undefined,
+			included_usage: 0,
 		}),
 	],
-	free_trial: {
-		duration: "day",
-		length: 3,
-		unique_fingerprint: true,
-		card_required: true,
-	},
 });
 
 export const growth = product({
@@ -162,17 +188,17 @@ export const growth = product({
 
 		featureItem({
 			feature_id: advancedAiFeatures.id,
-			included_usage: undefined,
+			included_usage: 0,
 		}),
 
 		featureItem({
 			feature_id: domains.id,
-			included_usage: 200,
+			included_usage: 300,
 		}),
 
 		featureItem({
 			feature_id: emailRetention.id,
-			included_usage: 30,
+			included_usage: 31,
 		}),
 
 		featureItem({
@@ -189,16 +215,15 @@ export const growth = product({
 		}),
 
 		featureItem({
+			feature_id: inboundGuard.id,
+			included_usage: 0,
+		}),
+
+		featureItem({
 			feature_id: slackSupport.id,
-			included_usage: undefined,
+			included_usage: 0,
 		}),
 	],
-	free_trial: {
-		duration: "day",
-		length: 3,
-		unique_fingerprint: true,
-		card_required: true,
-	},
 });
 
 export const scale = product({
@@ -212,7 +237,7 @@ export const scale = product({
 
 		featureItem({
 			feature_id: advancedAiFeatures.id,
-			included_usage: undefined,
+			included_usage: 0,
 		}),
 
 		featureItem({
@@ -238,37 +263,90 @@ export const scale = product({
 		}),
 
 		featureItem({
+			feature_id: inboundGuard.id,
+			included_usage: 0,
+		}),
+
+		featureItem({
 			feature_id: slackSupport.id,
-			included_usage: undefined,
+			included_usage: 0,
 		}),
 	],
-	free_trial: {
-		duration: "day",
-		length: 3,
-		unique_fingerprint: true,
-		card_required: true,
-	},
+});
+
+export const defaultPlan = product({
+	id: "default_plan",
+	name: "Default Plan (Monthly)",
+	items: [
+		priceItem({
+			price: 4,
+			interval: "month",
+		}),
+	],
+});
+
+export const extraDomains = product({
+	id: "extra_domains",
+	name: "Extra Domains",
+	items: [
+		pricedFeatureItem({
+			feature_id: domains.id,
+			price: 10,
+			interval: "month",
+			included_usage: 1,
+			billing_units: 1,
+			usage_model: "prepaid",
+		}),
+	],
 });
 
 export const product50kEmailBlocks = product({
 	id: "50k_email_blocks",
-	name: "+50k email blocks",
+	name: "50K Email Pack",
+	items: [
+		pricedFeatureItem({
+			feature_id: inboundTriggers.id,
+			price: 8,
+			interval: "month",
+			included_usage: 0,
+			billing_units: 50000,
+			usage_model: "prepaid",
+		}),
+
+		pricedFeatureItem({
+			feature_id: emailsSent.id,
+			price: 8,
+			interval: "month",
+			included_usage: 0,
+			billing_units: 50000,
+			usage_model: "prepaid",
+		}),
+	],
+});
+
+export const inboundVip = product({
+	id: "inbound_vip",
+	name: "inbound vip",
 	items: [
 		priceItem({
-			price: 15,
+			price: 20,
 			interval: "month",
 		}),
 
 		featureItem({
-			feature_id: inboundTriggers.id,
-			included_usage: 50000,
-			interval: "month",
+			feature_id: vipByok.id,
+			included_usage: 0,
 		}),
+	],
+});
 
-		featureItem({
-			feature_id: emailsSent.id,
-			included_usage: 50000,
-			interval: "month",
+export const defaultPlanYearly = product({
+	id: "default_plan_yearly",
+	name: "Default Plan (Yearly)",
+	items: [
+		priceItem({
+			price: 26,
+			interval: "year",
 		}),
 	],
 });
