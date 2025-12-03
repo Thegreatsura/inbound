@@ -17,6 +17,7 @@ function LoginContent() {
   
   // Magic link verification states
   const [magicLinkError, setMagicLinkError] = useState<string | null>(null);
+  const [errorType, setErrorType] = useState<string | null>(null);
   
   // Magic link sent state (moved from LoginForm to prevent resets)
   const [magicLinkSent, setMagicLinkSent] = useState(false);
@@ -25,10 +26,24 @@ function LoginContent() {
   // Check for magic link verification status and handle redirects
   useEffect(() => {
     const success = searchParams.get('success');
-    const error = searchParams.get('error');
+    let error = searchParams.get('error');
+    
+    // Handle malformed URL where error is appended with ? instead of &
+    // e.g., /login?success=magic_link?error=new_user_signup_disabled
+    if (!error && success && success.includes('?error=')) {
+      const errorMatch = success.match(/\?error=([^&]+)/);
+      if (errorMatch) {
+        error = errorMatch[1];
+      }
+    }
     
     if (error) {
-      setMagicLinkError(error === 'auth_failed' ? 'Magic link verification failed. Please try again.' : 'An authentication error occurred.');
+      const errorMessages: Record<string, string> = {
+        'auth_failed': 'Magic link verification failed. Please try again.',
+        'new_user_signup_disabled': 'New user signups are currently disabled. If you believe you should have access, please contact support.',
+      };
+      setErrorType(error);
+      setMagicLinkError(errorMessages[error] || 'An authentication error occurred.');
       return;
     }
     
@@ -42,41 +57,88 @@ function LoginContent() {
   const getContent = () => {
     // Show magic link error state
     if (magicLinkError) {
+      const isSignupDisabled = errorType === 'new_user_signup_disabled';
+      
       return (
         <div className="bg-card rounded-2xl shadow-sm p-8 border border-border">
           <div className="flex flex-col items-center gap-6 text-center">
-            <div className="w-16 h-16 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-8 w-8 text-red-600 dark:text-red-400"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
+            <div className={`w-16 h-16 rounded-full flex items-center justify-center ${
+              isSignupDisabled 
+                ? 'bg-amber-100 dark:bg-amber-900/20' 
+                : 'bg-red-100 dark:bg-red-900/20'
+            }`}>
+              {isSignupDisabled ? (
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-8 w-8 text-amber-600 dark:text-amber-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"
+                  />
+                </svg>
+              ) : (
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-8 w-8 text-red-600 dark:text-red-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              )}
             </div>
             <div className="flex flex-col gap-2">
-              <h1 className="text-2xl font-bold text-foreground">Authentication Failed</h1>
+              <h1 className="text-2xl font-bold text-foreground">
+                {isSignupDisabled ? 'Signup Disabled' : 'Authentication Failed'}
+              </h1>
               <p className="text-sm text-muted-foreground">
                 {magicLinkError}
               </p>
             </div>
-            <Button 
-              onClick={() => {
-                setMagicLinkError(null);
-                // Clear URL params
-                router.replace('/login');
-              }} 
-              className="w-full"
-            >
-              Try Again
-            </Button>
+            {isSignupDisabled ? (
+              <div className="flex flex-col gap-3 w-full">
+                <Button 
+                  variant="secondary"
+                  onClick={() => {
+                    setMagicLinkError(null);
+                    setErrorType(null);
+                    router.replace('/login');
+                  }} 
+                  className="w-full"
+                >
+                  Back to Login
+                </Button>
+                <a 
+                  href="mailto:support@inbound.so" 
+                  className="text-sm text-primary hover:underline"
+                >
+                  Contact Support
+                </a>
+              </div>
+            ) : (
+              <Button 
+                onClick={() => {
+                  setMagicLinkError(null);
+                  setErrorType(null);
+                  router.replace('/login');
+                }} 
+                className="w-full"
+              >
+                Try Again
+              </Button>
+            )}
           </div>
         </div>
       );

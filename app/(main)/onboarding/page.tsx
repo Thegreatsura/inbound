@@ -22,6 +22,12 @@ import Copy2 from '@/components/icons/copy-2'
 import Code2 from '@/components/icons/code-2'
 import CirclePlay from '@/components/icons/circle-play'
 import ChevronDown from '@/components/icons/chevron-down'
+import Envelope2 from '@/components/icons/envelope-2'
+import { useAutumn, useCustomer } from 'autumn-js/react'
+import Loader from '@/components/icons/loader'
+
+const UPGRADE_PRODUCT_ID = "inbound_default_test"
+const FREE_TIER_PRODUCT_ID = "free_tier"
 
 export default function OnboardingPage() {
   const { data: session, isPending } = useSession()
@@ -29,6 +35,11 @@ export default function OnboardingPage() {
   const queryClient = useQueryClient()
   const [isCompleting, setIsCompleting] = useState(false)
   const [isSkipping, setIsSkipping] = useState(false)
+
+  // Autumn billing hooks
+  const { customer, isLoading: isCustomerLoading } = useCustomer()
+  const { attach } = useAutumn()
+  const [isUpgrading, setIsUpgrading] = useState(false)
 
   // Step state
   const [activeStep, setActiveStep] = useState<1 | 2>(1)
@@ -342,6 +353,37 @@ export default function OnboardingPage() {
     }
   }
 
+  // Determine if user is on free tier
+  const isFreeTier = customer?.products?.some(
+    (p: { id: string; status: string }) =>
+      p.id === FREE_TIER_PRODUCT_ID &&
+      (p.status === "active" || p.status === "trialing")
+  )
+
+  // Check if user has any paid plan (not free tier)
+  const hasPaidPlan = customer?.products?.some(
+    (p: { id: string; status: string }) =>
+      p.id !== FREE_TIER_PRODUCT_ID &&
+      (p.status === "active" || p.status === "trialing")
+  )
+
+  const shouldShowUpgradePrompt = isFreeTier && !hasPaidPlan && !isCustomerLoading
+
+  const handleUpgrade = async () => {
+    setIsUpgrading(true)
+    try {
+      await attach({
+        productId: UPGRADE_PRODUCT_ID,
+        successUrl: `${window.location.origin}/onboarding?upgrade=true`,
+      })
+    } catch (error) {
+      console.error("Failed to upgrade:", error)
+      toast.error("Failed to start upgrade process")
+    } finally {
+      setIsUpgrading(false)
+    }
+  }
+
   if (isPending) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -557,6 +599,55 @@ export default function OnboardingPage() {
           </div>
         )}
 
+        {/* Upgrade CTA for Free Tier Users */}
+        {shouldShowUpgradePrompt && (
+          <Card className="rounded-xl mt-8 border-primary/20 bg-gradient-to-br from-primary/5 to-primary/10">
+            <CardContent className="pt-6">
+              <div className="flex flex-col sm:flex-row items-center gap-6">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 flex-shrink-0">
+                  <Envelope2 width="28" height="28" className="text-primary" />
+                </div>
+                <div className="flex-1 text-center sm:text-left">
+                  <h3 className="text-lg font-semibold text-foreground mb-1">
+                    Ready for Production?
+                  </h3>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Upgrade to our Starter plan for $4/month to unlock 5,000 emails, 7-day retention, and production-ready infrastructure.
+                  </p>
+                  <div className="flex flex-wrap gap-3 text-xs text-muted-foreground justify-center sm:justify-start">
+                    <span className="flex items-center gap-1">
+                      <CircleCheck width="14" height="14" className="text-green-600" />
+                      5,000 emails/month
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <CircleCheck width="14" height="14" className="text-green-600" />
+                      7-day retention
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <CircleCheck width="14" height="14" className="text-green-600" />
+                      Custom domain
+                    </span>
+                  </div>
+                </div>
+                <Button
+                  onClick={handleUpgrade}
+                  disabled={isUpgrading}
+                  size="lg"
+                  className="flex-shrink-0"
+                >
+                  {isUpgrading ? (
+                    <>
+                      <Loader className="mr-2 h-4 w-4 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    'Upgrade for $4/mo'
+                  )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
       </div>
     </div>

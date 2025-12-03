@@ -207,7 +207,7 @@ export const auth = betterAuth({
             dubClient: dub,
           }),
         oAuthProxy({
-            productionURL: process.env.BETTER_AUTH_URL || "https://inbound.new",
+            productionURL: "https://inbound.new",
             currentURL: process.env.NODE_ENV === 'development' 
                 ? "https://dev.inbound.new" 
                 : process.env.VERCEL_URL 
@@ -226,7 +226,7 @@ export const auth = betterAuth({
         admin(),
         magicLink({
             expiresIn: 300, // 5 minutes
-            disableSignUp: true, // Only allow magic link for existing accounts - new users must use Google OAuth
+            disableSignUp: process.env.NODE_ENV === 'development' ? false : true, // Only allow magic link for existing accounts - new users must use Google OAuth
             sendMagicLink: async ({ email, url, token }, request) => {
                 console.log(`📧 Sending magic link to ${email}`);
                 
