@@ -4,10 +4,10 @@
   "private": true,
   "license": "MIT",
   "scripts": {
-    "dev": "basehub dev & next dev --turbopack",
+    "dev": "basehub dev & next dev",
     "dev:basehub": "basehub dev",
     "prebuild": "drizzle-kit generate && drizzle-kit push",
-    "build": "basehub build && next build --turbopack",
+    "build": "basehub build && next build",
     "test-api": "bun run app/api/v2/api.test.ts",
     "test-sdk": "bun run app/api/v2/sdk.test.ts",
     "test:e2": "bun test app/api/e2/**/*.test.ts",
@@ -64,7 +64,7 @@
     "@mdx-js/react": "^3.1.0",
     "@monaco-editor/react": "^4.7.0",
     "@neondatabase/serverless": "^1.0.0",
-    "@next/mdx": "^15.4.4",
+    "@next/mdx": "16.0.7",
     "@ngrok/ngrok": "^1.5.1",
     "@planetscale/database": "^1.19.0",
     "@radix-ui/react-alert-dialog": "^1.1.15",
@@ -129,7 +129,7 @@
     "motion": "^12.23.12",
     "mysql2": "^3.14.1",
     "nanoid": "^5.1.5",
-    "next": "^15.3.2",
+    "next": "16.0.7",
     "next-mdx-remote": "^5.0.0",
     "next-themes": "^0.4.6",
     "next-view-transitions": "^0.3.4",
@@ -138,8 +138,8 @@
     "particlesjs": "^2.2.3",
     "pg": "^8.16.0",
     "psl": "^1.15.0",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
+    "react": "19.2.1",
+    "react-dom": "19.2.1",
     "react-email": "^4.0.16",
     "react-grab": "^0.0.54",
     "react-icons": "^5.5.0",
@@ -169,8 +169,8 @@
     "@types/mailparser": "^3.4.6",
     "@types/node": "^20",
     "@types/pg": "^8.15.2",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
+    "@types/react": "19.2.7",
+    "@types/react-dom": "19.2.3",
     "@types/react-syntax-highlighter": "^15.5.13",
     "drizzle-kit": "^0.31.1",
     "esbuild": "^0.25.5",
@@ -178,5 +178,9 @@
     "shadcn": "^2.9.3-canary.0",
     "tailwindcss": "^3.4.1",
     "typescript": "^5"
+  },
+  "overrides": {
+    "@types/react": "19.2.7",
+    "@types/react-dom": "19.2.3"
   }
 }

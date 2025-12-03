@@ -102,282 +102,300 @@ const getTimeBuckets = () => {
   }
 }
 
-// Cached function for basic stats (less frequent updates)
-const getCachedStats = unstable_cache(
-  async (userId: string, timeWindow: number) => {
-    console.log('🔄 Fetching fresh stats data for user:', userId)
-    
-    const now = new Date()
-    const last24h = new Date(now.getTime() - 24 * 60 * 60 * 1000)
-    const last7d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
-    const last30d = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+// Stats fetching logic (extracted for use with dynamic caching)
+const fetchStats = async (userId: string) => {
+  console.log('🔄 Fetching fresh stats data for user:', userId)
+  
+  const now = new Date()
+  const last24h = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+  const last7d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+  const last30d = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
 
-    const [basicStats, avgProcessingTimeResult] = await Promise.all([
-      db.select({
-        totalEmails: sql<number>`(SELECT COUNT(*) FROM ${structuredEmails} WHERE ${structuredEmails.userId} = ${userId})`,
-        emails24h: sql<number>`(SELECT COUNT(*) FROM ${structuredEmails} WHERE ${structuredEmails.userId} = ${userId} AND ${structuredEmails.createdAt} >= ${last24h})`,
-        emails7d: sql<number>`(SELECT COUNT(*) FROM ${structuredEmails} WHERE ${structuredEmails.userId} = ${userId} AND ${structuredEmails.createdAt} >= ${last7d})`,
-        emails30d: sql<number>`(SELECT COUNT(*) FROM ${structuredEmails} WHERE ${structuredEmails.userId} = ${userId} AND ${structuredEmails.createdAt} >= ${last30d})`,
-        totalDomains: sql<number>`(SELECT COUNT(*) FROM ${emailDomains} WHERE ${emailDomains.userId} = ${userId})`,
-        verifiedDomains: sql<number>`(SELECT COUNT(*) FROM ${emailDomains} WHERE ${emailDomains.userId} = ${userId} AND ${emailDomains.status} = ${DOMAIN_STATUS.VERIFIED} AND ${emailDomains.canReceiveEmails} = true)`,
-        totalEmailAddresses: sql<number>`(SELECT COUNT(*) FROM ${emailAddresses} WHERE ${emailAddresses.userId} = ${userId})`
-      })
-      .from(structuredEmails)
-      .where(eq(structuredEmails.userId, userId))
-      .limit(1),
+  const [basicStats, avgProcessingTimeResult] = await Promise.all([
+    db.select({
+      totalEmails: sql<number>`(SELECT COUNT(*) FROM ${structuredEmails} WHERE ${structuredEmails.userId} = ${userId})`,
+      emails24h: sql<number>`(SELECT COUNT(*) FROM ${structuredEmails} WHERE ${structuredEmails.userId} = ${userId} AND ${structuredEmails.createdAt} >= ${last24h})`,
+      emails7d: sql<number>`(SELECT COUNT(*) FROM ${structuredEmails} WHERE ${structuredEmails.userId} = ${userId} AND ${structuredEmails.createdAt} >= ${last7d})`,
+      emails30d: sql<number>`(SELECT COUNT(*) FROM ${structuredEmails} WHERE ${structuredEmails.userId} = ${userId} AND ${structuredEmails.createdAt} >= ${last30d})`,
+      totalDomains: sql<number>`(SELECT COUNT(*) FROM ${emailDomains} WHERE ${emailDomains.userId} = ${userId})`,
+      verifiedDomains: sql<number>`(SELECT COUNT(*) FROM ${emailDomains} WHERE ${emailDomains.userId} = ${userId} AND ${emailDomains.status} = ${DOMAIN_STATUS.VERIFIED} AND ${emailDomains.canReceiveEmails} = true)`,
+      totalEmailAddresses: sql<number>`(SELECT COUNT(*) FROM ${emailAddresses} WHERE ${emailAddresses.userId} = ${userId})`
+    })
+    .from(structuredEmails)
+    .where(eq(structuredEmails.userId, userId))
+    .limit(1),
 
-      db.select({
-        avg: sql<number>`AVG(${sesEvents.processingTimeMillis})`
-      })
-      .from(sesEvents)
-      .innerJoin(structuredEmails, eq(structuredEmails.sesEventId, sesEvents.id))
-      .where(and(
-        eq(structuredEmails.userId, userId),
-        gte(structuredEmails.createdAt, last30d)
-      ))
-    ])
+    db.select({
+      avg: sql<number>`AVG(${sesEvents.processingTimeMillis})`
+    })
+    .from(sesEvents)
+    .innerJoin(structuredEmails, eq(structuredEmails.sesEventId, sesEvents.id))
+    .where(and(
+      eq(structuredEmails.userId, userId),
+      gte(structuredEmails.createdAt, last30d)
+    ))
+  ])
 
-    const stats = basicStats[0] || {
-      totalEmails: 0,
-      emails24h: 0,
-      emails7d: 0,
-      emails30d: 0,
-      totalDomains: 0,
-      verifiedDomains: 0,
-      totalEmailAddresses: 0
-    }
-
-    return {
-      totalEmails: Number(stats.totalEmails) || 0,
-      emailsLast24h: Number(stats.emails24h) || 0,
-      emailsLast7d: Number(stats.emails7d) || 0,
-      emailsLast30d: Number(stats.emails30d) || 0,
-      totalDomains: Number(stats.totalDomains) || 0,
-      verifiedDomains: Number(stats.verifiedDomains) || 0,
-      totalEmailAddresses: Number(stats.totalEmailAddresses) || 0,
-      avgProcessingTime: Math.round(avgProcessingTimeResult[0]?.avg || 0)
-    }
-  },
-  ['analytics-stats'],
-  {
-    revalidate: CACHE_CONFIG.STATS_TTL,
-    tags: ['analytics-stats']
+  const stats = basicStats[0] || {
+    totalEmails: 0,
+    emails24h: 0,
+    emails7d: 0,
+    emails30d: 0,
+    totalDomains: 0,
+    verifiedDomains: 0,
+    totalEmailAddresses: 0
   }
-)
 
-// Cached function for recent emails (more frequent updates)
-const getCachedRecentEmails = unstable_cache(
-  async (userId: string, timeWindow: number, limit: number = 50) => {
-    console.log('🔄 Fetching fresh emails data for user:', userId)
+  return {
+    totalEmails: Number(stats.totalEmails) || 0,
+    emailsLast24h: Number(stats.emails24h) || 0,
+    emailsLast7d: Number(stats.emails7d) || 0,
+    emailsLast30d: Number(stats.emails30d) || 0,
+    totalDomains: Number(stats.totalDomains) || 0,
+    verifiedDomains: Number(stats.verifiedDomains) || 0,
+    totalEmailAddresses: Number(stats.totalEmailAddresses) || 0,
+    avgProcessingTime: Math.round(avgProcessingTimeResult[0]?.avg || 0)
+  }
+}
+
+// Cached function for basic stats with user-specific tags
+const getCachedStats = (userId: string, timeWindow: number) => {
+  const tags = getCacheTags(userId)
+  return unstable_cache(
+    () => fetchStats(userId),
+    [`analytics-stats-${userId}`, timeWindow.toString()],
+    {
+      revalidate: CACHE_CONFIG.STATS_TTL,
+      tags: [tags.userStats, tags.userAnalytics]
+    }
+  )()
+}
+
+// Helper function to parse email address from JSON data
+const parseEmailAddress = (jsonData: string | null): { address: string; name?: string } | null => {
+  if (!jsonData) return null
+  try {
+    const parsed = JSON.parse(jsonData)
+    return parsed?.addresses?.[0]?.address ? {
+      address: parsed.addresses[0].address,
+      name: parsed.addresses[0].name
+    } : null
+  } catch (error) {
+    console.warn('Failed to parse email address:', error)
+    return null
+  }
+}
+
+// Recent emails fetching logic (extracted for use with dynamic caching)
+const fetchRecentEmails = async (userId: string, limit: number = 50) => {
+  console.log('🔄 Fetching fresh emails data for user:', userId)
+  
+  const last7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+
+  const recentEmailsQuery = await db.select({
+    id: structuredEmails.id,
+    messageId: structuredEmails.messageId,
+    fromData: structuredEmails.fromData,
+    toData: structuredEmails.toData,
+    subject: structuredEmails.subject,
+    createdAt: structuredEmails.createdAt,
+    spamVerdict: sesEvents.spamVerdict,
+    virusVerdict: sesEvents.virusVerdict,
+    spfVerdict: sesEvents.spfVerdict,
+    dkimVerdict: sesEvents.dkimVerdict,
+    dmarcVerdict: sesEvents.dmarcVerdict,
+    s3ContentSize: sesEvents.s3ContentSize,
+    hasContent: sql<boolean>`(${structuredEmails.textBody} IS NOT NULL OR ${structuredEmails.htmlBody} IS NOT NULL OR ${structuredEmails.rawContent} IS NOT NULL OR ${sesEvents.emailContent} IS NOT NULL)`
+  })
+  .from(structuredEmails)
+  .leftJoin(sesEvents, eq(structuredEmails.sesEventId, sesEvents.id))
+  .where(and(
+    eq(structuredEmails.userId, userId),
+    gte(structuredEmails.createdAt, last7d)
+  ))
+  .orderBy(desc(structuredEmails.createdAt))
+  .limit(limit)
+
+  return recentEmailsQuery.map(email => {
+    const fromParsed = parseEmailAddress(email.fromData)
+    const toParsed = parseEmailAddress(email.toData)
     
-    const last7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+    return {
+      id: email.id,
+      messageId: email.messageId || '',
+      from: fromParsed?.address || 'Unknown',
+      recipient: toParsed?.address || 'Unknown',
+      subject: email.subject || 'No Subject',
+      receivedAt: (email.createdAt || new Date()).toISOString(),
+      status: 'received',
+      domain: toParsed?.address?.split('@')[1] || '',
+      isRead: false,
+      readAt: undefined,
+      authResults: {
+        spf: email.spfVerdict || 'UNKNOWN',
+        dkim: email.dkimVerdict || 'UNKNOWN',
+        dmarc: email.dmarcVerdict || 'UNKNOWN',
+        spam: email.spamVerdict || 'UNKNOWN',
+        virus: email.virusVerdict || 'UNKNOWN'
+      },
+      hasContent: !!email.hasContent,
+      contentSize: email.s3ContentSize || undefined
+    }
+  })
+}
 
-    const recentEmailsQuery = await db.select({
-      id: structuredEmails.id,
-      messageId: structuredEmails.messageId,
-      fromData: structuredEmails.fromData,
-      toData: structuredEmails.toData,
-      subject: structuredEmails.subject,
-      createdAt: structuredEmails.createdAt,
-      spamVerdict: sesEvents.spamVerdict,
-      virusVerdict: sesEvents.virusVerdict,
+// Cached function for recent emails with user-specific tags
+const getCachedRecentEmails = (userId: string, timeWindow: number, limit: number = 50) => {
+  const tags = getCacheTags(userId)
+  return unstable_cache(
+    () => fetchRecentEmails(userId, limit),
+    [`analytics-emails-${userId}`, timeWindow.toString(), limit.toString()],
+    {
+      revalidate: CACHE_CONFIG.EMAILS_TTL,
+      tags: [tags.userEmails, tags.userAnalytics]
+    }
+  )()
+}
+
+// Aggregated data fetching logic (extracted for use with dynamic caching)
+const fetchAggregatedData = async (userId: string) => {
+  console.log('🔄 Fetching fresh aggregated data for user:', userId)
+  
+  const now = new Date()
+  const last24h = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+  const last7d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+
+  const [emailsByHourQuery, emailsByDomainQuery, authStatsQuery] = await Promise.all([
+    // Emails by hour for the last 24 hours
+    db.select({
+      hour: sql<string>`DATE_TRUNC('hour', ${structuredEmails.createdAt})`,
+      count: count()
+    })
+    .from(structuredEmails)
+    .where(and(
+      eq(structuredEmails.userId, userId),
+      gte(structuredEmails.createdAt, last24h)
+    ))
+    .groupBy(sql`DATE_TRUNC('hour', ${structuredEmails.createdAt})`)
+    .orderBy(sql`DATE_TRUNC('hour', ${structuredEmails.createdAt})`),
+
+    // Emails by domain (last 7 days)
+    db.select({
+      domain: sql<string>`SPLIT_PART((${structuredEmails.toData}::jsonb->'addresses'->0->>'address'), '@', 2)`,
+      count: count()
+    })
+    .from(structuredEmails)
+    .where(and(
+      eq(structuredEmails.userId, userId),
+      gte(structuredEmails.createdAt, last7d),
+      sql`${structuredEmails.toData} IS NOT NULL`,
+      sql`${structuredEmails.toData}::jsonb->'addresses'->0->>'address' IS NOT NULL`
+    ))
+    .groupBy(sql`SPLIT_PART((${structuredEmails.toData}::jsonb->'addresses'->0->>'address'), '@', 2)`)
+    .orderBy(desc(count()))
+    .limit(10),
+
+    // Auth results stats (last 7 days)
+    db.select({
       spfVerdict: sesEvents.spfVerdict,
       dkimVerdict: sesEvents.dkimVerdict,
       dmarcVerdict: sesEvents.dmarcVerdict,
-      s3ContentSize: sesEvents.s3ContentSize,
-      hasContent: sql<boolean>`(${structuredEmails.textBody} IS NOT NULL OR ${structuredEmails.htmlBody} IS NOT NULL OR ${structuredEmails.rawContent} IS NOT NULL OR ${sesEvents.emailContent} IS NOT NULL)`
+      spamVerdict: sesEvents.spamVerdict,
+      virusVerdict: sesEvents.virusVerdict,
+      count: count()
     })
-    .from(structuredEmails)
-    .leftJoin(sesEvents, eq(structuredEmails.sesEventId, sesEvents.id))
+    .from(sesEvents)
+    .innerJoin(structuredEmails, eq(structuredEmails.sesEventId, sesEvents.id))
     .where(and(
       eq(structuredEmails.userId, userId),
       gte(structuredEmails.createdAt, last7d)
     ))
-    .orderBy(desc(structuredEmails.createdAt))
-    .limit(limit)
+    .groupBy(
+      sesEvents.spfVerdict,
+      sesEvents.dkimVerdict,
+      sesEvents.dmarcVerdict,
+      sesEvents.spamVerdict,
+      sesEvents.virusVerdict
+    )
+  ])
 
-    // Helper function to parse email address from JSON data
-    const parseEmailAddress = (jsonData: string | null): { address: string; name?: string } | null => {
-      if (!jsonData) return null
-      try {
-        const parsed = JSON.parse(jsonData)
-        return parsed?.addresses?.[0]?.address ? {
-          address: parsed.addresses[0].address,
-          name: parsed.addresses[0].name
-        } : null
-      } catch (error) {
-        console.warn('Failed to parse email address:', error)
-        return null
-      }
-    }
+  // Process emails by hour with proper formatting
+  const emailsByHourMap = new Map<string, number>()
+  emailsByHourQuery.forEach(item => {
+    const hourDate = new Date(item.hour)
+    const hourKey = hourDate.getHours()
+    emailsByHourMap.set(hourKey.toString(), item.count)
+  })
 
-    return recentEmailsQuery.map(email => {
-      const fromParsed = parseEmailAddress(email.fromData)
-      const toParsed = parseEmailAddress(email.toData)
-      
-      return {
-        id: email.id,
-        messageId: email.messageId || '',
-        from: fromParsed?.address || 'Unknown',
-        recipient: toParsed?.address || 'Unknown',
-        subject: email.subject || 'No Subject',
-        receivedAt: (email.createdAt || new Date()).toISOString(),
-        status: 'received',
-        domain: toParsed?.address?.split('@')[1] || '',
-        isRead: false,
-        readAt: undefined,
-        authResults: {
-          spf: email.spfVerdict || 'UNKNOWN',
-          dkim: email.dkimVerdict || 'UNKNOWN',
-          dmarc: email.dmarcVerdict || 'UNKNOWN',
-          spam: email.spamVerdict || 'UNKNOWN',
-          virus: email.virusVerdict || 'UNKNOWN'
-        },
-        hasContent: !!email.hasContent,
-        contentSize: email.s3ContentSize || undefined
-      }
-    })
-  },
-  ['analytics-emails'],
-  {
-    revalidate: CACHE_CONFIG.EMAILS_TTL,
-    tags: ['analytics-emails']
-  }
-)
-
-// Cached function for aggregated data (hourly, domain, auth stats)
-const getCachedAggregatedData = unstable_cache(
-  async (userId: string, timeWindow: number) => {
-    console.log('🔄 Fetching fresh aggregated data for user:', userId)
-    
-    const now = new Date()
-    const last24h = new Date(now.getTime() - 24 * 60 * 60 * 1000)
-    const last7d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
-
-    const [emailsByHourQuery, emailsByDomainQuery, authStatsQuery] = await Promise.all([
-      // Emails by hour for the last 24 hours
-      db.select({
-        hour: sql<string>`DATE_TRUNC('hour', ${structuredEmails.createdAt})`,
-        count: count()
-      })
-      .from(structuredEmails)
-      .where(and(
-        eq(structuredEmails.userId, userId),
-        gte(structuredEmails.createdAt, last24h)
-      ))
-      .groupBy(sql`DATE_TRUNC('hour', ${structuredEmails.createdAt})`)
-      .orderBy(sql`DATE_TRUNC('hour', ${structuredEmails.createdAt})`),
-
-      // Emails by domain (last 7 days)
-      db.select({
-        domain: sql<string>`SPLIT_PART((${structuredEmails.toData}::jsonb->'addresses'->0->>'address'), '@', 2)`,
-        count: count()
-      })
-      .from(structuredEmails)
-      .where(and(
-        eq(structuredEmails.userId, userId),
-        gte(structuredEmails.createdAt, last7d),
-        sql`${structuredEmails.toData} IS NOT NULL`,
-        sql`${structuredEmails.toData}::jsonb->'addresses'->0->>'address' IS NOT NULL`
-      ))
-      .groupBy(sql`SPLIT_PART((${structuredEmails.toData}::jsonb->'addresses'->0->>'address'), '@', 2)`)
-      .orderBy(desc(count()))
-      .limit(10),
-
-      // Auth results stats (last 7 days)
-      db.select({
-        spfVerdict: sesEvents.spfVerdict,
-        dkimVerdict: sesEvents.dkimVerdict,
-        dmarcVerdict: sesEvents.dmarcVerdict,
-        spamVerdict: sesEvents.spamVerdict,
-        virusVerdict: sesEvents.virusVerdict,
-        count: count()
-      })
-      .from(sesEvents)
-      .innerJoin(structuredEmails, eq(structuredEmails.sesEventId, sesEvents.id))
-      .where(and(
-        eq(structuredEmails.userId, userId),
-        gte(structuredEmails.createdAt, last7d)
-      ))
-      .groupBy(
-        sesEvents.spfVerdict,
-        sesEvents.dkimVerdict,
-        sesEvents.dmarcVerdict,
-        sesEvents.spamVerdict,
-        sesEvents.virusVerdict
-      )
-    ])
-
-    // Process emails by hour with proper formatting
-    const emailsByHourMap = new Map<string, number>()
-    emailsByHourQuery.forEach(item => {
-      const hourDate = new Date(item.hour)
-      const hourKey = hourDate.getHours()
-      emailsByHourMap.set(hourKey.toString(), item.count)
-    })
-
-    const emailsByHour = Array.from({ length: 24 }, (_, i) => {
-      const hour12 = i === 0 ? 12 : i > 12 ? i - 12 : i
-      const ampm = i < 12 ? 'AM' : 'PM'
-      return {
-        hour: `${hour12} ${ampm}`,
-        count: emailsByHourMap.get(i.toString()) || 0
-      }
-    })
-
-    // Process emails by domain with percentages
-    const totalEmailsForDomains = emailsByDomainQuery.reduce((sum, item) => sum + item.count, 0)
-    const emailsByDomain = emailsByDomainQuery
-      .filter(item => item.domain && item.domain !== '')
-      .map(item => ({
-        domain: item.domain,
-        count: item.count,
-        percentage: totalEmailsForDomains > 0 ? Math.round((item.count / totalEmailsForDomains) * 100) : 0
-      }))
-
-    // Process auth results stats
-    const authResultsStats = {
-      spf: { pass: 0, fail: 0, neutral: 0 },
-      dkim: { pass: 0, fail: 0, neutral: 0 },
-      dmarc: { pass: 0, fail: 0, neutral: 0 },
-      spam: { pass: 0, fail: 0 },
-      virus: { pass: 0, fail: 0 }
-    }
-
-    authStatsQuery.forEach(stat => {
-      const count = stat.count
-      
-      if (stat.spfVerdict === 'PASS') authResultsStats.spf.pass += count
-      else if (stat.spfVerdict === 'FAIL') authResultsStats.spf.fail += count
-      else authResultsStats.spf.neutral += count
-      
-      if (stat.dkimVerdict === 'PASS') authResultsStats.dkim.pass += count
-      else if (stat.dkimVerdict === 'FAIL') authResultsStats.dkim.fail += count
-      else authResultsStats.dkim.neutral += count
-      
-      if (stat.dmarcVerdict === 'PASS') authResultsStats.dmarc.pass += count
-      else if (stat.dmarcVerdict === 'FAIL') authResultsStats.dmarc.fail += count
-      else authResultsStats.dmarc.neutral += count
-      
-      if (stat.spamVerdict === 'PASS') authResultsStats.spam.pass += count
-      else authResultsStats.spam.fail += count
-      
-      if (stat.virusVerdict === 'PASS') authResultsStats.virus.pass += count
-      else authResultsStats.virus.fail += count
-    })
-
+  const emailsByHour = Array.from({ length: 24 }, (_, i) => {
+    const hour12 = i === 0 ? 12 : i > 12 ? i - 12 : i
+    const ampm = i < 12 ? 'AM' : 'PM'
     return {
-      emailsByHour,
-      emailsByDomain,
-      authResultsStats
+      hour: `${hour12} ${ampm}`,
+      count: emailsByHourMap.get(i.toString()) || 0
     }
-  },
-  ['analytics-aggregated'],
-  {
-    revalidate: CACHE_CONFIG.AGGREGATED_TTL,
-    tags: ['analytics-aggregated']
+  })
+
+  // Process emails by domain with percentages
+  const totalEmailsForDomains = emailsByDomainQuery.reduce((sum, item) => sum + item.count, 0)
+  const emailsByDomain = emailsByDomainQuery
+    .filter(item => item.domain && item.domain !== '')
+    .map(item => ({
+      domain: item.domain,
+      count: item.count,
+      percentage: totalEmailsForDomains > 0 ? Math.round((item.count / totalEmailsForDomains) * 100) : 0
+    }))
+
+  // Process auth results stats
+  const authResultsStats = {
+    spf: { pass: 0, fail: 0, neutral: 0 },
+    dkim: { pass: 0, fail: 0, neutral: 0 },
+    dmarc: { pass: 0, fail: 0, neutral: 0 },
+    spam: { pass: 0, fail: 0 },
+    virus: { pass: 0, fail: 0 }
   }
-)
+
+  authStatsQuery.forEach(stat => {
+    const statCount = stat.count
+    
+    if (stat.spfVerdict === 'PASS') authResultsStats.spf.pass += statCount
+    else if (stat.spfVerdict === 'FAIL') authResultsStats.spf.fail += statCount
+    else authResultsStats.spf.neutral += statCount
+    
+    if (stat.dkimVerdict === 'PASS') authResultsStats.dkim.pass += statCount
+    else if (stat.dkimVerdict === 'FAIL') authResultsStats.dkim.fail += statCount
+    else authResultsStats.dkim.neutral += statCount
+    
+    if (stat.dmarcVerdict === 'PASS') authResultsStats.dmarc.pass += statCount
+    else if (stat.dmarcVerdict === 'FAIL') authResultsStats.dmarc.fail += statCount
+    else authResultsStats.dmarc.neutral += statCount
+    
+    if (stat.spamVerdict === 'PASS') authResultsStats.spam.pass += statCount
+    else authResultsStats.spam.fail += statCount
+    
+    if (stat.virusVerdict === 'PASS') authResultsStats.virus.pass += statCount
+    else authResultsStats.virus.fail += statCount
+  })
+
+  return {
+    emailsByHour,
+    emailsByDomain,
+    authResultsStats
+  }
+}
+
+// Cached function for aggregated data with user-specific tags
+const getCachedAggregatedData = (userId: string, timeWindow: number) => {
+  const tags = getCacheTags(userId)
+  return unstable_cache(
+    () => fetchAggregatedData(userId),
+    [`analytics-aggregated-${userId}`, timeWindow.toString()],
+    {
+      revalidate: CACHE_CONFIG.AGGREGATED_TTL,
+      tags: [tags.userDomains, tags.userAuth, tags.userAnalytics]
+    }
+  )()
+}
 
 // Main analytics function with improved caching strategy
 export const getAnalytics = async (): Promise<{ success: true; data: AnalyticsData } | { success: false; error: string }> => {
@@ -445,22 +463,21 @@ export const invalidateAnalyticsCache = async (userId: string, type?: 'stats' | 
     
     switch (type) {
       case 'stats':
-        revalidateTag('analytics-stats')
+        revalidateTag(tags.userStats, 'max')
         console.log(`🗑️ Invalidated stats cache for user ${userId}`)
         break
       case 'emails':
-        revalidateTag('analytics-emails')
+        revalidateTag(tags.userEmails, 'max')
         console.log(`🗑️ Invalidated emails cache for user ${userId}`)
         break
       case 'aggregated':
-        revalidateTag('analytics-aggregated')
+        revalidateTag(tags.userDomains, 'max')
+        revalidateTag(tags.userAuth, 'max')
         console.log(`🗑️ Invalidated aggregated cache for user ${userId}`)
         break
       default:
         // Invalidate all analytics cache for user
-        revalidateTag('analytics-stats')
-        revalidateTag('analytics-emails')
-        revalidateTag('analytics-aggregated')
+        revalidateTag(tags.userAnalytics, 'max')
         console.log(`🗑️ Invalidated all analytics cache for user ${userId}`)
     }
   } catch (error) {

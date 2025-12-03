@@ -691,8 +691,8 @@ export const getUserAnalytics = async (): Promise<{ success: true; data: UserAna
 
 // Cache invalidation function
 export const invalidateUserAnalyticsCache = async () => {
-  revalidateTag('user-analytics-overview')
-  revalidateTag('user-analytics-top-users') 
-  revalidateTag('user-analytics-suspicious')
-  revalidateTag('user-analytics-trends')
+  revalidateTag('user-analytics-overview', 'max')
+  revalidateTag('user-analytics-top-users', 'max')
+  revalidateTag('user-analytics-suspicious', 'max')
+  revalidateTag('user-analytics-trends', 'max')
 }
