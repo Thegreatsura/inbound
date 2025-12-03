@@ -249,7 +249,7 @@ async function onboardNewUser(userId: string) {
     userId,
     awsTenantId: awsTenant.TenantId,
     tenantName: `user-${userId}`,
-    reputationPolicy: 'standard'
+    reputationPolicy: 'strict'
   })
   
   // 3. Future domain/identity creation automatically uses tenant

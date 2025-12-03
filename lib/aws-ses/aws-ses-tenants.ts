@@ -332,7 +332,7 @@ export class SESTenantManager {
    * Create a new tenant for a user
    * This creates the AWS SES tenant, configuration set, associates them, and creates the local database record
    */
-  async createTenant({ userId, tenantName, reputationPolicy = 'standard' }: CreateTenantParams): Promise<CreateTenantResult> {
+  async createTenant({ userId, tenantName, reputationPolicy = 'strict' }: CreateTenantParams): Promise<CreateTenantResult> {
     try {
       console.log(`🏢 Creating SES tenant for user: ${userId}`)
       

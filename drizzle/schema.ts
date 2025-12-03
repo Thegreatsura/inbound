@@ -282,7 +282,7 @@ export const sesTenants = pgTable("ses_tenants", {
 	awsTenantId: varchar("aws_tenant_id", { length: 255 }).notNull(),
 	tenantName: varchar("tenant_name", { length: 255 }).notNull(),
 	status: varchar({ length: 50 }).default('active').notNull(),
-	reputationPolicy: varchar("reputation_policy", { length: 20 }).default('standard').notNull(),
+	reputationPolicy: varchar("reputation_policy", { length: 20 }).default('strict').notNull(),
 	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow(),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow(),
 }, (table) => [
