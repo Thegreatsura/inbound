@@ -1,0 +1,1 @@
+ALTER TABLE "ses_tenants" ALTER COLUMN "reputation_policy" SET DEFAULT 'strict';

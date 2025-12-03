@@ -67,12 +67,13 @@ export default function SettingsPage() {
   }, [session?.user?.name])
 
   // Extract existing add-on quantities from customer data
+  // Cast to any to access items property which exists at runtime but not in SDK types
   const existingExtraDomainsProduct = customerData?.products?.find(
     (p: any) => p.id === 'extra_domains' && (p.status === 'active' || p.status === 'trialing')
-  )
+  ) as any
   const existingEmailPacksProduct = customerData?.products?.find(
     (p: any) => p.id === '50k_email_blocks' && (p.status === 'active' || p.status === 'trialing')
-  )
+  ) as any
   
   // Get quantities from existing products
   // For domains, quantity is the actual number of domains (billing_units: 1)
@@ -162,9 +163,9 @@ export default function SettingsPage() {
             { featureId: 'domains', quantity: extraDomains }
           ],
           successUrl: `${window.location.origin}/settings?addon=extra_domains&quantity=${extraDomains}`,
-        })
+        }) as any
         // If attach returns a checkoutUrl, user will be redirected
-        if (result?.checkoutUrl) {
+        if (result?.checkoutUrl || result?.data?.checkoutUrl) {
           didRedirect = true
         }
       }
@@ -180,8 +181,8 @@ export default function SettingsPage() {
             { featureId: 'emails_sent', quantity: rawEmailQuantity }
           ],
           successUrl: `${window.location.origin}/settings?addon=50k_email_blocks&quantity=${extraEmailPacks}`,
-        })
-        if (result?.checkoutUrl) {
+        }) as any
+        if (result?.checkoutUrl || result?.data?.checkoutUrl) {
           didRedirect = true
         }
       }
