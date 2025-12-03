@@ -216,13 +216,13 @@ export const auth = betterAuth({
                         ? `https://${process.env.VERCEL_BRANCH_URL}` 
                         : undefined
         }),
-        apiKey(
-            {
-                rateLimit: {
-                    enabled: false
-                }
+        apiKey({
+            rateLimit: {
+                enabled: true,
+                timeWindow: 1000, // 1 second in milliseconds
+                maxRequests: 4 // 4 requests per second
             }
-        ),
+        }),
         admin(),
         magicLink({
             expiresIn: 300, // 5 minutes

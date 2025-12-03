@@ -15,20 +15,34 @@ const NEW_ACCOUNT_DAILY_LIMIT = 100;
 
 export async function validateRequest(request: NextRequest) {
     try {
-        const apiKey = request.headers.get('Authorization')?.replace('Bearer ', '')
-        
-        // Try session auth first, then fall back to API key auth
+        let userId: string | undefined;
+
+        // Try session auth first
         const session = await auth.api.getSession({
-            headers: apiKey 
-                ? new Headers({ "x-api-key": apiKey })
-                : await headers()
+            headers: await headers()
         })
 
-        // Check if session provides a valid userId
-        let userId: string | undefined;
-        
         if (session?.user?.id) {
             userId = session.user.id
+            console.log("✅ Authenticated via session:", userId)
+        }
+
+        // If no session, try API key auth
+        if (!userId) {
+            const apiKey = request.headers.get('Authorization')?.replace('Bearer ', '')
+            
+            if (apiKey) {
+                const apiKeyResult = await (auth.api as any).verifyApiKey({
+                    body: {
+                        key: apiKey
+                    }
+                }) as { valid: boolean; key?: { userId: string } } | null
+
+                if (apiKeyResult?.key?.userId) {
+                    userId = apiKeyResult.key.userId
+                    console.log("✅ Authenticated via API key:", userId)
+                }
+            }
         }
         
         if (!userId) {
