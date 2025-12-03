@@ -7,10 +7,37 @@ import { db } from "@/lib/db";
 import { user } from "@/lib/db/auth-schema";
 import { sentEmails } from "@/lib/db/schema";
 import { eq, and, gte, sql } from "drizzle-orm";
+import { Ratelimit } from "@upstash/ratelimit";
+import { Redis } from "@upstash/redis";
 
 // Warmup limits for new accounts (first 7 days)
 const NEW_ACCOUNT_WARMUP_DAYS = 7;
 const NEW_ACCOUNT_DAILY_LIMIT = 100;
+
+// Initialize Upstash Redis client for rate limiting
+let redis: Redis | null = null;
+let ratelimit: Ratelimit | null = null;
+
+if (
+    process.env.UPSTASH_REDIS_REST_URL &&
+    process.env.UPSTASH_REDIS_REST_TOKEN
+) {
+    redis = new Redis({
+        url: process.env.UPSTASH_REDIS_REST_URL,
+        token: process.env.UPSTASH_REDIS_REST_TOKEN,
+    });
+
+    // Rate limiter: 4 requests per second per account
+    ratelimit = new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(4, "1 s"),
+        analytics: true,
+        prefix: "v2:ratelimit",
+    });
+} else {
+    console.warn("⚠️ Upstash Redis not configured. Rate limiting will be disabled for V2 API.");
+}
+
 
 
 export async function validateRequest(request: NextRequest) {
@@ -79,6 +106,25 @@ export async function validateRequest(request: NextRequest) {
                     banReason: userRecord.banReason || "Your account has been suspended. Please contact support."
                 }
             }
+        }
+
+        // Check rate limit for this userId (if configured)
+        if (ratelimit) {
+            const { success, limit, remaining, reset } = await ratelimit.limit(userId);
+
+            console.log("📊 Rate limit check:", {
+                success,
+                limit,
+                remaining,
+                reset: new Date(reset).toISOString(),
+            });
+
+            if (!success) {
+                console.log(`⚠️ Rate limit exceeded for userId: ${userId}`);
+                return { error: "Rate limit exceeded" };
+            }
+        } else {
+            console.log("⚠️ Rate limiting disabled (Upstash not configured)");
         }
 
         return { userId }
