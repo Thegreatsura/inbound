@@ -24,7 +24,7 @@ const Page = () => {
   const [email, setEmail] = useState("");
   const [copied, setCopied] = useState(false);
   const [emails, setEmails] = useState<InboxEmail[]>([]);
-  const [activeTab, setActiveTab] = useState<"send" | "receive" | "threads">(
+  const [activeTab, setActiveTab] = useState<"send" | "receive" | "mailboxes">(
     "send"
   );
 
@@ -99,19 +99,19 @@ const Page = () => {
   const codeExamples = {
     send: {
       comment: "// Send an email",
-      code: `const { data, error } = await inbound.email.send({
-  from: 'Acme <hello@acme.com>',
-  to: ['customer@example.com'],
-  subject: 'Welcome to Acme!',
+      code: `import inbound from 'inboundemail'
+      
+const { data, error } = await inbound.email.send({
+  from: 'Inbound <hello@inbound.new>',
+  to: ['your@email.com'],
+  subject: 'Welcome to Inbound!',
   html: '<p>Thanks for signing up.</p>'
-})
-
-console.log('Email sent:', data.id)`,
+})`,
     },
     receive: {
       comment: "// Receive emails via webhook",
       code: `export async function POST(req) {
-  const { from, subject, body } = await req.json()
+  const { from, subject, body } = await req.json() as InboundWebhook
 
   // Process the email
   await handleEmail({ from, subject, body })
@@ -120,16 +120,15 @@ console.log('Email sent:', data.id)`,
   await inbound.reply(from, 'Got it, thanks!')
 }`,
     },
-    threads: {
-      comment: "// List conversation threads",
-      code: `const { data: threads } = await inbound.thread.list({
-  unread: true,
+    mailboxes: {
+      comment: "// List messages in a mailbox",
+      code: `const { data } = await inbound.mail.list({
   limit: 10
 })
 
-threads.forEach(thread => {
-  console.log(thread.normalizedSubject)
-  console.log(\`\${thread.messageCount} messages\`)
+data.emails.forEach(email => {
+  console.log(email.subject)
+  console.log(\`\${email.preview}\`)
 })`,
     },
   };
@@ -259,14 +258,14 @@ threads.forEach(thread => {
                   receive
                 </button>
                 <button
-                  onClick={() => setActiveTab("threads")}
+                  onClick={() => setActiveTab("mailboxes")}
                   className={`px-3 py-1 rounded-md transition-colors ${
-                    activeTab === "threads"
+                    activeTab === "mailboxes"
                       ? "bg-white text-[#1c1917] shadow-sm"
                       : "text-[#52525b] hover:text-[#1c1917]"
                   }`}
                 >
-                  threads
+                  mailboxes
                 </button>
               </div>
             </div>
