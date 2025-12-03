@@ -138,13 +138,49 @@ export async function sendTestDomainVerificationEmail(
   });
 }
 
+// Redis key prefix for reputation alert rate limiting
+const REPUTATION_ALERT_REDIS_PREFIX = 'reputation-alert:';
+const REPUTATION_ALERT_COOLDOWN_SECONDS = 24 * 60 * 60; // 24 hour cooldown per alert type
+const REPUTATION_CRITICAL_COOLDOWN_SECONDS = 4 * 60 * 60; // 4 hour cooldown for critical (more frequent)
+
 /**
  * Send reputation alert notification email to the tenant owner
+ * Includes rate limiting to prevent spamming users (uses Redis for persistence)
  */
 export async function sendReputationAlertNotification(
   data: ReputationAlertNotificationData
-): Promise<{ success: boolean; messageId?: string; error?: string }> {
+): Promise<{ success: boolean; messageId?: string; error?: string; skipped?: boolean }> {
   try {
+    // Rate limit key: unique per user + alert type + severity
+    // This allows critical alerts to come through even if a warning was sent
+    const redisKey = `${REPUTATION_ALERT_REDIS_PREFIX}${data.userEmail}:${data.alertType}:${data.severity}`;
+    const cooldownSeconds = data.severity === 'critical' 
+      ? REPUTATION_CRITICAL_COOLDOWN_SECONDS 
+      : REPUTATION_ALERT_COOLDOWN_SECONDS;
+    
+    // Check if we should skip due to rate limiting (using Redis for persistence)
+    try {
+      const lastNotification = await redis.get<number>(redisKey);
+      if (lastNotification) {
+        const now = Date.now();
+        const timeSinceLastMs = now - lastNotification;
+        const cooldownMs = cooldownSeconds * 1000;
+        
+        if (timeSinceLastMs < cooldownMs) {
+          const hoursRemaining = Math.ceil((cooldownMs - timeSinceLastMs) / (60 * 60 * 1000));
+          console.log(`⏭️ sendReputationAlertNotification - Skipping ${data.alertType} ${data.severity} notification for ${data.userEmail} - cooldown active, ~${hoursRemaining} hours remaining`);
+          return {
+            success: true,
+            skipped: true,
+            error: `Notification skipped due to rate limiting (cooldown: ~${hoursRemaining} hours remaining)`
+          };
+        }
+      }
+    } catch (redisError) {
+      // If Redis fails, log but continue sending (better to occasionally double-send than never send)
+      console.warn('⚠️ sendReputationAlertNotification - Redis check failed, proceeding with notification:', redisError);
+    }
+
     console.log(`🚨 sendReputationAlertNotification - Sending ${data.alertType} ${data.severity} alert for ${data.configurationSet} to ${data.userEmail}`);
 
     // Validate required environment variable
@@ -236,6 +272,13 @@ export async function sendReputationAlertNotification(
         success: false,
         error: `Email sending failed: ${response.error}`
       };
+    }
+
+    // Update Redis to prevent future spam (set with TTL for automatic cleanup)
+    try {
+      await redis.set(redisKey, Date.now(), { ex: cooldownSeconds });
+    } catch (redisError) {
+      console.warn('⚠️ sendReputationAlertNotification - Failed to set Redis cooldown:', redisError);
     }
 
     console.log(`✅ sendReputationAlertNotification - Alert email sent successfully to ${data.userEmail}`);

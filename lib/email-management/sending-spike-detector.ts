@@ -15,6 +15,7 @@ import { db } from "@/lib/db"
 import { sentEmails } from "@/lib/db/schema"
 import { user } from "@/lib/db/auth-schema"
 import { eq, and, gte, lt, sql, count } from "drizzle-orm"
+import { redis } from "@/lib/redis"
 
 const SLACK_ADMIN_WEBHOOK_URL = process.env.SLACK_ADMIN_WEBHOOK_URL
 
@@ -31,11 +32,11 @@ const SPIKE_DETECTION_CONFIG = {
   /** Minimum emails in current period to trigger spike alert (prevent alerts for low-volume users) */
   MIN_CURRENT_EMAILS_FOR_ALERT: 10,
   /** Cooldown period in hours - don't alert again for same user within this time */
-  ALERT_COOLDOWN_HOURS: 4,
+  ALERT_COOLDOWN_HOURS: 24, // Increased from 4 to 24 hours
 }
 
-/** In-memory cache for recent alerts to prevent spam */
-const recentAlerts: Map<string, number> = new Map()
+// Redis key prefix for spike alert rate limiting
+const SPIKE_ALERT_REDIS_PREFIX = 'spike-alert:'
 
 /**
  * Get email count for a user in the last N hours
@@ -99,28 +100,32 @@ async function getUserInfo(userId: string): Promise<{ email: string; name: strin
 }
 
 /**
- * Check if we recently sent an alert for this user (cooldown)
+ * Check if we recently sent an alert for this user (cooldown) - uses Redis for persistence
  */
-function isInCooldown(userId: string): boolean {
-  const lastAlertTime = recentAlerts.get(userId)
-  if (!lastAlertTime) return false
-  
-  const cooldownMs = SPIKE_DETECTION_CONFIG.ALERT_COOLDOWN_HOURS * 60 * 60 * 1000
-  return Date.now() - lastAlertTime < cooldownMs
+async function isInCooldown(userId: string): Promise<boolean> {
+  try {
+    const redisKey = `${SPIKE_ALERT_REDIS_PREFIX}${userId}`
+    const lastAlertTime = await redis.get<number>(redisKey)
+    if (!lastAlertTime) return false
+    
+    const cooldownMs = SPIKE_DETECTION_CONFIG.ALERT_COOLDOWN_HOURS * 60 * 60 * 1000
+    return Date.now() - lastAlertTime < cooldownMs
+  } catch (error) {
+    console.warn('⚠️ isInCooldown - Redis check failed:', error)
+    return false // If Redis fails, allow the alert
+  }
 }
 
 /**
- * Mark that we sent an alert for this user
+ * Mark that we sent an alert for this user - uses Redis for persistence
  */
-function markAlertSent(userId: string): void {
-  recentAlerts.set(userId, Date.now())
-  
-  // Cleanup old entries to prevent memory leak
-  const cooldownMs = SPIKE_DETECTION_CONFIG.ALERT_COOLDOWN_HOURS * 60 * 60 * 1000
-  for (const [id, time] of recentAlerts.entries()) {
-    if (Date.now() - time > cooldownMs * 2) {
-      recentAlerts.delete(id)
-    }
+async function markAlertSent(userId: string): Promise<void> {
+  try {
+    const redisKey = `${SPIKE_ALERT_REDIS_PREFIX}${userId}`
+    const cooldownSeconds = SPIKE_DETECTION_CONFIG.ALERT_COOLDOWN_HOURS * 60 * 60
+    await redis.set(redisKey, Date.now(), { ex: cooldownSeconds })
+  } catch (error) {
+    console.warn('⚠️ markAlertSent - Redis set failed:', error)
   }
 }
 
@@ -224,7 +229,7 @@ async function sendSpikeAlert(
       console.error(`❌ Slack spike alert failed: ${response.status} ${response.statusText}`)
     } else {
       console.log(`✅ Slack spike alert sent for user: ${userEmail}`)
-      markAlertSent(userId)
+      await markAlertSent(userId)
     }
   } catch (error) {
     console.error('❌ Failed to send Slack spike alert:', error)
@@ -254,8 +259,8 @@ export async function checkSendingSpike(userId: string): Promise<SpikeDetectionR
   try {
     console.log(`📊 Checking sending spike for user ${userId}`)
 
-    // Check cooldown first
-    if (isInCooldown(userId)) {
+    // Check cooldown first (using Redis for persistence)
+    if (await isInCooldown(userId)) {
       console.log(`⏳ User ${userId} is in cooldown, skipping spike check`)
       return {
         isSpike: false,
