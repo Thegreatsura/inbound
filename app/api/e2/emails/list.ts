@@ -312,6 +312,10 @@ export const listEmails = new Elysia().get(
     let scheduledTotal = 0
     const timeThreshold = getTimeThreshold(timeRange)
 
+    // For "all" type queries, we need to fetch enough records from each table
+    // to properly paginate after combining and sorting. Cap at 10000 to prevent memory issues.
+    const allTypeFetchLimit = Math.min(offset + limit, 10000)
+
     // Resolve domain filter - supports ID, registered domain, or raw domain name
     let resolvedDomain: string | null = null
     if (domainFilter) {
@@ -409,7 +413,7 @@ export const listEmails = new Elysia().get(
         .from(structuredEmails)
         .where(and(...receivedConditions))
         .orderBy(desc(structuredEmails.createdAt))
-        .limit(type === "received" ? limit : 1000)
+        .limit(type === "received" ? limit : allTypeFetchLimit)
         .offset(type === "received" ? offset : 0)
 
       for (const email of receivedEmails) {
@@ -512,7 +516,7 @@ export const listEmails = new Elysia().get(
           .from(sentEmails)
           .where(and(...sentConditions))
           .orderBy(desc(sentEmails.createdAt))
-          .limit(type === "sent" ? limit : 1000)
+          .limit(type === "sent" ? limit : allTypeFetchLimit)
           .offset(type === "sent" ? offset : 0)
 
         for (const email of sentEmailsList) {
@@ -614,7 +618,7 @@ export const listEmails = new Elysia().get(
           .from(scheduledEmails)
           .where(and(...scheduledConditions))
           .orderBy(desc(scheduledEmails.createdAt))
-          .limit(type === "scheduled" ? limit : 1000)
+          .limit(type === "scheduled" ? limit : allTypeFetchLimit)
           .offset(type === "scheduled" ? offset : 0)
 
         for (const email of scheduledEmailsList) {
