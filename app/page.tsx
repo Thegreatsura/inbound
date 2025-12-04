@@ -135,6 +135,14 @@ data.emails.forEach(email => {
 
   return (
     <div className="min-h-screen bg-[#fafaf9] text-[#1c1917] selection:bg-[#8161FF]/20">
+      {/* Top announcement banner */}
+      <div className="bg-[#8161FF] text-white text-center py-2 px-4">
+        <p className="text-sm">
+          <span className="font-medium">Extra domains now just $3.50/mo</span>
+          <span className="opacity-80 ml-1.5">— add as many as you need</span>
+        </p>
+      </div>
+
       <div className="max-w-2xl mx-auto px-6">
         <MarketingNav />
 
@@ -216,6 +224,7 @@ data.emails.forEach(email => {
               </div>
             )}
           </div>
+
         </section>
 
         {/* Code Block - Light Monaco-style theme */}
