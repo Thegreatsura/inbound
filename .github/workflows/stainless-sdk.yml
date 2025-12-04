@@ -1,0 +1,63 @@
+name: Build Stainless SDKs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'app/api/e2/**'
+  workflow_dispatch:
+    inputs:
+      skip_wait:
+        description: 'Skip deployment wait (for local testing)'
+        type: boolean
+        default: false
+
+concurrency:
+  group: stainless-sdk-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  STAINLESS_PROJECT: inbound
+  API_BASE_URL: https://inbound.new
+
+jobs:
+  build-sdk:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Wait for Vercel deployment to propagate
+        if: ${{ github.event.inputs.skip_wait != 'true' }}
+        run: |
+          echo "Waiting for Vercel deployment to complete..."
+          sleep 180
+          
+          echo "Checking if API is available..."
+          for i in {1..30}; do
+            if curl -sSf "${{ env.API_BASE_URL }}/api/e2/openapi.json" > /dev/null 2>&1; then
+              echo "API is available!"
+              break
+            fi
+            echo "Attempt $i: API not ready, waiting 10s..."
+            sleep 10
+          done
+
+      - name: Fetch OpenAPI spec from live API
+        run: |
+          echo "Fetching OpenAPI spec from ${{ env.API_BASE_URL }}/api/e2/openapi.json"
+          curl -sSf -o openapi.json "${{ env.API_BASE_URL }}/api/e2/openapi.json"
+          echo "OpenAPI spec fetched successfully"
+          
+          echo "=== Spec Summary ==="
+          jq '{title: .info.title, version: .info.version, paths: (.paths | keys | length)}' openapi.json
+
+      - name: Upload to Stainless
+        uses: stainless-api/upload-openapi-spec-action/build@v1
+        with:
+          stainless_api_key: ${{ secrets.STAINLESS_API_KEY }}
+          project: ${{ env.STAINLESS_PROJECT }}
+          oas_path: openapi.json
