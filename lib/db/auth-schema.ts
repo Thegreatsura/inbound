@@ -15,7 +15,9 @@ export const user = pgTable("user", {
 	stripeCustomerId: text('stripe_customer_id'),
 	webhooksToEndpointsMigrated: boolean('webhooks_to_endpoints_migrated').default(false),
 	// Feature flags - array of enabled feature flags
-	featureFlags: text('feature_flags') // JSON array of feature flag strings
+	featureFlags: text('feature_flags'), // JSON array of feature flag strings
+	// SVIX webhook service integration
+	svixAppId: text('svix_app_id'), // SVIX application ID for sent email event webhooks
 });
 
 export const session = pgTable("session", {

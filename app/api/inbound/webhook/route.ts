@@ -623,9 +623,7 @@ export async function POST(request: NextRequest) {
           // ========== DSN DETECTION AND BOUNCE TRACKING ==========
           // Check if this is a Delivery Status Notification (bounce/failure notification)
           // These come from MAILER-DAEMON and contain bounce information
-          let isDsnEmail = false
           if (emailContent && isDsn(emailContent)) {
-            isDsnEmail = true
             console.log(`📬 Webhook - DSN detected for ${recipient}, recording delivery event...`)
             
             try {
@@ -653,6 +651,8 @@ export async function POST(request: NextRequest) {
               console.error(`❌ Webhook - Error processing DSN:`, dsnError)
               // Don't fail the whole webhook for DSN processing errors
             }
+          } else {
+            console.log(`📬 Webhook - No DSN detected for ${mail.messageId}`)
           }
           // ========== END DSN DETECTION ==========
 

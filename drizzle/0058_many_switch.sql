@@ -1,0 +1,1 @@
+ALTER TABLE "user" ADD COLUMN "svix_app_id" text;

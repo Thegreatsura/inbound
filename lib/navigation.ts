@@ -19,6 +19,7 @@ import Code2 from "@/components/icons/code-2"
 import EmailFlow from "@/components/icons/email-flow"
 import UserGroup from "@/components/icons/user-group"
 import ShieldCheck from "@/components/icons/shield-check"
+import StrokeProjectingCap from "@/components/icons/stroke-projecting-cap"
 import { guardAccessFlag } from "@/app/actions/feature-flags"
 
 export interface NavigationItem {
@@ -54,8 +55,14 @@ export const navigationConfig: NavigationConfig = {
     {
       title: "Endpoints",
       url: "/endpoints",
-      icon: Webhook,
+      icon: StrokeProjectingCap,
       description: "Manage webhook and email forwarding endpoints"
+    },
+    {
+      title: "Events",
+      url: "/events",
+      icon: Webhook,
+      description: "View bounces, complaints, and delivery events"
     },
     {
       title: "API Keys",
