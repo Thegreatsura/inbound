@@ -8,6 +8,7 @@ import { initiateDomainVerification, deleteDomainFromSES } from '@/lib/domains-a
 import { getDomainWithRecords, updateDomainStatus, createDomainVerification, deleteDomainFromDatabase } from '@/lib/db/domains'
 import { SESClient, GetIdentityVerificationAttributesCommand } from '@aws-sdk/client-ses'
 import { AWSSESReceiptRuleManager } from '@/lib/aws-ses/aws-ses-rules'
+import { BatchRuleManager } from '@/lib/aws-ses/batch-rule-manager'
 import { Autumn as autumn } from 'autumn-js'
 import { db } from '@/lib/db'
 import { emailDomains, domainDnsRecords, emailAddresses, webhooks, endpoints, sesEvents, DOMAIN_STATUS } from '@/lib/db/schema'
@@ -734,16 +735,40 @@ export async function deleteDomain(domain: string, domainId: string) {
     console.log(`✅ Delete Domain - Domain ownership verified for: ${domain}`)
 
     // Step 1: Remove SES receipt rules first (if domain is verified)
-    if (domainRecord.status === 'verified') {
+    if (domainRecord.status === 'verified' || domainRecord.status === 'ses_verified') {
       try {
         console.log(`🔧 Delete Domain - Removing SES receipt rules for: ${domain}`)
         const sesRuleManager = new AWSSESReceiptRuleManager()
-        const ruleRemoved = await sesRuleManager.removeEmailReceiving(domain)
+        const batchManager = new BatchRuleManager('inbound-catchall-domain-default')
 
-        if (ruleRemoved) {
-          console.log(`✅ Delete Domain - SES receipt rules removed for: ${domain}`)
+        // Check if domain uses batch catch-all rule (new format: batch-rule-XXX)
+        if (domainRecord.catchAllReceiptRuleName?.startsWith('batch-rule-')) {
+          console.log(`🔧 Removing domain from batch catch-all rule: ${domainRecord.catchAllReceiptRuleName}`)
+          
+          // Remove domain from the batch rule's recipients
+          const removeResult = await sesRuleManager.removeDomainFromBatchRule({
+            domain: domain,
+            ruleSetName: 'inbound-catchall-domain-default',
+            ruleName: domainRecord.catchAllReceiptRuleName
+          })
+          
+          if (removeResult.success) {
+            console.log(`✅ Domain removed from batch rule. Remaining domains: ${removeResult.remainingDomains}`)
+            
+            // Decrement the domain count in sesReceiptRules table
+            await batchManager.decrementRuleCapacityByName(domainRecord.catchAllReceiptRuleName, 1)
+            console.log(`✅ Decremented domain count for rule: ${domainRecord.catchAllReceiptRuleName}`)
+          } else {
+            console.warn(`⚠️ Failed to remove domain from batch rule: ${removeResult.error}`)
+          }
         } else {
-          console.log(`⚠️ Delete Domain - Failed to remove SES receipt rules for: ${domain}`)
+          // Legacy: Try to remove old-format rules
+          const ruleRemoved = await sesRuleManager.removeEmailReceiving(domain)
+          if (ruleRemoved) {
+            console.log(`✅ Delete Domain - Legacy SES receipt rules removed for: ${domain}`)
+          } else {
+            console.log(`⚠️ Delete Domain - Failed to remove legacy SES receipt rules for: ${domain}`)
+          }
         }
       } catch (error) {
         console.error('Delete Domain - Error removing SES receipt rules:', error)

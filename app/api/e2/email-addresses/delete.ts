@@ -85,71 +85,12 @@ export const deleteEmailAddress = new Elysia().delete(
 
     console.log("✅ Email address deleted from database")
 
-    // Update SES rules if needed
-    let sesRuleUpdated = false
-    let awsWarning: string | undefined
-
-    if (emailAddress.isReceiptRuleConfigured) {
-      try {
-        console.log("🔧 Updating SES receipt rules")
-        const sesManager = new AWSSESReceiptRuleManager()
-
-        // Get AWS configuration
-        const awsRegion = process.env.AWS_REGION || "us-east-2"
-        const lambdaFunctionName = process.env.LAMBDA_FUNCTION_NAME || "email-processor"
-        const s3BucketName = process.env.S3_BUCKET_NAME
-        const awsAccountId = process.env.AWS_ACCOUNT_ID
-
-        if (!s3BucketName || !awsAccountId) {
-          awsWarning = "AWS configuration incomplete. SES rules may need manual cleanup."
-          console.warn(`⚠️ ${awsWarning}`)
-        } else {
-          const lambdaArn = AWSSESReceiptRuleManager.getLambdaFunctionArn(
-            lambdaFunctionName,
-            awsAccountId,
-            awsRegion
-          )
-
-          if (remainingEmailAddresses.length > 0) {
-            // Update SES rule with remaining email addresses
-            console.log("🔄 Updating SES rule with remaining email addresses")
-            const receiptResult = await sesManager.configureEmailReceiving({
-              domain: emailAddress.domainName,
-              emailAddresses: remainingEmailAddresses,
-              lambdaFunctionArn: lambdaArn,
-              s3BucketName,
-            })
-
-            if (receiptResult.status === "created" || receiptResult.status === "updated") {
-              sesRuleUpdated = true
-              console.log("✅ SES rule updated successfully")
-            } else {
-              awsWarning = `SES rule update failed: ${receiptResult.error}`
-              console.warn(`⚠️ ${awsWarning}`)
-            }
-          } else {
-            // Delete SES rule if no email addresses remain
-            console.log("🗑️ Deleting SES rule (no remaining email addresses)")
-            try {
-              const deleteSuccess = await sesManager.removeEmailReceiving(emailAddress.domainName)
-              if (deleteSuccess) {
-                sesRuleUpdated = true
-                console.log("✅ SES rule deleted successfully")
-              } else {
-                awsWarning = "SES rule deletion failed: Unable to remove receipt rule"
-                console.warn(`⚠️ ${awsWarning}`)
-              }
-            } catch (deleteError) {
-              awsWarning = `SES rule deletion failed: ${deleteError instanceof Error ? deleteError.message : "Unknown error"}`
-              console.warn(`⚠️ ${awsWarning}`)
-            }
-          }
-        }
-      } catch (error) {
-        awsWarning = `SES rule update error: ${error instanceof Error ? error.message : "Unknown error"}`
-        console.error("❌ SES rule update failed:", error)
-      }
-    }
+    // Note: With batch catch-all rules, we don't need to update SES rules when deleting individual email addresses
+    // The domain catch-all rule remains in place and handles all emails for the domain
+    // We only remove the domain from the batch rule when the entire domain is deleted (handled in domains/delete.ts)
+    const sesRuleUpdated = false
+    const awsWarning: string | undefined = undefined
+    console.log("ℹ️ Using batch catch-all rules - no SES rule update needed for individual email deletion")
 
     const response = {
       message: "Email address deleted successfully",
@@ -157,7 +98,7 @@ export const deleteEmailAddress = new Elysia().delete(
         sesRuleUpdated,
         emailAddress: emailAddress.address,
         domain: emailAddress.domainName,
-        ...(awsWarning && { warning: awsWarning }),
+        ...(awsWarning ? { warning: awsWarning } : {}),
       },
     }
 

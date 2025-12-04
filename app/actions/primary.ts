@@ -20,6 +20,7 @@ import {
 import { eq, and, sql, desc, gte, inArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { AWSSESReceiptRuleManager } from "@/lib/aws-ses/aws-ses-rules";
+import { BatchRuleManager } from "@/lib/aws-ses/batch-rule-manager";
 import {
   parseEmail as libParseEmail,
   sanitizeHtml,
@@ -308,55 +309,66 @@ export async function addEmailAddress(
         awsRegion
       );
 
-      const receiptResult = await sesManager.configureEmailReceiving({
-        domain: domain.domain,
-        emailAddresses: [emailAddress],
-        lambdaFunctionArn: lambdaArn,
-        s3BucketName,
-      });
+      // Check if domain already has a batch catch-all rule
+      let receiptRuleName: string | null = domain.catchAllReceiptRuleName;
+      
+      if (!receiptRuleName?.startsWith("batch-rule-")) {
+        // Domain not yet in batch catch-all, add to batch rule
+        const batchManager = new BatchRuleManager("inbound-catchall-domain-default");
+        
+        try {
+          // Find or create rule with capacity
+          const rule = await batchManager.findOrCreateRuleWithCapacity(1);
 
-      if (
-        receiptResult.status === "created" ||
-        receiptResult.status === "updated"
-      ) {
-        // Update email record with receipt rule information
-        await db
-          .update(emailAddresses)
-          .set({
-            isReceiptRuleConfigured: true,
-            receiptRuleName: receiptResult.ruleName,
-            updatedAt: new Date(),
-          })
-          .where(eq(emailAddresses.id, createdEmail.id));
+          // Add domain catch-all to batch rule
+          await sesManager.configureBatchCatchAllRule({
+            domains: [domain.domain],
+            lambdaFunctionArn: lambdaArn,
+            s3BucketName,
+            ruleSetName: "inbound-catchall-domain-default",
+            ruleName: rule.ruleName,
+          });
 
-        return {
-          success: true,
-          data: {
-            id: createdEmail.id,
-            address: createdEmail.address,
-            isActive: true,
-            isReceiptRuleConfigured: true,
-            receiptRuleName: receiptResult.ruleName,
-            createdAt: createdEmail.createdAt,
-            emailsLast24h: 0,
-          },
-        };
-      } else {
-        // SES configuration failed, but email record was created
-        return {
-          success: true,
-          data: {
-            id: createdEmail.id,
-            address: createdEmail.address,
-            isActive: true,
-            isReceiptRuleConfigured: false,
-            receiptRuleName: null,
-            createdAt: createdEmail.createdAt,
-            emailsLast24h: 0,
-            warning: "Email address created but SES configuration failed",
-          },
-        };
+          // Update domain record
+          await db
+            .update(emailDomains)
+            .set({
+              catchAllReceiptRuleName: rule.ruleName,
+              updatedAt: new Date(),
+            })
+            .where(eq(emailDomains.id, domain.id));
+
+          // Increment rule capacity
+          await batchManager.incrementRuleCapacity(rule.id, 1);
+
+          receiptRuleName = rule.ruleName;
+        } catch (error) {
+          console.error("Failed to add domain to batch rule:", error);
+        }
       }
+
+      // Update email address record
+      await db
+        .update(emailAddresses)
+        .set({
+          isReceiptRuleConfigured: !!receiptRuleName,
+          receiptRuleName: receiptRuleName,
+          updatedAt: new Date(),
+        })
+        .where(eq(emailAddresses.id, createdEmail.id));
+
+      return {
+        success: true,
+        data: {
+          id: createdEmail.id,
+          address: createdEmail.address,
+          isActive: true,
+          isReceiptRuleConfigured: !!receiptRuleName,
+          receiptRuleName: receiptRuleName,
+          createdAt: createdEmail.createdAt,
+          emailsLast24h: 0,
+        },
+      };
     } catch (sesError) {
       console.error("SES configuration error:", sesError);
       return {

@@ -5,6 +5,7 @@ import { emailAddresses, emailDomains, endpoints, webhooks } from '@/lib/db/sche
 import { eq, and, desc, count } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { AWSSESReceiptRuleManager } from '@/lib/aws-ses/aws-ses-rules'
+import { BatchRuleManager } from '@/lib/aws-ses/batch-rule-manager'
 
 export async function GET(request: NextRequest) {
   try {
@@ -313,59 +314,64 @@ export async function POST(request: NextRequest) {
           awsRegion
         )
 
-        let receiptResult: any
-
-        // Check if domain has catch-all enabled - if so, use mixed mode
-        if (domainResult[0].isCatchAllEnabled && domainResult[0].catchAllEndpointId) {
-          console.log(`🔀 POST /api/v1.1/email-addresses - Domain has catch-all enabled, using mixed mode`)
-          
-          // Get all existing email addresses for this domain
-          const allDomainEmails = await db
-            .select({ address: emailAddresses.address })
-            .from(emailAddresses)
-            .where(and(
-              eq(emailAddresses.domainId, data.domainId),
-              eq(emailAddresses.isActive, true)
-            ))
-
-          const mixedResult = await sesManager.configureMixedMode({
-            domain: domainResult[0].domain,
-            emailAddresses: allDomainEmails.map(e => e.address),
-            catchAllWebhookId: domainResult[0].catchAllEndpointId,
-            lambdaFunctionArn: lambdaArn,
-            s3BucketName
-          })
-          
-          receiptResult = mixedResult.individualRule || mixedResult.catchAllRule
-        } else {
-          // Use individual email rules only (legacy behavior)
-          console.log(`📧 POST /api/v1.1/email-addresses - Using individual email rules only`)
-          
-          receiptResult = await sesManager.configureEmailReceiving({
-            domain: domainResult[0].domain,
-            emailAddresses: [data.address],
-            lambdaFunctionArn: lambdaArn,
-            s3BucketName
-          })
-        }
+        // Use batch catch-all rule system (domain-level catch-all)
+        // Check if domain already has a batch catch-all rule
+        let currentReceiptRuleName: string | null = domainResult[0].catchAllReceiptRuleName
         
-        if (receiptResult.status === 'created' || receiptResult.status === 'updated') {
-          // Update email record with receipt rule information
+        if (!currentReceiptRuleName?.startsWith('batch-rule-')) {
+          console.log(`🔧 POST /api/v1.1/email-addresses - Domain not yet in batch catch-all, adding to batch rule`)
+          
+          const batchManager = new BatchRuleManager('inbound-catchall-domain-default')
+          
+          try {
+            // Find or create rule with capacity
+            const rule = await batchManager.findOrCreateRuleWithCapacity(1)
+
+            // Add domain catch-all to batch rule
+            await sesManager.configureBatchCatchAllRule({
+              domains: [domainResult[0].domain],
+              lambdaFunctionArn: lambdaArn,
+              s3BucketName,
+              ruleSetName: 'inbound-catchall-domain-default',
+              ruleName: rule.ruleName
+            })
+
+            // Update domain record
+            await db
+              .update(emailDomains)
+              .set({
+                catchAllReceiptRuleName: rule.ruleName,
+                updatedAt: new Date()
+              })
+              .where(eq(emailDomains.id, domainResult[0].id))
+
+            // Increment rule capacity
+            await batchManager.incrementRuleCapacity(rule.id, 1)
+
+            currentReceiptRuleName = rule.ruleName
+            console.log(`✅ POST /api/v1.1/email-addresses - Added domain to batch rule: ${rule.ruleName}`)
+          } catch (error) {
+            console.error('Failed to add domain to batch rule:', error)
+            awsConfigurationWarning = 'Failed to configure batch catch-all rule'
+          }
+        } else {
+          console.log(`✅ POST /api/v1.1/email-addresses - Domain already in batch rule: ${currentReceiptRuleName}`)
+        }
+
+        // Update email record with receipt rule information
+        if (currentReceiptRuleName) {
           await db
             .update(emailAddresses)
             .set({
               isReceiptRuleConfigured: true,
-              receiptRuleName: receiptResult.ruleName,
+              receiptRuleName: currentReceiptRuleName,
               updatedAt: new Date(),
             })
             .where(eq(emailAddresses.id, createdEmailAddress.id))
 
           isReceiptRuleConfigured = true
-          receiptRuleName = receiptResult.ruleName
+          receiptRuleName = currentReceiptRuleName
           console.log(`✅ POST /api/v1.1/email-addresses - AWS SES configured successfully for ${data.address}`)
-        } else {
-          awsConfigurationWarning = `SES configuration failed: ${receiptResult.error}`
-          console.warn(`⚠️ POST /api/v1.1/email-addresses - ${awsConfigurationWarning}`)
         }
       }
     } catch (error) {

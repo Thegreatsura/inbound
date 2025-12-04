@@ -25,8 +25,7 @@ import { getEmail } from "../emails/get"
 import { cancelEmail } from "../emails/cancel"
 import { replyToEmail } from "../emails/reply"
 import { retryEmail } from "../emails/retry"
-// Mail routes
-import { listMail } from "../mail/list"
+// Inbox routes (threaded conversations)
 import { listThreads } from "../mail/threads-list"
 import { getThread } from "../mail/threads-get"
 
@@ -86,7 +85,7 @@ const payload: InboundWebhookPayload = {
           size: 45678,
           contentId: '<att_abc123>',
           contentDisposition: 'attachment',
-          downloadUrl: 'https://inbound.new/api/v2/attachments/inbnd_abc123/order-receipt.pdf'
+          downloadUrl: 'https://inbound.new/api/e2/attachments/inbnd_abc123/order-receipt.pdf'
         }
       ]
     }
@@ -180,13 +179,13 @@ All API requests require a Bearer token in the Authorization header:
 
 \`\`\`bash
 curl -H "Authorization: Bearer YOUR_API_KEY" \\
-  https://inbound.new/api/v2/domains
+  https://inbound.new/api/e2/domains
 \`\`\`
 
 ## Base URL
 
 \`\`\`
-https://inbound.new/api/v2
+https://inbound.new/api/e2
 \`\`\`
 
 ## Quick Start
@@ -421,8 +420,7 @@ https://inbound.new/api/v2
   .use(cancelEmail)
   .use(replyToEmail)
   .use(retryEmail)
-  // Mail routes (inbox and threads)
-  .use(listMail)
+  // Inbox routes (threaded conversations)
   .use(listThreads)
   .use(getThread)
 

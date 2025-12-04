@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDomainWithRecordsAndEmails, createEmailAddress, updateEmailAddressReceiptRule } from '@/lib/db/domains'
 import { AWSSESReceiptRuleManager } from '@/lib/aws-ses/aws-ses-rules'
+import { BatchRuleManager } from '@/lib/aws-ses/batch-rule-manager'
 import { auth } from '@/lib/auth/auth'
 import { headers } from 'next/headers'
+import { db } from '@/lib/db'
+import { emailDomains } from '@/lib/db/schema'
+import { eq } from 'drizzle-orm'
 
 export async function POST(request: NextRequest) {
   try {
@@ -103,26 +107,63 @@ export async function POST(request: NextRequest) {
       awsRegion
     )
 
-    // Configure SES receipt rules with ALL valid emails (new ones will be merged with existing)
-    const receiptResult = await ruleManager.configureEmailReceiving({
-      domain,
-      emailAddresses: validEmails,
-      lambdaFunctionArn: lambdaArn,
-      s3BucketName
-    })
+    // Use batch catch-all rule system (domain-level catch-all)
+    // Check if domain already has a batch catch-all rule
+    let receiptRuleName: string | null = domainRecord.catchAllReceiptRuleName
+    
+    if (!receiptRuleName?.startsWith('batch-rule-')) {
+      console.log(`🔧 Domain not yet in batch catch-all, adding to batch rule`)
+      
+      const batchManager = new BatchRuleManager('inbound-catchall-domain-default')
+      
+      try {
+        // Find or create rule with capacity
+        const rule = await batchManager.findOrCreateRuleWithCapacity(1)
 
-    if (receiptResult.status === 'failed') {
-      console.error(`Failed to configure SES receipt rules for ${domain}:`, receiptResult.error)
-      return NextResponse.json(
-        { 
-          error: 'Failed to configure SES receipt rules',
-          details: receiptResult.error,
-          domain,
-          emailAddresses: validEmails,
-          isRetryable: true
-        },
-        { status: 500 }
-      )
+        // Add domain catch-all to batch rule
+        await ruleManager.configureBatchCatchAllRule({
+          domains: [domain],
+          lambdaFunctionArn: lambdaArn,
+          s3BucketName,
+          ruleSetName: 'inbound-catchall-domain-default',
+          ruleName: rule.ruleName
+        })
+
+        // Update domain record
+        await db
+          .update(emailDomains)
+          .set({
+            catchAllReceiptRuleName: rule.ruleName,
+            updatedAt: new Date()
+          })
+          .where(eq(emailDomains.id, domainRecord.id))
+
+        // Increment rule capacity
+        await batchManager.incrementRuleCapacity(rule.id, 1)
+
+        receiptRuleName = rule.ruleName
+        console.log(`✅ Added domain to batch rule: ${rule.ruleName}`)
+      } catch (error) {
+        console.error('Failed to add domain to batch rule:', error)
+        return NextResponse.json(
+          { 
+            error: 'Failed to configure SES receipt rules',
+            details: error instanceof Error ? error.message : 'Unknown error',
+            domain,
+            emailAddresses: validEmails,
+            isRetryable: true
+          },
+          { status: 500 }
+        )
+      }
+    } else {
+      console.log(`✅ Domain already in batch rule: ${receiptRuleName}`)
+    }
+    
+    // Create a fake receipt result for backwards compatibility
+    const receiptResult = {
+      ruleName: receiptRuleName!,
+      status: 'updated' as const
     }
 
     // Create only new email address records in database

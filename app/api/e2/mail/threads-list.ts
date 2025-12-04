@@ -10,61 +10,167 @@ import {
 } from "@/lib/db/schema"
 import { eq, and, desc, sql, or, like } from "drizzle-orm"
 
-// Query parameters schema
+// Query parameters schema with full OpenAPI descriptions
 const ListThreadsQuerySchema = t.Object({
-  domain: t.Optional(t.String({ description: "Filter by domain ID or name" })),
-  address: t.Optional(t.String({ description: "Filter by email address ID or address" })),
-  limit: t.Optional(t.String()),
-  cursor: t.Optional(t.String({ description: "Cursor for pagination (thread ID)" })),
-  search: t.Optional(t.String({ description: "Search in subject or participants" })),
-  unread: t.Optional(t.String({ description: "Filter by unread threads (true/false)" })),
+  domain: t.Optional(
+    t.String({
+      description:
+        "Filter threads by domain. Accepts domain ID (e.g., 'dom_xxx') or domain name (e.g., 'example.com'). Returns threads where any participant email matches the domain.",
+    })
+  ),
+  address: t.Optional(
+    t.String({
+      description:
+        "Filter threads by email address. Accepts address ID (e.g., 'addr_xxx') or raw email address (e.g., 'user@example.com'). Returns threads where the address is a participant.",
+    })
+  ),
+  limit: t.Optional(
+    t.String({
+      description:
+        "Maximum number of threads to return (1-100). Default is 25.",
+      default: "25",
+    })
+  ),
+  cursor: t.Optional(
+    t.String({
+      description:
+        "Cursor for pagination. Pass the thread ID from `pagination.next_cursor` of the previous response to get the next page.",
+    })
+  ),
+  search: t.Optional(
+    t.String({
+      description:
+        "Search query to filter threads by subject or participant emails. Case-insensitive partial match.",
+    })
+  ),
+  unread: t.Optional(
+    t.String({
+      description:
+        "Filter by unread status. Set to 'true' to only return threads with unread messages.",
+      default: "false",
+    })
+  ),
 })
 
-// Thread item schema
-const ThreadItemSchema = t.Object({
-  id: t.String(),
-  root_message_id: t.String(),
-  normalized_subject: t.Optional(t.Nullable(t.String())),
-  participant_emails: t.Array(t.String()),
-  message_count: t.Number(),
-  last_message_at: t.String(),
-  created_at: t.String(),
-  latest_message: t.Optional(
+// Latest message schema with full descriptions
+const LatestMessageSchema = t.Object({
+  id: t.String({ description: "Unique identifier of the message" }),
+  type: t.Union([t.Literal("inbound"), t.Literal("outbound")], {
+    description: "Whether the message was received (inbound) or sent (outbound)",
+  }),
+  subject: t.Optional(
+    t.Nullable(t.String({ description: "Subject line of the message" }))
+  ),
+  from_text: t.String({
+    description: "Formatted sender information (name and/or email)",
+  }),
+  text_preview: t.Optional(
     t.Nullable(
-      t.Object({
-        id: t.String(),
-        type: t.Union([t.Literal("inbound"), t.Literal("outbound")]),
-        subject: t.Optional(t.Nullable(t.String())),
-        from_text: t.String(),
-        text_preview: t.Optional(t.Nullable(t.String())),
-        is_read: t.Boolean(),
-        has_attachments: t.Boolean(),
-        date: t.Optional(t.Nullable(t.String())),
+      t.String({
+        description: "First 200 characters of the message body as a preview",
       })
     )
   ),
-  has_unread: t.Boolean(),
-  is_archived: t.Boolean(),
+  is_read: t.Boolean({
+    description: "Whether the message has been read (always true for outbound)",
+  }),
+  has_attachments: t.Boolean({
+    description: "Whether the message has any attachments",
+  }),
+  date: t.Optional(
+    t.Nullable(
+      t.String({
+        description: "ISO 8601 timestamp of when the message was sent/received",
+      })
+    )
+  ),
 })
 
-// Response schemas
+// Thread item schema with full descriptions
+const ThreadItemSchema = t.Object({
+  id: t.String({ description: "Unique identifier for the thread" }),
+  root_message_id: t.String({
+    description: "RFC 2822 Message-ID of the first message in the thread",
+  }),
+  normalized_subject: t.Optional(
+    t.Nullable(
+      t.String({
+        description:
+          "Normalized subject line (stripped of Re:, Fwd:, etc.) used for thread grouping",
+      })
+    )
+  ),
+  participant_emails: t.Array(t.String(), {
+    description: "Array of all unique email addresses that have participated in this thread",
+  }),
+  message_count: t.Number({
+    description: "Total number of messages in the thread (both inbound and outbound)",
+  }),
+  last_message_at: t.String({
+    description: "ISO 8601 timestamp of the most recent message in the thread",
+  }),
+  created_at: t.String({
+    description: "ISO 8601 timestamp when the thread was created (first message received)",
+  }),
+  latest_message: t.Optional(
+    t.Nullable(LatestMessageSchema)
+  ),
+  has_unread: t.Boolean({
+    description: "Whether the thread has any unread inbound messages",
+  }),
+  is_archived: t.Boolean({
+    description: "Whether the thread has been archived",
+  }),
+  unread_count: t.Optional(
+    t.Number({
+      description: "Number of unread messages in the thread",
+    })
+  ),
+})
+
+// Response schemas with full descriptions
 const ListThreadsResponse = t.Object({
-  threads: t.Array(ThreadItemSchema),
-  pagination: t.Object({
-    limit: t.Number(),
-    has_more: t.Boolean(),
-    next_cursor: t.Optional(t.Nullable(t.String())),
+  threads: t.Array(ThreadItemSchema, {
+    description: "Array of thread objects matching the query, sorted by last message date (newest first)",
   }),
-  filters: t.Object({
-    search: t.Optional(t.String()),
-    unread_only: t.Optional(t.Boolean()),
-    domain: t.Optional(t.String()),
-    address: t.Optional(t.String()),
-  }),
+  pagination: t.Object(
+    {
+      limit: t.Number({ description: "Number of results per page" }),
+      has_more: t.Boolean({
+        description: "Whether there are more threads available after this page",
+      }),
+      next_cursor: t.Optional(
+        t.Nullable(
+          t.String({
+            description:
+              "Cursor to pass as the `cursor` parameter to fetch the next page. Null if no more results.",
+          })
+        )
+      ),
+    },
+    { description: "Pagination metadata for cursor-based pagination" }
+  ),
+  filters: t.Object(
+    {
+      search: t.Optional(
+        t.String({ description: "Applied search query" })
+      ),
+      unread_only: t.Optional(
+        t.Boolean({ description: "Whether filtering for unread threads only" })
+      ),
+      domain: t.Optional(
+        t.String({ description: "Applied domain filter (resolved domain name)" })
+      ),
+      address: t.Optional(
+        t.String({ description: "Applied address filter (resolved email address)" })
+      ),
+    },
+    { description: "Applied filters for this query" }
+  ),
 })
 
 const ListThreadsErrorResponse = t.Object({
-  error: t.String(),
+  error: t.String({ description: "Error message describing what went wrong" }),
 })
 
 // Helper to get latest message for a thread
@@ -169,12 +275,12 @@ async function getLatestMessageForThread(threadId: string, userId: string) {
   return null
 }
 
-// Check if thread has unread messages
-async function threadHasUnread(
+// Get unread count for a thread
+async function getThreadUnreadCount(
   threadId: string,
   userId: string
-): Promise<boolean> {
-  const unreadCount = await db
+): Promise<number> {
+  const result = await db
     .select({ count: sql<number>`count(*)` })
     .from(structuredEmails)
     .where(
@@ -185,7 +291,7 @@ async function threadHasUnread(
       )
     )
 
-  return (unreadCount[0]?.count || 0) > 0
+  return Number(result[0]?.count || 0)
 }
 
 export const listThreads = new Elysia().get(
@@ -214,22 +320,18 @@ export const listThreads = new Elysia().get(
       addressFilter,
     })
 
+    // Validate limit
+    if (limit < 1 || limit > 100) {
+      set.status = 400
+      return { error: "Limit must be between 1 and 100" }
+    }
+
     // Build the base query conditions
     const conditions: any[] = [eq(emailThreads.userId, userId)]
 
-    // Add search condition
-    if (search) {
-      conditions.push(
-        or(
-          like(emailThreads.normalizedSubject, `%${search.toLowerCase()}%`),
-          like(emailThreads.participantEmails, `%${search.toLowerCase()}%`)
-        )
-      )
-    }
-
-    // Domain filter - check if any participant email contains @domain
+    // Resolve and apply domain filter
+    let resolvedDomain: string | null = null
     if (domainFilter) {
-      // Resolve domain name
       const domain = await db
         .select()
         .from(emailDomains)
@@ -244,16 +346,16 @@ export const listThreads = new Elysia().get(
         )
         .limit(1)
 
-      if (domain.length > 0) {
-        conditions.push(
-          like(emailThreads.participantEmails, `%@${domain[0].domain}%`)
-        )
-      }
+      // Use resolved domain or raw filter value
+      resolvedDomain = domain.length > 0 ? domain[0].domain : domainFilter
+      conditions.push(
+        like(emailThreads.participantEmails, `%@${resolvedDomain}%`)
+      )
     }
 
-    // Address filter - check if specific address is in participants
+    // Resolve and apply address filter
+    let resolvedAddress: string | null = null
     if (addressFilter) {
-      // Resolve address
       const address = await db
         .select()
         .from(emailAddresses)
@@ -268,16 +370,25 @@ export const listThreads = new Elysia().get(
         )
         .limit(1)
 
-      if (address.length > 0) {
-        conditions.push(
-          like(emailThreads.participantEmails, `%${address[0].address}%`)
+      // Use resolved address or raw filter value
+      resolvedAddress = address.length > 0 ? address[0].address : addressFilter
+      conditions.push(
+        like(emailThreads.participantEmails, `%${resolvedAddress}%`)
+      )
+    }
+
+    // Add search condition
+    if (search) {
+      conditions.push(
+        or(
+          like(emailThreads.normalizedSubject, `%${search.toLowerCase()}%`),
+          like(emailThreads.participantEmails, `%${search.toLowerCase()}%`)
         )
-      }
+      )
     }
 
     // Cursor-based pagination
     if (cursor) {
-      // Get the cursor thread's lastMessageAt
       const cursorThread = await db
         .select({ lastMessageAt: emailThreads.lastMessageAt })
         .from(emailThreads)
@@ -294,70 +405,122 @@ export const listThreads = new Elysia().get(
     const whereCondition =
       conditions.length > 1 ? and(...conditions) : conditions[0]
 
-    // Get threads
-    const threads = await db
-      .select({
-        id: emailThreads.id,
-        rootMessageId: emailThreads.rootMessageId,
-        normalizedSubject: emailThreads.normalizedSubject,
-        participantEmails: emailThreads.participantEmails,
-        messageCount: emailThreads.messageCount,
-        lastMessageAt: emailThreads.lastMessageAt,
-        createdAt: emailThreads.createdAt,
-      })
-      .from(emailThreads)
-      .where(whereCondition)
-      .orderBy(desc(emailThreads.lastMessageAt))
-      .limit(limit + 1) // Get one extra to check if there are more
-
-    console.log(`📊 Found ${threads.length} threads`)
-
-    // Check if there are more results
-    const hasMore = threads.length > limit
-    const threadsToReturn = hasMore ? threads.slice(0, limit) : threads
-
     // Build response with latest message previews
     const threadItems: any[] = []
+    let hasMore = false
+    
+    // When unreadOnly is true, we need to fetch more threads since some will be filtered out
+    // Fetch in batches until we have enough threads or run out of results
+    const batchSize = unreadOnly ? Math.max(limit * 3, 50) : limit + 1
+    let currentCursor = cursor
+    let totalFetched = 0
+    const maxIterations = 10 // Safety limit to prevent infinite loops
+    let iterations = 0
 
-    for (const thread of threadsToReturn) {
-      const latestMessage = await getLatestMessageForThread(thread.id, userId)
-      const hasUnread = await threadHasUnread(thread.id, userId)
+    while (threadItems.length < limit && iterations < maxIterations) {
+      iterations++
+      
+      // Build cursor condition for this batch
+      const batchConditions = [...conditions]
+      if (currentCursor && iterations > 1) {
+        const cursorThread = await db
+          .select({ lastMessageAt: emailThreads.lastMessageAt })
+          .from(emailThreads)
+          .where(eq(emailThreads.id, currentCursor))
+          .limit(1)
 
-      // Apply unread filter
-      if (unreadOnly && !hasUnread) {
-        continue
+        if (cursorThread.length > 0 && cursorThread[0].lastMessageAt) {
+          batchConditions.push(
+            sql`${emailThreads.lastMessageAt} < ${cursorThread[0].lastMessageAt}`
+          )
+        }
       }
 
-      // Parse participant emails
-      let participantEmails: string[] = []
-      try {
-        participantEmails = thread.participantEmails
-          ? JSON.parse(thread.participantEmails)
-          : []
-      } catch (e) {
-        console.error("Failed to parse participant emails:", e)
+      const batchWhereCondition =
+        batchConditions.length > 1 ? and(...batchConditions) : batchConditions[0]
+
+      // Get threads batch
+      const threads = await db
+        .select({
+          id: emailThreads.id,
+          rootMessageId: emailThreads.rootMessageId,
+          normalizedSubject: emailThreads.normalizedSubject,
+          participantEmails: emailThreads.participantEmails,
+          messageCount: emailThreads.messageCount,
+          lastMessageAt: emailThreads.lastMessageAt,
+          createdAt: emailThreads.createdAt,
+        })
+        .from(emailThreads)
+        .where(batchWhereCondition)
+        .orderBy(desc(emailThreads.lastMessageAt))
+        .limit(batchSize)
+
+      totalFetched += threads.length
+      console.log(`📊 Batch ${iterations}: Found ${threads.length} threads (total fetched: ${totalFetched})`)
+
+      // No more threads available
+      if (threads.length === 0) {
+        hasMore = false
+        break
       }
 
-      threadItems.push({
-        id: thread.id,
-        root_message_id: thread.rootMessageId,
-        normalized_subject: thread.normalizedSubject,
-        participant_emails: participantEmails,
-        message_count: thread.messageCount || 0,
-        last_message_at:
-          thread.lastMessageAt?.toISOString() || new Date().toISOString(),
-        created_at:
-          thread.createdAt?.toISOString() || new Date().toISOString(),
-        latest_message: latestMessage,
-        has_unread: hasUnread,
-        is_archived: false, // TODO: Implement archiving
-      })
+      // Process threads
+      for (const thread of threads) {
+        if (threadItems.length >= limit) {
+          hasMore = true
+          break
+        }
+
+        const latestMessage = await getLatestMessageForThread(thread.id, userId)
+        const unreadCount = await getThreadUnreadCount(thread.id, userId)
+        const hasUnread = unreadCount > 0
+
+        // Apply unread filter
+        if (unreadOnly && !hasUnread) {
+          continue
+        }
+
+        // Parse participant emails
+        let participantEmails: string[] = []
+        try {
+          participantEmails = thread.participantEmails
+            ? JSON.parse(thread.participantEmails)
+            : []
+        } catch (e) {
+          console.error("Failed to parse participant emails:", e)
+        }
+
+        threadItems.push({
+          id: thread.id,
+          root_message_id: thread.rootMessageId,
+          normalized_subject: thread.normalizedSubject,
+          participant_emails: participantEmails,
+          message_count: thread.messageCount || 0,
+          last_message_at:
+            thread.lastMessageAt?.toISOString() || new Date().toISOString(),
+          created_at:
+            thread.createdAt?.toISOString() || new Date().toISOString(),
+          latest_message: latestMessage,
+          has_unread: hasUnread,
+          unread_count: unreadCount,
+          is_archived: false, // TODO: Implement archiving
+        })
+      }
+
+      // If we got fewer threads than batch size, there are no more
+      if (threads.length < batchSize) {
+        hasMore = threadItems.length >= limit && threads.length === batchSize
+        break
+      }
+
+      // Update cursor for next batch
+      currentCursor = threads[threads.length - 1].id
     }
 
-    // Determine next cursor
+    // Determine next cursor based on the last thread we actually returned
     const nextCursor =
-      hasMore && threadsToReturn.length > 0
-        ? threadsToReturn[threadsToReturn.length - 1].id
+      hasMore && threadItems.length > 0
+        ? threadItems[threadItems.length - 1].id
         : null
 
     console.log(`✅ Successfully retrieved ${threadItems.length} threads`)
@@ -372,8 +535,8 @@ export const listThreads = new Elysia().get(
       filters: {
         search: search || undefined,
         unread_only: unreadOnly || undefined,
-        domain: domainFilter || undefined,
-        address: addressFilter || undefined,
+        domain: resolvedDomain || undefined,
+        address: resolvedAddress || undefined,
       },
     }
   },
@@ -386,11 +549,31 @@ export const listThreads = new Elysia().get(
       500: ListThreadsErrorResponse,
     },
     detail: {
-      tags: ["Mail"],
-      summary: "List email threads",
-      description:
-        "Get thread summaries for a domain or address with cursor-based pagination. Includes latest message preview and unread status.",
+      tags: ["Inbox"],
+      summary: "List inbox threads",
+      description: `List email threads (conversations) for your inbox with cursor-based pagination. This is the primary endpoint for building an inbox UI.
+
+**What is a Thread?**
+A thread groups related emails together based on the In-Reply-To and References headers, similar to how Gmail groups conversations. Each thread contains both inbound (received) and outbound (sent) messages.
+
+**Filtering:**
+- \`domain\` - Filter by domain ID or name (e.g., 'example.com'). Returns threads where any participant matches the domain.
+- \`address\` - Filter by email address (e.g., 'user@example.com'). Returns threads where the address is a participant.
+- \`search\` - Search in subject lines and participant emails.
+- \`unread\` - Set to 'true' to only return threads with unread messages.
+
+**Pagination:**
+Uses cursor-based pagination for efficient infinite scroll. Pass \`pagination.next_cursor\` from the response as the \`cursor\` parameter to get the next page.
+
+**Response:**
+Each thread includes:
+- Thread metadata (subject, participants, message count)
+- \`latest_message\` - Preview of the most recent message (inbound or outbound)
+- \`has_unread\` - Whether there are unread inbound messages
+- \`unread_count\` - Number of unread messages
+
+**Use with /mail/threads/:id:**
+Use this endpoint to list threads, then use \`GET /mail/threads/:id\` to fetch all messages in a specific thread.`,
     },
   }
 )
-

@@ -262,7 +262,7 @@ export class AWSSESReceiptRuleManager {
   }
 
   /**
-   * Remove receipt rule for a domain
+   * Remove receipt rule for a domain (legacy individual rules)
    */
   async removeEmailReceiving(domain: string, ruleSetName: string = 'inbound-catchall-domain-default'): Promise<boolean> {
     try {
@@ -278,6 +278,65 @@ export class AWSSESReceiptRuleManager {
     } catch (error) {
       console.error('Failed to remove receipt rule:', error)
       return false
+    }
+  }
+  
+  /**
+   * Remove a domain from a batch catch-all rule
+   * This removes the domain from the Recipients array of the rule, keeping other domains intact
+   */
+  async removeDomainFromBatchRule(config: {
+    domain: string
+    ruleSetName: string
+    ruleName: string
+  }): Promise<{ success: boolean; remainingDomains: number; error?: string }> {
+    try {
+      console.log(`🔧 SES Batch - Removing domain ${config.domain} from batch rule: ${config.ruleName}`)
+      
+      // Get existing rule
+      const existingRule = await this.getRuleIfExists(config.ruleSetName, config.ruleName)
+      
+      if (!existingRule) {
+        console.log(`⚠️ SES Batch - Rule ${config.ruleName} not found`)
+        return { success: false, remainingDomains: 0, error: 'Rule not found' }
+      }
+      
+      const existingRecipients = existingRule.Recipients || []
+      console.log(`📋 SES Batch - Current recipients: ${existingRecipients.length}`)
+      
+      // Remove the domain from recipients
+      const updatedRecipients = existingRecipients.filter(r => r !== config.domain)
+      
+      if (updatedRecipients.length === existingRecipients.length) {
+        console.log(`⚠️ SES Batch - Domain ${config.domain} not found in rule ${config.ruleName}`)
+        return { success: true, remainingDomains: updatedRecipients.length } // Not an error, just wasn't there
+      }
+      
+      console.log(`📋 SES Batch - Updated recipients: ${updatedRecipients.length}`)
+      
+      // Update the rule with remaining recipients
+      const updatedRule: ReceiptRule = {
+        ...existingRule,
+        Recipients: updatedRecipients
+      }
+      
+      const updateCommand = new UpdateReceiptRuleCommand({
+        RuleSetName: config.ruleSetName,
+        Rule: updatedRule
+      })
+      
+      await this.sesClient.send(updateCommand)
+      
+      console.log(`✅ SES Batch - Successfully removed domain ${config.domain} from rule ${config.ruleName}`)
+      
+      return { success: true, remainingDomains: updatedRecipients.length }
+    } catch (error) {
+      console.error(`💥 SES Batch - Failed to remove domain from batch rule:`, error)
+      return { 
+        success: false, 
+        remainingDomains: 0, 
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      }
     }
   }
 

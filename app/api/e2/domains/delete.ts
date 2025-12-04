@@ -4,6 +4,7 @@ import { db } from "@/lib/db"
 import { emailDomains, emailAddresses, domainDnsRecords, blockedEmails } from "@/lib/db/schema"
 import { eq, and } from "drizzle-orm"
 import { AWSSESReceiptRuleManager } from "@/lib/aws-ses/aws-ses-rules"
+import { BatchRuleManager } from "@/lib/aws-ses/batch-rule-manager"
 import { isRootDomain } from "@/lib/domains-and-dns/domain-utils"
 import { getDependentSubdomains } from "@/lib/db/domains"
 import { deleteDomainFromSES } from "@/lib/domains-and-dns/domain-verification"
@@ -95,28 +96,52 @@ export const deleteDomain = new Elysia().delete(
       sesReceiptRules: false,
     }
 
-    // 1. Delete AWS SES receipt rules (both catch-all and individual)
+    // 1. Delete AWS SES receipt rules
     if (domain.domain) {
       try {
         console.log("🔧 Removing AWS SES receipt rules")
         const sesManager = new AWSSESReceiptRuleManager()
+        const batchManager = new BatchRuleManager("inbound-catchall-domain-default")
 
-        // Remove catch-all rule if exists
-        if (domain.isCatchAllEnabled || domain.catchAllReceiptRuleName) {
-          console.log("🔧 Removing catch-all receipt rule")
-          const catchAllRemoved = await sesManager.removeCatchAllDomain(domain.domain)
-          if (catchAllRemoved) {
+        // Check if domain uses batch catch-all rule (new format: batch-rule-XXX)
+        if (domain.catchAllReceiptRuleName?.startsWith("batch-rule-")) {
+          console.log(`🔧 Removing domain from batch catch-all rule: ${domain.catchAllReceiptRuleName}`)
+          
+          // Remove domain from the batch rule's recipients
+          const removeResult = await sesManager.removeDomainFromBatchRule({
+            domain: domain.domain,
+            ruleSetName: "inbound-catchall-domain-default",
+            ruleName: domain.catchAllReceiptRuleName
+          })
+          
+          if (removeResult.success) {
             deletionStats.sesReceiptRules = true
-            console.log("✅ Catch-all receipt rule removed")
+            console.log(`✅ Domain removed from batch rule. Remaining domains: ${removeResult.remainingDomains}`)
+            
+            // Decrement the domain count in sesReceiptRules table
+            await batchManager.decrementRuleCapacityByName(domain.catchAllReceiptRuleName, 1)
+            console.log(`✅ Decremented domain count for rule: ${domain.catchAllReceiptRuleName}`)
+          } else {
+            console.warn(`⚠️ Failed to remove domain from batch rule: ${removeResult.error}`)
           }
-        }
+        } else {
+          // Legacy: Remove old-format catch-all rule if exists
+          if (domain.isCatchAllEnabled || domain.catchAllReceiptRuleName) {
+            console.log("🔧 Removing legacy catch-all receipt rule")
+            const catchAllRemoved = await sesManager.removeCatchAllDomain(domain.domain)
+            if (catchAllRemoved) {
+              deletionStats.sesReceiptRules = true
+              console.log("✅ Legacy catch-all receipt rule removed")
+            }
+          }
 
-        // Remove individual email receipt rule
-        console.log("🔧 Removing individual email receipt rule")
-        const individualRemoved = await sesManager.removeEmailReceiving(domain.domain)
-        if (individualRemoved) {
-          deletionStats.sesReceiptRules = true
-          console.log("✅ Individual email receipt rule removed")
+          // Legacy: Remove individual email receipt rule
+          console.log("🔧 Removing legacy individual email receipt rule")
+          const individualRemoved = await sesManager.removeEmailReceiving(domain.domain)
+          if (individualRemoved) {
+            deletionStats.sesReceiptRules = true
+            console.log("✅ Legacy individual email receipt rule removed")
+          }
         }
       } catch (sesRuleError) {
         console.error("⚠️ Failed to remove SES receipt rules:", sesRuleError)

@@ -93,10 +93,47 @@ export class BatchRuleManager {
     await db
       .update(sesReceiptRules)
       .set({
-        domainCount: sql`${sesReceiptRules.domainCount} - ${count}`,
+        domainCount: sql`GREATEST(${sesReceiptRules.domainCount} - ${count}, 0)`,
         updatedAt: new Date()
       })
       .where(eq(sesReceiptRules.id, ruleId))
+  }
+  
+  /**
+   * Decrement domain count for a rule by rule name
+   */
+  async decrementRuleCapacityByName(ruleName: string, count: number = 1): Promise<void> {
+    await db
+      .update(sesReceiptRules)
+      .set({
+        domainCount: sql`GREATEST(${sesReceiptRules.domainCount} - ${count}, 0)`,
+        updatedAt: new Date()
+      })
+      .where(and(
+        eq(sesReceiptRules.ruleName, ruleName),
+        eq(sesReceiptRules.ruleSetName, this.ruleSetName)
+      ))
+  }
+  
+  /**
+   * Get rule by name
+   */
+  async getRuleByName(ruleName: string): Promise<{
+    id: string
+    ruleName: string
+    domainCount: number
+    maxCapacity: number
+  } | null> {
+    const result = await db
+      .select()
+      .from(sesReceiptRules)
+      .where(and(
+        eq(sesReceiptRules.ruleName, ruleName),
+        eq(sesReceiptRules.ruleSetName, this.ruleSetName)
+      ))
+      .limit(1)
+    
+    return result[0] || null
   }
   
   /**

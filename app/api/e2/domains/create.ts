@@ -349,6 +349,61 @@ export const createDomain = new Elysia().post(
     console.log("🔐 Initiating SES domain verification with tenant integration")
     const verificationResult = await initiateDomainVerification(domain, userId)
 
+    // Configure SES batch receipt rule for domain receiving
+    // This adds the domain to AWS SES batch rule so it can receive emails
+    let catchAllReceiptRuleName: string | null = null
+    
+    if (s3BucketName && awsAccountId) {
+      try {
+        console.log(`🔧 Configuring SES receipt rule for domain: ${domain}`)
+        
+        const lambdaArn = AWSSESReceiptRuleManager.getLambdaFunctionArn(
+          lambdaFunctionName,
+          awsAccountId,
+          awsRegion
+        )
+
+        const batchManager = new BatchRuleManager("inbound-catchall-domain-default")
+        const sesManager = new AWSSESReceiptRuleManager(awsRegion)
+
+        // Find or create rule with capacity
+        const rule = await batchManager.findOrCreateRuleWithCapacity(1)
+        console.log(
+          `📋 Using batch rule for domain: ${rule.ruleName} (${rule.currentCapacity}/${rule.availableSlots + rule.currentCapacity})`
+        )
+
+        // Add domain to batch rule (catch-all for this domain)
+        await sesManager.configureBatchCatchAllRule({
+          domains: [domain],
+          lambdaFunctionArn: lambdaArn,
+          s3BucketName,
+          ruleSetName: "inbound-catchall-domain-default",
+          ruleName: rule.ruleName,
+        })
+
+        // Increment rule capacity
+        await batchManager.incrementRuleCapacity(rule.id, 1)
+
+        catchAllReceiptRuleName = rule.ruleName
+        console.log(`✅ Domain ${domain} added to SES batch rule: ${rule.ruleName}`)
+        
+        // Update domain with receipt rule name
+        await db
+          .update(emailDomains)
+          .set({
+            catchAllReceiptRuleName: catchAllReceiptRuleName,
+            updatedAt: new Date(),
+          })
+          .where(eq(emailDomains.id, domainRecord.id))
+        console.log(`💾 Updated domain with receipt rule: ${catchAllReceiptRuleName}`)
+      } catch (sesError) {
+        console.error(`⚠️ Failed to configure SES receipt rule for domain ${domain}:`, sesError)
+        // Don't fail the request - domain is created, but may need manual SES setup
+      }
+    } else {
+      console.warn(`⚠️ AWS configuration incomplete for domain ${domain}. Missing S3_BUCKET_NAME or AWS_ACCOUNT_ID.`)
+    }
+
     // Track domain usage with Autumn (only if not unlimited)
     if (!domainCheck.unlimited) {
       console.log("📊 Tracking domain usage with Autumn")
@@ -387,7 +442,9 @@ export const createDomain = new Elysia().post(
       updatedAt: (domainRecord.updatedAt || new Date()).toISOString(),
       message: dnsConflict 
         ? `Domain created with DNS conflict warning: ${dnsConflict.message}`
-        : undefined,
+        : catchAllReceiptRuleName
+          ? `Domain created. SES receipt rule configured - ready to receive emails once DNS records are verified.`
+          : undefined,
     }
 
     console.log("✅ Successfully created domain:", domainRecord.id)
