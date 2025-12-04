@@ -34,6 +34,7 @@ export default function SettingsPage() {
   const [isAddingAddons, setIsAddingAddons] = useState(false)
   const [isUpgradeDialogOpen, setIsUpgradeDialogOpen] = useState(false)
   const [isUpgradeSuccessOpen, setIsUpgradeSuccessOpen] = useState(false)
+  const [isUpgradingPlan, setIsUpgradingPlan] = useState<string | null>(null)
   
   // Add-on quantities
   const [extraDomains, setExtraDomains] = useState(0)
@@ -216,6 +217,36 @@ export default function SettingsPage() {
     } catch (error) {
       console.error('Error creating billing portal session:', error)
       toast.error(error instanceof Error ? error.message : 'Failed to open billing portal')
+    }
+  }
+
+  const handlePlanUpgrade = async (plan: { name: string; autumn_id: string; price: number }) => {
+    setIsUpgradingPlan(plan.autumn_id)
+    try {
+      const result = await attach({
+        productId: plan.autumn_id,
+        successUrl: `${window.location.origin}/settings?upgrade=true&product=${plan.autumn_id}`,
+      }) as any
+
+      // If attach returns a checkoutUrl, redirect manually
+      if (result?.checkoutUrl) {
+        window.location.href = result.checkoutUrl
+        return
+      }
+      if (result?.data?.checkoutUrl) {
+        window.location.href = result.data.checkoutUrl
+        return
+      }
+
+      // If no redirect needed (e.g., already has payment method), close dialog and refresh
+      toast.success(`Successfully upgraded to ${plan.name} plan!`)
+      setIsUpgradeDialogOpen(false)
+      refetchCustomer()
+    } catch (error) {
+      console.error('Plan upgrade error:', error)
+      toast.error('Failed to process plan upgrade. Please try again.')
+    } finally {
+      setIsUpgradingPlan(null)
     }
   }
 
@@ -935,12 +966,9 @@ export default function SettingsPage() {
           <div className="mt-2">
             <PricingTable 
               showHeader={false} 
-              onPlanSelect={(plan) => {
-                // TODO: Connect to backend checkout
-                toast.info(`Selected ${plan.name} plan`)
-                setIsUpgradeDialogOpen(false)
-              }}
-              currentPlan={activeProduct?.name?.toLowerCase() || 'starter'}
+              onPlanSelect={handlePlanUpgrade}
+              isLoading={isUpgradingPlan}
+              currentPlan={activeProduct?.id || 'starter'}
             />
           </div>
         </DialogContent>

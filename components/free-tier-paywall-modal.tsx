@@ -44,15 +44,29 @@ export function FreeTierPaywallModal() {
   const handleUpgrade = async () => {
     setIsUpgrading(true)
     try {
-      await attach({
+      const result = await attach({
         productId: UPGRADE_PRODUCT_ID,
         successUrl: `${window.location.origin}${window.location.pathname}?upgrade=true`,
-      })
+      }) as any
+
+      // If attach returns a checkoutUrl, redirect manually
+      if (result?.checkoutUrl) {
+        window.location.href = result.checkoutUrl
+        return
+      }
+      if (result?.data?.checkoutUrl) {
+        window.location.href = result.data.checkoutUrl
+        return
+      }
+      
+      // If no redirect happened, the upgrade was processed (user has payment method on file)
+      // Refresh the page to reflect the new subscription
+      window.location.reload()
     } catch (error) {
       console.error("Failed to upgrade:", error)
-    } finally {
       setIsUpgrading(false)
     }
+    // Note: Don't reset isUpgrading if redirect is happening - keeps button in loading state
   }
 
   if (!shouldShowPaywall) {

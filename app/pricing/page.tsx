@@ -30,18 +30,30 @@ export default function PricingPage() {
     setIsLoading(plan.autumn_id)
 
     try {
-      await attach({ 
+      const result = await attach({ 
         productId: plan.autumn_id,
         successUrl: `${window.location.origin}/logs?upgrade=true&product=${plan.autumn_id}`,
-      })
+      }) as any
+
+      // If attach returns a checkoutUrl, redirect manually
+      if (result?.checkoutUrl) {
+        window.location.href = result.checkoutUrl
+        return
+      }
+      if (result?.data?.checkoutUrl) {
+        window.location.href = result.data.checkoutUrl
+        return
+      }
+
+      // If no redirect happened, the upgrade was processed (user has payment method on file)
       toast.success(`Successfully upgraded to ${plan.name} plan!`)
       router.push('/logs')
     } catch (error) {
       console.error('Plan selection error:', error)
       toast.error('Failed to process plan change. Please try again.')
-    } finally {
       setIsLoading(null)
     }
+    // Note: Don't reset isLoading if redirect is happening - keeps button in loading state
   }
 
   useEffect(() => {
