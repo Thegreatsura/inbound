@@ -400,6 +400,13 @@
       "when": 1764797916520,
       "tag": "0056_fair_marvel_boy",
       "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1764868208763,
+      "tag": "0057_supreme_gargoyle",
+      "breakpoints": true
     }
   ]
 }

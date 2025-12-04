@@ -12,6 +12,8 @@ import { type SESEvent, type SESRecord } from '@/lib/aws-ses/aws-ses'
 import { isEmailBlocked } from '@/lib/email-management/email-blocking'
 import { routeEmail } from '@/lib/email-management/email-router'
 import { sendLimitReachedNotification } from '@/lib/email-management/email-notifications'
+import { isDsn } from '@/lib/email-management/dsn-parser'
+import { recordDeliveryEventFromDsn } from '@/lib/email-management/delivery-event-tracker'
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3'
 import { createHash } from 'crypto'
 
@@ -617,6 +619,42 @@ export async function POST(request: NextRequest) {
           }
 
           console.log(`✅ Webhook - Stored email ${mail.messageId} for ${recipient} with ID ${structuredEmailId}`);
+
+          // ========== DSN DETECTION AND BOUNCE TRACKING ==========
+          // Check if this is a Delivery Status Notification (bounce/failure notification)
+          // These come from MAILER-DAEMON and contain bounce information
+          let isDsnEmail = false
+          if (emailContent && isDsn(emailContent)) {
+            isDsnEmail = true
+            console.log(`📬 Webhook - DSN detected for ${recipient}, recording delivery event...`)
+            
+            try {
+              const dsnResult = await recordDeliveryEventFromDsn({
+                rawDsnContent: emailContent,
+                dsnEmailId: structuredEmailId,
+                autoBlocklist: true, // Auto-add hard bounces to blocklist
+                storeRawContent: false, // Don't store raw content to save space
+              })
+              
+              if (dsnResult.success) {
+                console.log(`✅ Webhook - DSN recorded: eventId=${dsnResult.eventId}, type=${dsnResult.bounceType}/${dsnResult.bounceSubType}, recipient=${dsnResult.failedRecipient}`)
+                if (dsnResult.addedToBlocklist) {
+                  console.log(`🚫 Webhook - Hard bounce auto-added to blocklist: ${dsnResult.failedRecipient}`)
+                }
+                if (dsnResult.sourceFound) {
+                  console.log(`🔗 Webhook - DSN source found: user=${dsnResult.userId}, domain=${dsnResult.domainName}, tenant=${dsnResult.tenantName}`)
+                } else {
+                  console.log(`⚠️ Webhook - DSN source not found (original email not in sent_emails)`)
+                }
+              } else {
+                console.warn(`⚠️ Webhook - Failed to record DSN: ${dsnResult.error}`)
+              }
+            } catch (dsnError) {
+              console.error(`❌ Webhook - Error processing DSN:`, dsnError)
+              // Don't fail the whole webhook for DSN processing errors
+            }
+          }
+          // ========== END DSN DETECTION ==========
 
           // Route email using the new unified routing system (skip routing for blocked emails)
           // Note: We removed the stale delivery status check here because:

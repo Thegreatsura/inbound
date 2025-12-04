@@ -710,6 +710,117 @@ export const SENT_EMAIL_STATUS = {
   FAILED: 'failed'
 } as const;
 
+// Email Delivery Events table - tracks bounces, complaints, and delivery failures from DSNs
+export const emailDeliveryEvents = pgTable('email_delivery_events', {
+  id: varchar('id', { length: 255 }).primaryKey(),
+  
+  // Event classification
+  eventType: varchar('event_type', { length: 50 }).notNull(), // 'bounce', 'complaint', 'delivery_delay', 'delivery_failure'
+  bounceType: varchar('bounce_type', { length: 50 }), // 'hard', 'soft', 'transient'
+  bounceSubType: varchar('bounce_sub_type', { length: 100 }), // More specific: 'invalid_domain', 'user_unknown', 'mailbox_full', etc.
+  
+  // Status code info (RFC 3463 enhanced status codes)
+  statusCode: varchar('status_code', { length: 20 }), // e.g., '5.4.4', '5.1.1', '4.4.7'
+  statusClass: varchar('status_class', { length: 10 }), // '2' (success), '4' (temp), '5' (perm)
+  statusCategory: varchar('status_category', { length: 10 }), // '0'-'7' per RFC 3463
+  diagnosticCode: text('diagnostic_code'), // Full SMTP diagnostic message
+  
+  // Failed recipient info
+  failedRecipient: varchar('failed_recipient', { length: 255 }).notNull(), // The email address that bounced
+  failedRecipientDomain: varchar('failed_recipient_domain', { length: 255 }), // Domain part for grouping
+  
+  // Original email info (the email we sent that bounced)
+  originalMessageId: varchar('original_message_id', { length: 500 }), // Message-ID of the email that bounced
+  originalSentEmailId: varchar('original_sent_email_id', { length: 255 }), // Reference to sent_emails.id
+  originalFrom: varchar('original_from', { length: 500 }), // Who sent the original email
+  originalTo: text('original_to'), // Who it was sent to
+  originalSubject: text('original_subject'), // Subject of original email
+  originalSentAt: timestamp('original_sent_at'), // When original was sent
+  
+  // DSN source info
+  dsnEmailId: varchar('dsn_email_id', { length: 255 }), // Reference to structured_emails.id (the DSN itself)
+  dsnReceivedAt: timestamp('dsn_received_at'), // When we received the DSN
+  reportingMta: varchar('reporting_mta', { length: 255 }), // MTA that reported the failure
+  remoteMta: varchar('remote_mta', { length: 255 }), // Remote MTA that rejected
+  
+  // User/domain/tenant attribution
+  userId: varchar('user_id', { length: 255 }), // User who sent the original email
+  domainId: varchar('domain_id', { length: 255 }), // Domain used to send
+  domainName: varchar('domain_name', { length: 255 }), // Domain name for quick access
+  tenantId: varchar('tenant_id', { length: 255 }), // SES tenant
+  tenantName: varchar('tenant_name', { length: 255 }), // Tenant name for quick access
+  
+  // Action tracking
+  actionTaken: varchar('action_taken', { length: 50 }), // 'none', 'added_to_blocklist', 'notified_user', 'suppressed'
+  actionTakenAt: timestamp('action_taken_at'),
+  addedToBlocklist: boolean('added_to_blocklist').default(false),
+  blocklistId: varchar('blocklist_id', { length: 255 }), // Reference to blocked_emails.id if added
+  
+  // Metadata
+  rawDsnContent: text('raw_dsn_content'), // Full DSN for debugging (optional, could be large)
+  metadata: text('metadata'), // JSON for any additional data
+  
+  // Timestamps
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => ({
+  eventTypeIdx: index('email_delivery_events_event_type_idx').on(table.eventType),
+  bounceTypeIdx: index('email_delivery_events_bounce_type_idx').on(table.bounceType),
+  failedRecipientIdx: index('email_delivery_events_failed_recipient_idx').on(table.failedRecipient),
+  failedRecipientDomainIdx: index('email_delivery_events_failed_recipient_domain_idx').on(table.failedRecipientDomain),
+  userIdIdx: index('email_delivery_events_user_id_idx').on(table.userId),
+  domainIdIdx: index('email_delivery_events_domain_id_idx').on(table.domainId),
+  tenantIdIdx: index('email_delivery_events_tenant_id_idx').on(table.tenantId),
+  statusCodeIdx: index('email_delivery_events_status_code_idx').on(table.statusCode),
+  createdAtIdx: index('email_delivery_events_created_at_idx').on(table.createdAt),
+  originalMessageIdIdx: index('email_delivery_events_original_message_id_idx').on(table.originalMessageId),
+}));
+
+// Email Delivery Event types
+export const EMAIL_DELIVERY_EVENT_TYPES = {
+  BOUNCE: 'bounce',
+  COMPLAINT: 'complaint',
+  DELIVERY_DELAY: 'delivery_delay',
+  DELIVERY_FAILURE: 'delivery_failure',
+} as const;
+
+export const BOUNCE_TYPES = {
+  HARD: 'hard',       // Permanent failure - should suppress
+  SOFT: 'soft',       // Temporary issue that might resolve
+  TRANSIENT: 'transient', // Temporary, will retry
+} as const;
+
+export const BOUNCE_SUB_TYPES = {
+  // Hard bounce reasons (5.x.x)
+  INVALID_DOMAIN: 'invalid_domain',           // 5.4.4
+  USER_UNKNOWN: 'user_unknown',               // 5.1.1
+  MAILBOX_DISABLED: 'mailbox_disabled',       // 5.2.1
+  BAD_DESTINATION: 'bad_destination',         // 5.1.2
+  POLICY_REJECTION: 'policy_rejection',       // 5.7.x
+  
+  // Soft bounce reasons
+  MAILBOX_FULL: 'mailbox_full',               // 5.2.2 or 4.2.2
+  MESSAGE_TOO_LARGE: 'message_too_large',     // 5.3.4
+  CONTENT_REJECTED: 'content_rejected',       // 5.6.x
+  
+  // Transient reasons (4.x.x)
+  DNS_FAILURE: 'dns_failure',                 // 4.4.4
+  DELIVERY_TIMEOUT: 'delivery_timeout',       // 4.4.7
+  CONNECTION_FAILED: 'connection_failed',     // 4.4.1
+  
+  // Other
+  SUPPRESSION_LIST: 'suppression_list',       // On SES suppression list
+  GENERAL_FAILURE: 'general_failure',
+  UNKNOWN: 'unknown',
+} as const;
+
+export const DELIVERY_EVENT_ACTIONS = {
+  NONE: 'none',
+  ADDED_TO_BLOCKLIST: 'added_to_blocklist',
+  NOTIFIED_USER: 'notified_user',
+  SUPPRESSED: 'suppressed',
+} as const;
+
 // Guard Rules table - stores email filtering rules
 export const guardRules = pgTable('guard_rules', {
   id: varchar('id', { length: 255 }).primaryKey(),
@@ -749,3 +860,11 @@ export type SentEmailStatus = typeof SENT_EMAIL_STATUS[keyof typeof SENT_EMAIL_S
 // Guard Rules types
 export type GuardRule = typeof guardRules.$inferSelect;
 export type NewGuardRule = typeof guardRules.$inferInsert;
+
+// Email Delivery Events types
+export type EmailDeliveryEvent = typeof emailDeliveryEvents.$inferSelect;
+export type NewEmailDeliveryEvent = typeof emailDeliveryEvents.$inferInsert;
+export type EmailDeliveryEventType = typeof EMAIL_DELIVERY_EVENT_TYPES[keyof typeof EMAIL_DELIVERY_EVENT_TYPES];
+export type BounceType = typeof BOUNCE_TYPES[keyof typeof BOUNCE_TYPES];
+export type BounceSubType = typeof BOUNCE_SUB_TYPES[keyof typeof BOUNCE_SUB_TYPES];
+export type DeliveryEventAction = typeof DELIVERY_EVENT_ACTIONS[keyof typeof DELIVERY_EVENT_ACTIONS];
