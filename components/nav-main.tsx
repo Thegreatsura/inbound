@@ -36,9 +36,13 @@ export function NavMain({
         <SidebarMenu>
           {items.map((item) => {
             const isActive = isNavigationItemActive(item.url, currentPath)
+            // Check if we're on a sub-page (e.g., /logs/123 when item.url is /logs)
+            const isOnSubPage = isActive && currentPath !== item.url
+            
             return (
               <SidebarMenuItem key={item.title}>
-                {isActive ? (
+                {isActive && !isOnSubPage ? (
+                  // Exact match - non-clickable active state
                   <SidebarMenuButton 
                     tooltip={item.title} 
                     isActive={true}
@@ -47,7 +51,20 @@ export function NavMain({
                     {item.icon && <item.icon className="h-4 w-4" />}
                     <span>{item.title}</span>
                   </SidebarMenuButton>
+                ) : isOnSubPage ? (
+                  // On sub-page - clickable to go back to root
+                  <SidebarMenuButton 
+                    tooltip={`Back to ${item.title}`}
+                    asChild 
+                    isActive={true}
+                  >
+                    <OptimizedLink href={item.url}>
+                      {item.icon && <item.icon className="h-4 w-4" />}
+                      <span>{item.title}</span>
+                    </OptimizedLink>
+                  </SidebarMenuButton>
                 ) : (
+                  // Not active - normal link
                   <SidebarMenuButton 
                     tooltip={item.title} 
                     asChild 

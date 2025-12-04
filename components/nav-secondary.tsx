@@ -26,9 +26,13 @@ export function NavSecondary({
         <SidebarMenu>
           {items.map((item) => {
             const isActive = isNavigationItemActive(item.url, currentPath)
+            // Check if we're on a sub-page (e.g., /admin/tenant/123 when item.url is /admin/tenant)
+            const isOnSubPage = isActive && currentPath !== item.url
+            
             return (
               <SidebarMenuItem key={item.title}>
-                {isActive ? (
+                {isActive && !isOnSubPage ? (
+                  // Exact match - non-clickable active state
                   <SidebarMenuButton 
                     tooltip={item.title}
                     isActive={true}
@@ -37,7 +41,20 @@ export function NavSecondary({
                     {item.icon && <item.icon className="h-4 w-4" />}
                     <span>{item.title}</span>
                   </SidebarMenuButton>
+                ) : isOnSubPage ? (
+                  // On sub-page - clickable to go back to root
+                  <SidebarMenuButton 
+                    asChild 
+                    tooltip={`Back to ${item.title}`}
+                    isActive={true}
+                  >
+                    <OptimizedLink href={item.url} className="flex items-center gap-2">
+                      {item.icon && <item.icon className="h-4 w-4" />}
+                      <span>{item.title}</span>
+                    </OptimizedLink>
+                  </SidebarMenuButton>
                 ) : (
+                  // Not active - normal link
                   <SidebarMenuButton 
                     asChild 
                     tooltip={item.title}
