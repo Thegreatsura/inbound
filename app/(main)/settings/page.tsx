@@ -661,7 +661,7 @@ export default function SettingsPage() {
                     </span>
                   )}
                 </div>
-                <p className="text-sm text-[#52525b] mt-0.5">$10/domain per month</p>
+                <p className="text-sm text-[#52525b] mt-0.5">$3.50/domain per month</p>
               </div>
               <div className="flex items-center gap-2 bg-[#f5f5f4] rounded-lg p-1">
                 <button
@@ -731,8 +731,8 @@ export default function SettingsPage() {
               ) : !hasChanges 
                 ? (hasAnyAddons ? 'No changes' : 'Select add-ons above')
                 : (existingDomainsQuantity > 0 || existingEmailPacksQuantity > 0)
-                  ? `Update subscription · $${(extraDomains * 10) + (extraEmailPacks * 16)}/mo`
-                  : `Add to subscription · $${(extraDomains * 10) + (extraEmailPacks * 16)}/mo`}
+                  ? `Update subscription · $${(extraDomains * 3.5) + (extraEmailPacks * 16)}/mo`
+                  : `Add to subscription · $${(extraDomains * 3.5) + (extraEmailPacks * 16)}/mo`}
             </button>
           </div>
         </section>

@@ -291,7 +291,7 @@ export const extraDomains = product({
 	items: [
 		pricedFeatureItem({
 			feature_id: domains.id,
-			price: 10,
+			price: 3.5,
 			interval: "month",
 			included_usage: 1,
 			billing_units: 1,
