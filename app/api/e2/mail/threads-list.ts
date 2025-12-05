@@ -1,5 +1,6 @@
 import { Elysia, t } from "elysia"
 import { validateAndRateLimit } from "../lib/auth"
+import { getThreadParticipantNames } from "../lib/participants"
 import { db } from "@/lib/db"
 import {
   emailThreads,
@@ -102,6 +103,10 @@ const ThreadItemSchema = t.Object({
   ),
   participant_emails: t.Array(t.String(), {
     description: "Array of all unique email addresses that have participated in this thread",
+  }),
+  participant_names: t.Array(t.String(), {
+    description:
+      "Array of formatted participant names in the format 'First Last <email@domain.com>' or just 'email@domain.com' if no name is available",
   }),
   message_count: t.Number({
     description: "Total number of messages in the thread (both inbound and outbound)",
@@ -490,11 +495,15 @@ export const listThreads = new Elysia().get(
           console.error("Failed to parse participant emails:", e)
         }
 
+        // Get formatted participant names (e.g., "First Last <email@domain.com>")
+        const participantNames = await getThreadParticipantNames(thread.id, userId)
+
         threadItems.push({
           id: thread.id,
           root_message_id: thread.rootMessageId,
           normalized_subject: thread.normalizedSubject,
           participant_emails: participantEmails,
+          participant_names: participantNames,
           message_count: thread.messageCount || 0,
           last_message_at:
             thread.lastMessageAt?.toISOString() || new Date().toISOString(),
