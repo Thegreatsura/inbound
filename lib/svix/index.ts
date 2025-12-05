@@ -223,7 +223,7 @@ export async function getAppPortalUrl(userId: string): Promise<string | null> {
 /**
  * Send a webhook message to all of a user's endpoints
  */
-export async function sendMessage<T extends Record<string, unknown>>(
+export async function sendMessage<T extends object>(
   userId: string,
   eventType: string,
   payload: T,

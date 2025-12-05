@@ -413,7 +413,8 @@ function extractDsnReplyHeaders(rawContent: string): { inReplyTo?: string; refer
   }
   
   // Extract References header (can be multiline)
-  const referencesMatch = headersSection.match(/^References:\s*(.+?)(?=^[A-Za-z-]+:|$)/ims)
+  // Note: Using [\s\S] instead of . with 's' flag for ES2017 compatibility
+  const referencesMatch = headersSection.match(/^References:\s*([\s\S]+?)(?=^[A-Za-z-]+:|$)/im)
   if (referencesMatch) {
     // References can contain multiple message IDs separated by whitespace
     const refsText = referencesMatch[1].replace(/[\r\n\t]+/g, ' ').trim()
