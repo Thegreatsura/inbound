@@ -1,5 +1,4 @@
 import { auth } from "@/lib/auth/auth"
-import { headers } from "next/headers"
 import { Ratelimit } from "@upstash/ratelimit"
 import { Redis } from "@upstash/redis"
 
@@ -78,10 +77,11 @@ export async function validateAndRateLimit(
   try {
     console.log("🔐 Validating request authentication and rate limit")
 
-    // Get session from Better Auth using Next.js headers()
-    // This works because we're still in a Next.js route handler context
+    // Get session from Better Auth using the request headers directly
+    // Using request.headers instead of Next.js headers() to avoid race conditions
+    // in the Elysia context where headers() might not always be properly populated
     const session = await auth.api.getSession({
-      headers: await headers(),
+      headers: request.headers,
     })
 
     // Get API key from Authorization header
