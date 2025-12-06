@@ -37,6 +37,7 @@ import {
   getAgentIdentityArn,
   type TenantSendingInfo,
 } from "@/lib/aws-ses/identity-arn-helper"
+import { checkRecipientsAgainstBlocklist } from "@/lib/email-management/email-blocking"
 
 // Initialize SES client
 const awsRegion = process.env.AWS_REGION || "us-east-2"
@@ -317,6 +318,18 @@ export const sendEmail = new Elysia().post(
         console.log("⚠️ Invalid email format:", email)
         set.status = 400
         return { error: `Invalid email format: ${email}` }
+      }
+    }
+
+    // Check if any recipients are on the blocklist (hard bounces)
+    // This prevents sending to addresses that previously bounced
+    console.log("🔍 Checking recipients against blocklist")
+    const blocklistCheck = await checkRecipientsAgainstBlocklist(allRecipients)
+    if (blocklistCheck.hasBlockedRecipients) {
+      console.log(`🚫 Blocked recipients found: ${blocklistCheck.blockedAddresses.join(", ")}`)
+      set.status = 400
+      return {
+        error: `Cannot send to blocked recipient(s): ${blocklistCheck.blockedAddresses.join(", ")}. These addresses previously bounced.`
       }
     }
 

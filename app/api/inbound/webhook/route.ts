@@ -623,7 +623,10 @@ export async function POST(request: NextRequest) {
           // ========== DSN DETECTION AND BOUNCE TRACKING ==========
           // Check if this is a Delivery Status Notification (bounce/failure notification)
           // These come from MAILER-DAEMON and contain bounce information
+          // DSN emails should be processed for bounce tracking but NOT forwarded/delivered to users
+          let isDsnEmail = false
           if (emailContent && isDsn(emailContent)) {
+            isDsnEmail = true
             console.log(`📬 Webhook - DSN detected for ${recipient}, recording delivery event...`)
             
             try {
@@ -656,12 +659,19 @@ export async function POST(request: NextRequest) {
           }
           // ========== END DSN DETECTION ==========
 
-          // Route email using the new unified routing system (skip routing for blocked emails)
-          // Note: We removed the stale delivery status check here because:
-          // 1. It had a race condition (TOCTOU bug) where status could change after check
-          // 2. The deterministic email ID prevents duplicate email records
-          // 3. The routing layer (routeEmail) should handle duplicate delivery attempts gracefully
-          if (emailStatus === 'blocked') {
+          // Route email using the new unified routing system
+          // Skip routing for:
+          // 1. Blocked emails (sender is on blocklist)
+          // 2. DSN emails (bounce notifications should be recorded but not delivered to users)
+          if (isDsnEmail) {
+            console.log(`📬 Webhook - Skipping routing for DSN email ${structuredEmailId} - bounce already recorded`)
+            
+            // Update processing record to indicate DSN was processed
+            emailProcessingRecord.webhookDelivery = {
+              success: true,
+              error: 'DSN processed - bounce notification not forwarded to user'
+            }
+          } else if (emailStatus === 'blocked') {
             console.log(`🚫 Webhook - Skipping routing for blocked email ${structuredEmailId} from ${mail.source}`)
             
             // Update processing record to indicate blocked

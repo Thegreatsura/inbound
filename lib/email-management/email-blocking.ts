@@ -29,6 +29,49 @@ export async function isEmailBlocked(emailAddress: string): Promise<boolean> {
 }
 
 /**
+ * Check multiple recipients against the blocklist
+ * Returns list of blocked addresses if any are found
+ * This is used before sending/replying/forwarding to prevent sending to bounced addresses
+ */
+export async function checkRecipientsAgainstBlocklist(
+  recipients: string[]
+): Promise<{ hasBlockedRecipients: boolean; blockedAddresses: string[] }> {
+  try {
+    if (!recipients || recipients.length === 0) {
+      return { hasBlockedRecipients: false, blockedAddresses: [] }
+    }
+
+    // Normalize all email addresses
+    const normalizedRecipients = recipients.map(email => {
+      // Extract email from "Name <email@domain.com>" format if needed
+      const match = email.match(/<([^>]+)>/)
+      const extracted = match ? match[1] : email
+      return extracted.toLowerCase().trim()
+    })
+
+    // Query all blocked addresses at once
+    const blockedResults = await db
+      .select({ emailAddress: blockedEmails.emailAddress })
+      .from(blockedEmails)
+
+    // Create a set of blocked addresses for efficient lookup
+    const blockedSet = new Set(blockedResults.map(r => r.emailAddress.toLowerCase()))
+
+    // Find which recipients are blocked
+    const blockedAddresses = normalizedRecipients.filter(email => blockedSet.has(email))
+
+    return {
+      hasBlockedRecipients: blockedAddresses.length > 0,
+      blockedAddresses
+    }
+  } catch (error) {
+    console.error('Error checking recipients against blocklist:', error)
+    // On error, allow sending (don't block due to DB error)
+    return { hasBlockedRecipients: false, blockedAddresses: [] }
+  }
+}
+
+/**
  * Block an email address if it's on a catch-all domain
  * This function only blocks emails from catch-all domains, not manually added email addresses
  */

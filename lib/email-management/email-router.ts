@@ -19,6 +19,7 @@ import { evaluateGuardRules } from '../guard/rule-matcher'
 import { Autumn as autumn } from 'autumn-js'
 import { getOrCreateVerificationToken } from '@/lib/webhooks/verification'
 import { getTenantSendingInfoForDomainOrParent } from '@/lib/aws-ses/identity-arn-helper'
+import { checkRecipientsAgainstBlocklist } from './email-blocking'
 
 // Maximum webhook payload size (5MB safety margin)
 const MAX_WEBHOOK_PAYLOAD_SIZE = 1_000_000
@@ -949,12 +950,47 @@ async function handleEmailForwardEndpoint(
     const parsedEmailData = reconstructParsedEmailData(emailData)
     
     // Determine recipient addresses based on endpoint type
-    const toAddresses = endpoint.type === 'email_group' 
+    let toAddresses: string[] = endpoint.type === 'email_group' 
       ? config.emails 
       : [config.forwardTo]
     
     // Use the original recipient as the from address (e.g., ryan@inbound.new)
     const fromAddress = config.fromAddress || emailData.recipient
+    
+    // 🚫 BLOCKLIST CHECK: Prevent forwarding to addresses that previously bounced
+    // This avoids causing repeated bounces and reputation damage
+    const blocklistCheck = await checkRecipientsAgainstBlocklist(toAddresses)
+    if (blocklistCheck.hasBlockedRecipients) {
+      console.warn(`🚫 handleEmailForwardEndpoint - Found blocked recipient(s) for email ${emailId}: ${blocklistCheck.blockedAddresses.join(', ')}`)
+      
+      // Filter out blocked addresses
+      toAddresses = toAddresses.filter((addr: string) => {
+        const normalizedAddr = addr?.toLowerCase()?.trim()
+        return !blocklistCheck.blockedAddresses.includes(normalizedAddr)
+      })
+      
+      if (toAddresses.length === 0) {
+        // All recipients are blocked
+        console.error(`🚫 handleEmailForwardEndpoint - All forward recipients are blocked, cannot forward email ${emailId}`)
+        await db
+          .update(endpointDeliveries)
+          .set({
+            status: 'failed',
+            lastAttemptAt: new Date(),
+            responseData: JSON.stringify({ 
+              error: 'ALL_RECIPIENTS_BLOCKED',
+              message: `All forward recipients are on the blocklist (previous bounces): ${blocklistCheck.blockedAddresses.join(', ')}`,
+              blockedAddresses: blocklistCheck.blockedAddresses
+            }),
+            updatedAt: new Date()
+          })
+          .where(eq(endpointDeliveries.id, deliveryId))
+        
+        return // Exit without forwarding
+      } else {
+        console.log(`⚠️ handleEmailForwardEndpoint - Skipping ${blocklistCheck.blockedAddresses.length} blocked recipient(s), forwarding to ${toAddresses.length} remaining: ${toAddresses.join(', ')}`)
+      }
+    }
     
     // 🔄 LOOP DETECTION: Prevent forwarding to the same address that received the email
     // This prevents infinite forwarding loops where an endpoint forwards to itself
