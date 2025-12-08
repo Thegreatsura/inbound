@@ -964,8 +964,11 @@ async function handleEmailForwardEndpoint(
       console.warn(`🚫 handleEmailForwardEndpoint - Found blocked recipient(s) for email ${emailId}: ${blocklistCheck.blockedAddresses.join(', ')}`)
       
       // Filter out blocked addresses
+      // Must use same normalization as checkRecipientsAgainstBlocklist: extract from angle brackets + lowercase
       toAddresses = toAddresses.filter((addr: string) => {
-        const normalizedAddr = addr?.toLowerCase()?.trim()
+        const match = addr?.match(/<([^>]+)>/)
+        const extracted = match ? match[1] : addr
+        const normalizedAddr = extracted?.toLowerCase()?.trim()
         return !blocklistCheck.blockedAddresses.includes(normalizedAddr)
       })
       
