@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from 'react'
-import { useAutumn } from "autumn-js/react"
+import { useCustomer } from "autumn-js/react"
 import { useSession } from "@/lib/auth/auth-client"
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
@@ -11,7 +11,7 @@ import { PricingTable, plans } from '@/components/pricing-table'
 
 export default function PricingPage() {
   const { data: session } = useSession()
-  const { attach } = useAutumn()
+  const { attach } = useCustomer()
   const router = useRouter()
   const [isLoading, setIsLoading] = useState<string | null>(null)
   const [currentPlan, setCurrentPlan] = useState<string | null>(null)

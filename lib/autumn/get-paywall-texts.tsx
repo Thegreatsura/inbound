@@ -1,7 +1,7 @@
-import { type CheckFeatureFormattedPreview } from "autumn-js";
+import { type CheckFeaturePreview } from "autumn-js";
 
 export const getPaywallDialogTexts = (
-  preview: CheckFeatureFormattedPreview
+  preview: CheckFeaturePreview
 ) => {
   const { scenario, products, feature_name } = preview;
 

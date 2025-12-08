@@ -4,11 +4,11 @@ import { useState, useEffect } from 'react'
 import { Button } from "@/components/ui/button"
 import CircleCheck from '@/components/icons/circle-check'
 import Loader from "@/components/icons/loader"
-import { useAutumn } from "autumn-js/react"
+import { useCustomer } from "autumn-js/react"
 import { getAutumnCustomer } from '@/app/actions/primary'
 
 export const PricingTable = () => {
-  const { attach } = useAutumn()
+  const { attach } = useCustomer()
   const [isLoading, setIsLoading] = useState<string | null>(null)
   const [currentPlan, setCurrentPlan] = useState<string | null>(null)
 

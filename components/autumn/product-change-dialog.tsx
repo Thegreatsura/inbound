@@ -13,19 +13,18 @@ import {
 } from "@/components/autumn/pricing-dialog";
 
 import { getProductChangeTexts } from "@/lib/autumn/get-product-change-texts";
-import { type CheckProductFormattedPreview } from "autumn-js";
-import { useAutumn, useCustomer } from "autumn-js/react";
+import { type CheckProductPreview } from "autumn-js";
+import { useCustomer } from "autumn-js/react";
 
 export interface ProductChangeDialogProps {
   open: boolean;
   setOpen: (open: boolean) => void;
-  preview: CheckProductFormattedPreview;
+  preview: CheckProductPreview;
   onClick: (options?: any) => Promise<void>;
 }
 
 export default function ProductChangeDialog(params?: ProductChangeDialogProps) {
-  const { attach } = useAutumn();
-  const { customer } = useCustomer();
+  const { customer, attach } = useCustomer();
   const [loading, setLoading] = useState(false);
   const [prepaidTotals, setPrepaidTotals] = useState(0);
   const [optionsInput, setOptionsInput] = useState<

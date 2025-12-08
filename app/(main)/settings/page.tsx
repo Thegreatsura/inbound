@@ -16,7 +16,7 @@ import { updateUserProfile } from '@/app/actions/primary'
 import { Check, ChevronRight, Plus, Minus, LogOut, ExternalLink, Loader2, Fingerprint, Trash2, KeyRound } from 'lucide-react'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { PricingTable, plans } from '@/components/pricing-table'
-import { useAutumn } from 'autumn-js/react'
+import { useCustomer } from 'autumn-js/react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 
 // Passkey type from better-auth
@@ -29,7 +29,7 @@ interface Passkey {
 
 export default function SettingsPage() {
   const { data: session, isPending } = useSession()
-  const { attach } = useAutumn()
+  const { attach } = useCustomer()
   const [isLoading, setIsLoading] = useState(false)
   const [isAddingAddons, setIsAddingAddons] = useState(false)
   const [isUpgradeDialogOpen, setIsUpgradeDialogOpen] = useState(false)

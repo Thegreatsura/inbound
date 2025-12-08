@@ -23,7 +23,7 @@ import Code2 from '@/components/icons/code-2'
 import CirclePlay from '@/components/icons/circle-play'
 import ChevronDown from '@/components/icons/chevron-down'
 import Envelope2 from '@/components/icons/envelope-2'
-import { useAutumn, useCustomer } from 'autumn-js/react'
+import { useCustomer } from 'autumn-js/react'
 import Loader from '@/components/icons/loader'
 
 const UPGRADE_PRODUCT_ID = "inbound_default_test"
@@ -37,8 +37,7 @@ export default function OnboardingPage() {
   const [isSkipping, setIsSkipping] = useState(false)
 
   // Autumn billing hooks
-  const { customer, isLoading: isCustomerLoading } = useCustomer()
-  const { attach } = useAutumn()
+  const { customer, isLoading: isCustomerLoading, attach } = useCustomer()
   const [isUpgrading, setIsUpgrading] = useState(false)
 
   // Step state

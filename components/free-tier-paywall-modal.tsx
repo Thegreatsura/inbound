@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { usePathname } from "next/navigation"
-import { useAutumn, useCustomer } from "autumn-js/react"
+import { useCustomer } from "autumn-js/react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import Loader from "@/components/icons/loader"
@@ -17,8 +17,7 @@ const PAYWALL_EXCLUDED_PATHS = ["/onboarding", "/settings"]
 
 export function FreeTierPaywallModal() {
   const pathname = usePathname()
-  const { customer, isLoading: isCustomerLoading } = useCustomer()
-  const { attach } = useAutumn()
+  const { customer, isLoading: isCustomerLoading, attach } = useCustomer()
   const [isUpgrading, setIsUpgrading] = useState(false)
 
   // Determine if user is on free tier
