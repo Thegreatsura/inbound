@@ -24,19 +24,14 @@ export const FreePlanSunsetFinalEmail = ({
 		<Head />
 		<Preview>Final notice: Your account will be deleted {deletionDate}</Preview>
 		<Tailwind>
-			<Body
-				className="bg-white font-sans text-neutral-800"
-				style={{ margin: "32px" }}
-			>
-				<Container
-					style={{ maxWidth: "480px", margin: "0", padding: "0 16px" }}
-				>
+			<Body className="font-sans">
+				<Container style={{ maxWidth: "480px" }}>
 					<Text className="text-base font-semibold leading-7">
 						Final notice: Your account will be deleted {deletionDate}
 					</Text>
 
 					<Text className="text-base leading-7">
-						Hi {userFirstname}, this is your last chance to save your account.
+						Hi {userFirstname}, this is your last chance to upgrade your account.
 					</Text>
 
 					<Text className="text-base leading-7">
@@ -78,7 +73,7 @@ export const FreePlanSunsetFinalEmail = ({
 							href="https://inbound.new/settings/billing?utm_source=email&utm_medium=transactional&utm_campaign=free_plan_sunset_final"
 							className="text-violet-600 underline"
 						>
-							Save My Account — $4/month →
+							Upgrade My Account — $4/month
 						</Link>
 					</Text>
 
@@ -87,6 +82,16 @@ export const FreePlanSunsetFinalEmail = ({
 					</Text>
 
 					<Text className="mt-8 text-sm text-neutral-500">— inbound</Text>
+
+					<Text className="mt-6 text-xs text-neutral-400">
+						<Link
+							href="https://inbound.new/unsubscribe"
+							className="text-neutral-400 underline"
+						>
+							Unsubscribe
+						</Link>{" "}
+						from these emails
+					</Text>
 				</Container>
 			</Body>
 		</Tailwind>

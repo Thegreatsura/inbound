@@ -61,6 +61,7 @@ next-env.d.ts
 .env.sentry-build-plugin
 
 scripts/email-parsing/emails/
+scripts/email-campaign-progress.json
 
 
 email-processor.js

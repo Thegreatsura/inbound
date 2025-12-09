@@ -124,7 +124,7 @@
     "framer-motion": "^12.14.0",
     "glob": "^11.0.3",
     "gray-matter": "^4.0.3",
-    "inboundemail": "^0.15.0",
+    "inboundemail": "^0.18.0",
     "lucide-react": "^0.511.0",
     "mailparser": "^3.7.3",
     "mini-svg-data-uri": "^1.4.4",

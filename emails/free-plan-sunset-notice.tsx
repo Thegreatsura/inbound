@@ -26,13 +26,8 @@ export const FreePlanSunsetNoticeEmail = ({
 			Your free plan has been downgraded — upgrade to restore access
 		</Preview>
 		<Tailwind>
-			<Body
-				className="bg-white font-sans text-neutral-800"
-				style={{ margin: "32px" }}
-			>
-				<Container
-					style={{ maxWidth: "480px", margin: "0", padding: "0 16px" }}
-				>
+			<Body className="font-sans">
+				<Container style={{ maxWidth: "480px" }}>
 					<Text className="text-base font-semibold leading-7">
 						Important: Your plan has changed
 					</Text>
@@ -89,7 +84,7 @@ export const FreePlanSunsetNoticeEmail = ({
 							href="https://inbound.new/settings/billing?utm_source=email&utm_medium=transactional&utm_campaign=free_plan_sunset_notice"
 							className="text-violet-600 underline"
 						>
-							Upgrade Now →
+							Upgrade My Account — $4/month
 						</Link>
 					</Text>
 
@@ -105,6 +100,16 @@ export const FreePlanSunsetNoticeEmail = ({
 					</Text>
 
 					<Text className="mt-8 text-sm text-neutral-500">— inbound</Text>
+
+					<Text className="mt-6 text-xs text-neutral-400">
+						<Link
+							href="https://inbound.new/unsubscribe"
+							className="text-neutral-400 underline"
+						>
+							Unsubscribe
+						</Link>{" "}
+						from these emails
+					</Text>
 				</Container>
 			</Body>
 		</Tailwind>
