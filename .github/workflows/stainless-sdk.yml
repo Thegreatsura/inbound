@@ -48,8 +48,8 @@ jobs:
 
       - name: Fetch OpenAPI spec from live API
         run: |
-          echo "Fetching OpenAPI spec from ${{ env.API_BASE_URL }}/api/e2/openapi.json"
-          curl -sSf -o openapi.json "${{ env.API_BASE_URL }}/api/e2/openapi.json"
+          echo "Fetching OpenAPI spec from ${{ env.API_BASE_URL }}/openapi.json"
+          curl -sSf -o openapi.json "${{ env.API_BASE_URL }}/openapi.json"
           echo "OpenAPI spec fetched successfully"
           
           echo "=== Spec Summary ==="
