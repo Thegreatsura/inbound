@@ -197,125 +197,127 @@ https://inbound.new/api/e2
 
 `,
 				},
-				webhooks: {
-					emailReceived: {
-						post: {
-							summary: "Email Received",
-							description: webhookStructureDoc,
-							tags: ["Webhooks"],
-							requestBody: {
-								description: "Webhook payload sent when an email is received",
-								content: {
-									"application/json": {
-										schema: {
-											type: "object",
-											properties: {
-												event: {
-													type: "string",
-													example: "email.received",
-													description: "The event type",
-												},
-												timestamp: {
-													type: "string",
-													format: "date-time",
-													example: "2024-01-15T10:30:00Z",
-												},
-												email: {
-													type: "object",
-													properties: {
-														id: {
-															type: "string",
-															example: "inbnd_abc123def456ghi",
-														},
-														messageId: {
-															type: "string",
-															example: "<unique-id@sender.com>",
-														},
-														subject: {
-															type: "string",
-															example: "Help with my order",
-														},
-														recipient: {
-															type: "string",
-															example: "support@yourdomain.com",
-														},
-														from: {
-															type: "object",
-															properties: {
-																text: { type: "string" },
-																addresses: {
-																	type: "array",
-																	items: {
-																		type: "object",
-																		properties: {
-																			name: { type: "string", nullable: true },
-																			address: { type: "string" },
-																		},
-																	},
-																},
-															},
-														},
-														to: {
-															type: "object",
-															properties: {
-																text: { type: "string" },
-																addresses: {
-																	type: "array",
-																	items: {
-																		type: "object",
-																		properties: {
-																			name: { type: "string", nullable: true },
-																			address: { type: "string" },
-																		},
-																	},
-																},
-															},
-														},
-														parsedData: {
-															type: "object",
-															properties: {
-																textBody: { type: "string", nullable: true },
-																htmlBody: { type: "string", nullable: true },
-																attachments: {
-																	type: "array",
-																	items: {
-																		type: "object",
-																		properties: {
-																			filename: { type: "string" },
-																			contentType: { type: "string" },
-																			size: { type: "integer" },
-																			downloadUrl: { type: "string" },
-																		},
-																	},
-																},
-															},
-														},
-													},
-												},
-												endpoint: {
-													type: "object",
-													properties: {
-														id: { type: "string", example: "endp_xyz789" },
-														name: {
-															type: "string",
-															example: "Support Webhook",
-														},
-														type: { type: "string", example: "webhook" },
-													},
-												},
-											},
-										},
-									},
-								},
-							},
-							responses: {
-								"200": {
-									description: "Webhook processed successfully",
-								},
-							},
-						},
-					},
-				},
+				// NOTE: webhooks field commented out because it requires OpenAPI 3.1+
+				// but @elysiajs/openapi generates 3.0.3. Webhook docs are in docs/webhook.mdx
+				// webhooks: {
+				// 	emailReceived: {
+				// 		post: {
+				// 			summary: "Email Received",
+				// 			description: webhookStructureDoc,
+				// 			tags: ["Webhooks"],
+				// 			requestBody: {
+				// 				description: "Webhook payload sent when an email is received",
+				// 				content: {
+				// 					"application/json": {
+				// 						schema: {
+				// 							type: "object",
+				// 							properties: {
+				// 								event: {
+				// 									type: "string",
+				// 									example: "email.received",
+				// 									description: "The event type",
+				// 								},
+				// 								timestamp: {
+				// 									type: "string",
+				// 									format: "date-time",
+				// 									example: "2024-01-15T10:30:00Z",
+				// 								},
+				// 								email: {
+				// 									type: "object",
+				// 									properties: {
+				// 										id: {
+				// 											type: "string",
+				// 											example: "inbnd_abc123def456ghi",
+				// 										},
+				// 										messageId: {
+				// 											type: "string",
+				// 											example: "<unique-id@sender.com>",
+				// 										},
+				// 										subject: {
+				// 											type: "string",
+				// 											example: "Help with my order",
+				// 										},
+				// 										recipient: {
+				// 											type: "string",
+				// 											example: "support@yourdomain.com",
+				// 										},
+				// 										from: {
+				// 											type: "object",
+				// 											properties: {
+				// 												text: { type: "string" },
+				// 												addresses: {
+				// 													type: "array",
+				// 													items: {
+				// 														type: "object",
+				// 														properties: {
+				// 															name: { type: "string", nullable: true },
+				// 															address: { type: "string" },
+				// 														},
+				// 													},
+				// 												},
+				// 											},
+				// 										},
+				// 										to: {
+				// 											type: "object",
+				// 											properties: {
+				// 												text: { type: "string" },
+				// 												addresses: {
+				// 													type: "array",
+				// 													items: {
+				// 														type: "object",
+				// 														properties: {
+				// 															name: { type: "string", nullable: true },
+				// 															address: { type: "string" },
+				// 														},
+				// 													},
+				// 												},
+				// 											},
+				// 										},
+				// 										parsedData: {
+				// 											type: "object",
+				// 											properties: {
+				// 												textBody: { type: "string", nullable: true },
+				// 												htmlBody: { type: "string", nullable: true },
+				// 												attachments: {
+				// 													type: "array",
+				// 													items: {
+				// 														type: "object",
+				// 														properties: {
+				// 															filename: { type: "string" },
+				// 															contentType: { type: "string" },
+				// 															size: { type: "integer" },
+				// 															downloadUrl: { type: "string" },
+				// 														},
+				// 													},
+				// 												},
+				// 											},
+				// 										},
+				// 									},
+				// 								},
+				// 								endpoint: {
+				// 									type: "object",
+				// 									properties: {
+				// 										id: { type: "string", example: "endp_xyz789" },
+				// 										name: {
+				// 											type: "string",
+				// 											example: "Support Webhook",
+				// 										},
+				// 										type: { type: "string", example: "webhook" },
+				// 									},
+				// 								},
+				// 							},
+				// 						},
+				// 					},
+				// 				},
+				// 			},
+				// 			responses: {
+				// 				"200": {
+				// 					description: "Webhook processed successfully",
+				// 				},
+				// 			},
+				// 		},
+				// 	},
+				// },
 				tags: [
 					{
 						name: "Webhooks",
