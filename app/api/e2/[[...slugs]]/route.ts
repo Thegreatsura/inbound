@@ -38,7 +38,7 @@ When emails arrive at your configured addresses, Inbound sends a webhook to your
 We provide a fully typed webhook payload for you to use in your endpoints:
 
 \`\`\`typescript
-import type { InboundWebhookPayload } from '@inboundemail/sdk'
+import type { InboundWebhookPayload } from 'inboundemail'
 \`\`\`
 
 ### Example Payload
@@ -116,7 +116,7 @@ Every webhook request includes security headers:
 ### Verifying with the SDK
 
 \`\`\`typescript
-import { Inbound, verifyWebhookFromHeaders } from '@inboundemail/sdk'
+import { Inbound, verifyWebhookFromHeaders } from 'inboundemail'
 
 const inbound = new Inbound(process.env.INBOUND_API_KEY!)
 

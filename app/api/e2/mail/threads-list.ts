@@ -1,15 +1,15 @@
-import { Elysia, t } from "elysia"
-import { validateAndRateLimit } from "../lib/auth"
-import { getThreadParticipantNames } from "../lib/participants"
-import { db } from "@/lib/db"
+import { Elysia, t } from "elysia";
+import { validateAndRateLimit } from "../lib/auth";
+import { getThreadParticipantNames } from "../lib/participants";
+import { db } from "@/lib/db";
 import {
   emailThreads,
   structuredEmails,
   sentEmails,
   emailDomains,
   emailAddresses,
-} from "@/lib/db/schema"
-import { eq, and, desc, sql, or, like } from "drizzle-orm"
+} from "@/lib/db/schema";
+import { eq, and, desc, sql, or, like } from "drizzle-orm";
 
 // Query parameters schema with full OpenAPI descriptions
 const ListThreadsQuerySchema = t.Object({
@@ -51,13 +51,14 @@ const ListThreadsQuerySchema = t.Object({
       default: "false",
     })
   ),
-})
+});
 
 // Latest message schema with full descriptions
 const LatestMessageSchema = t.Object({
   id: t.String({ description: "Unique identifier of the message" }),
   type: t.Union([t.Literal("inbound"), t.Literal("outbound")], {
-    description: "Whether the message was received (inbound) or sent (outbound)",
+    description:
+      "Whether the message was received (inbound) or sent (outbound)",
   }),
   subject: t.Optional(
     t.Nullable(t.String({ description: "Subject line of the message" }))
@@ -85,7 +86,7 @@ const LatestMessageSchema = t.Object({
       })
     )
   ),
-})
+});
 
 // Thread item schema with full descriptions
 const ThreadItemSchema = t.Object({
@@ -102,24 +103,25 @@ const ThreadItemSchema = t.Object({
     )
   ),
   participant_emails: t.Array(t.String(), {
-    description: "Array of all unique email addresses that have participated in this thread",
+    description:
+      "Array of all unique email addresses that have participated in this thread",
   }),
   participant_names: t.Array(t.String(), {
     description:
       "Array of formatted participant names in the format 'First Last <email@domain.com>' or just 'email@domain.com' if no name is available",
   }),
   message_count: t.Number({
-    description: "Total number of messages in the thread (both inbound and outbound)",
+    description:
+      "Total number of messages in the thread (both inbound and outbound)",
   }),
   last_message_at: t.String({
     description: "ISO 8601 timestamp of the most recent message in the thread",
   }),
   created_at: t.String({
-    description: "ISO 8601 timestamp when the thread was created (first message received)",
+    description:
+      "ISO 8601 timestamp when the thread was created (first message received)",
   }),
-  latest_message: t.Optional(
-    t.Nullable(LatestMessageSchema)
-  ),
+  latest_message: t.Optional(t.Nullable(LatestMessageSchema)),
   has_unread: t.Boolean({
     description: "Whether the thread has any unread inbound messages",
   }),
@@ -131,12 +133,13 @@ const ThreadItemSchema = t.Object({
       description: "Number of unread messages in the thread",
     })
   ),
-})
+});
 
 // Response schemas with full descriptions
 const ListThreadsResponse = t.Object({
   threads: t.Array(ThreadItemSchema, {
-    description: "Array of thread objects matching the query, sorted by last message date (newest first)",
+    description:
+      "Array of thread objects matching the query, sorted by last message date (newest first)",
   }),
   pagination: t.Object(
     {
@@ -157,26 +160,28 @@ const ListThreadsResponse = t.Object({
   ),
   filters: t.Object(
     {
-      search: t.Optional(
-        t.String({ description: "Applied search query" })
-      ),
+      search: t.Optional(t.String({ description: "Applied search query" })),
       unread_only: t.Optional(
         t.Boolean({ description: "Whether filtering for unread threads only" })
       ),
       domain: t.Optional(
-        t.String({ description: "Applied domain filter (resolved domain name)" })
+        t.String({
+          description: "Applied domain filter (resolved domain name)",
+        })
       ),
       address: t.Optional(
-        t.String({ description: "Applied address filter (resolved email address)" })
+        t.String({
+          description: "Applied address filter (resolved email address)",
+        })
       ),
     },
     { description: "Applied filters for this query" }
   ),
-})
+});
 
 const ListThreadsErrorResponse = t.Object({
   error: t.String({ description: "Error message describing what went wrong" }),
-})
+});
 
 // Helper to get latest message for a thread
 async function getLatestMessageForThread(threadId: string, userId: string) {
@@ -200,7 +205,7 @@ async function getLatestMessageForThread(threadId: string, userId: string) {
       )
     )
     .orderBy(desc(structuredEmails.threadPosition))
-    .limit(1)
+    .limit(1);
 
   // Get latest outbound message
   const latestOutbound = await db
@@ -218,20 +223,22 @@ async function getLatestMessageForThread(threadId: string, userId: string) {
       and(eq(sentEmails.threadId, threadId), eq(sentEmails.userId, userId))
     )
     .orderBy(desc(sentEmails.threadPosition))
-    .limit(1)
+    .limit(1);
 
-  const inbound = latestInbound[0]
-  const outbound = latestOutbound[0]
+  const inbound = latestInbound[0];
+  const outbound = latestOutbound[0];
 
-  if (!inbound && !outbound) return null
+  if (!inbound && !outbound) return null;
 
-  const inboundPosition = inbound?.threadPosition || 0
-  const outboundPosition = outbound?.threadPosition || 0
+  const inboundPosition = inbound?.threadPosition || 0;
+  const outboundPosition = outbound?.threadPosition || 0;
 
   if (outboundPosition > inboundPosition && outbound) {
-    let attachments: any[] = []
+    let attachments: any[] = [];
     try {
-      attachments = outbound.attachments ? JSON.parse(outbound.attachments) : []
+      attachments = outbound.attachments
+        ? JSON.parse(outbound.attachments)
+        : [];
     } catch (e) {}
 
     return {
@@ -245,22 +252,22 @@ async function getLatestMessageForThread(threadId: string, userId: string) {
       is_read: true,
       has_attachments: attachments.length > 0,
       date: outbound.sentAt?.toISOString() || null,
-    }
+    };
   } else if (inbound) {
-    let fromText = "Unknown Sender"
+    let fromText = "Unknown Sender";
     try {
       if (inbound.fromData) {
-        const fromParsed = JSON.parse(inbound.fromData)
+        const fromParsed = JSON.parse(inbound.fromData);
         fromText =
           fromParsed.text ||
           fromParsed.addresses?.[0]?.address ||
-          "Unknown Sender"
+          "Unknown Sender";
       }
     } catch (e) {}
 
-    let attachments: any[] = []
+    let attachments: any[] = [];
     try {
-      attachments = inbound.attachments ? JSON.parse(inbound.attachments) : []
+      attachments = inbound.attachments ? JSON.parse(inbound.attachments) : [];
     } catch (e) {}
 
     return {
@@ -274,10 +281,10 @@ async function getLatestMessageForThread(threadId: string, userId: string) {
       is_read: inbound.isRead || false,
       has_attachments: attachments.length > 0,
       date: inbound.date?.toISOString() || null,
-    }
+    };
   }
 
-  return null
+  return null;
 }
 
 // Get unread count for a thread
@@ -294,27 +301,27 @@ async function getThreadUnreadCount(
         eq(structuredEmails.userId, userId),
         eq(structuredEmails.isRead, false)
       )
-    )
+    );
 
-  return Number(result[0]?.count || 0)
+  return Number(result[0]?.count || 0);
 }
 
 export const listThreads = new Elysia().get(
   "/mail/threads",
   async ({ request, query, set }) => {
-    console.log("🧵 GET /api/e2/mail/threads - Starting request")
+    console.log("🧵 GET /api/e2/mail/threads - Starting request");
 
     // Auth & rate limit validation
-    const userId = await validateAndRateLimit(request, set)
-    console.log("✅ Authentication successful for userId:", userId)
+    const userId = await validateAndRateLimit(request, set);
+    console.log("✅ Authentication successful for userId:", userId);
 
     // Parse query parameters
-    const limit = Math.min(parseInt(query.limit || "25"), 100)
-    const cursor = query.cursor
-    const search = query.search?.trim()
-    const unreadOnly = query.unread === "true"
-    const domainFilter = query.domain
-    const addressFilter = query.address
+    const limit = Math.min(parseInt(query.limit || "25"), 100);
+    const cursor = query.cursor;
+    const search = query.search?.trim();
+    const unreadOnly = query.unread === "true";
+    const domainFilter = query.domain;
+    const addressFilter = query.address;
 
     console.log("📋 Query params:", {
       limit,
@@ -323,19 +330,19 @@ export const listThreads = new Elysia().get(
       unreadOnly,
       domainFilter,
       addressFilter,
-    })
+    });
 
     // Validate limit
     if (limit < 1 || limit > 100) {
-      set.status = 400
-      return { error: "Limit must be between 1 and 100" }
+      set.status = 400;
+      return { error: "Limit must be between 1 and 100" };
     }
 
     // Build the base query conditions
-    const conditions: any[] = [eq(emailThreads.userId, userId)]
+    const conditions: any[] = [eq(emailThreads.userId, userId)];
 
     // Resolve and apply domain filter
-    let resolvedDomain: string | null = null
+    let resolvedDomain: string | null = null;
     if (domainFilter) {
       const domain = await db
         .select()
@@ -349,17 +356,17 @@ export const listThreads = new Elysia().get(
             )
           )
         )
-        .limit(1)
+        .limit(1);
 
       // Use resolved domain or raw filter value
-      resolvedDomain = domain.length > 0 ? domain[0].domain : domainFilter
+      resolvedDomain = domain.length > 0 ? domain[0].domain : domainFilter;
       conditions.push(
         like(emailThreads.participantEmails, `%@${resolvedDomain}%`)
-      )
+      );
     }
 
     // Resolve and apply address filter
-    let resolvedAddress: string | null = null
+    let resolvedAddress: string | null = null;
     if (addressFilter) {
       const address = await db
         .select()
@@ -373,13 +380,13 @@ export const listThreads = new Elysia().get(
             )
           )
         )
-        .limit(1)
+        .limit(1);
 
       // Use resolved address or raw filter value
-      resolvedAddress = address.length > 0 ? address[0].address : addressFilter
+      resolvedAddress = address.length > 0 ? address[0].address : addressFilter;
       conditions.push(
         like(emailThreads.participantEmails, `%${resolvedAddress}%`)
-      )
+      );
     }
 
     // Add search condition
@@ -389,7 +396,7 @@ export const listThreads = new Elysia().get(
           like(emailThreads.normalizedSubject, `%${search.toLowerCase()}%`),
           like(emailThreads.participantEmails, `%${search.toLowerCase()}%`)
         )
-      )
+      );
     }
 
     // Cursor-based pagination
@@ -398,51 +405,53 @@ export const listThreads = new Elysia().get(
         .select({ lastMessageAt: emailThreads.lastMessageAt })
         .from(emailThreads)
         .where(eq(emailThreads.id, cursor))
-        .limit(1)
+        .limit(1);
 
       if (cursorThread.length > 0 && cursorThread[0].lastMessageAt) {
         conditions.push(
           sql`${emailThreads.lastMessageAt} < ${cursorThread[0].lastMessageAt}`
-        )
+        );
       }
     }
 
     const whereCondition =
-      conditions.length > 1 ? and(...conditions) : conditions[0]
+      conditions.length > 1 ? and(...conditions) : conditions[0];
 
     // Build response with latest message previews
-    const threadItems: any[] = []
-    let hasMore = false
-    
+    const threadItems: any[] = [];
+    let hasMore = false;
+
     // When unreadOnly is true, we need to fetch more threads since some will be filtered out
     // Fetch in batches until we have enough threads or run out of results
-    const batchSize = unreadOnly ? Math.max(limit * 3, 50) : limit + 1
-    let currentCursor = cursor
-    let totalFetched = 0
-    const maxIterations = 10 // Safety limit to prevent infinite loops
-    let iterations = 0
+    const batchSize = unreadOnly ? Math.max(limit * 3, 50) : limit + 1;
+    let currentCursor = cursor;
+    let totalFetched = 0;
+    const maxIterations = 10; // Safety limit to prevent infinite loops
+    let iterations = 0;
 
     while (threadItems.length < limit && iterations < maxIterations) {
-      iterations++
-      
+      iterations++;
+
       // Build cursor condition for this batch
-      const batchConditions = [...conditions]
+      const batchConditions = [...conditions];
       if (currentCursor && iterations > 1) {
         const cursorThread = await db
           .select({ lastMessageAt: emailThreads.lastMessageAt })
           .from(emailThreads)
           .where(eq(emailThreads.id, currentCursor))
-          .limit(1)
+          .limit(1);
 
         if (cursorThread.length > 0 && cursorThread[0].lastMessageAt) {
           batchConditions.push(
             sql`${emailThreads.lastMessageAt} < ${cursorThread[0].lastMessageAt}`
-          )
+          );
         }
       }
 
       const batchWhereCondition =
-        batchConditions.length > 1 ? and(...batchConditions) : batchConditions[0]
+        batchConditions.length > 1
+          ? and(...batchConditions)
+          : batchConditions[0];
 
       // Get threads batch
       const threads = await db
@@ -458,45 +467,53 @@ export const listThreads = new Elysia().get(
         .from(emailThreads)
         .where(batchWhereCondition)
         .orderBy(desc(emailThreads.lastMessageAt))
-        .limit(batchSize)
+        .limit(batchSize);
 
-      totalFetched += threads.length
-      console.log(`📊 Batch ${iterations}: Found ${threads.length} threads (total fetched: ${totalFetched})`)
+      totalFetched += threads.length;
+      console.log(
+        `📊 Batch ${iterations}: Found ${threads.length} threads (total fetched: ${totalFetched})`
+      );
 
       // No more threads available
       if (threads.length === 0) {
-        hasMore = false
-        break
+        hasMore = false;
+        break;
       }
 
       // Process threads
       for (const thread of threads) {
         if (threadItems.length >= limit) {
-          hasMore = true
-          break
+          hasMore = true;
+          break;
         }
 
-        const latestMessage = await getLatestMessageForThread(thread.id, userId)
-        const unreadCount = await getThreadUnreadCount(thread.id, userId)
-        const hasUnread = unreadCount > 0
+        const latestMessage = await getLatestMessageForThread(
+          thread.id,
+          userId
+        );
+        const unreadCount = await getThreadUnreadCount(thread.id, userId);
+        const hasUnread = unreadCount > 0;
 
         // Apply unread filter
         if (unreadOnly && !hasUnread) {
-          continue
+          continue;
         }
 
         // Parse participant emails
-        let participantEmails: string[] = []
+        let participantEmails: string[] = [];
         try {
           participantEmails = thread.participantEmails
             ? JSON.parse(thread.participantEmails)
-            : []
+            : [];
         } catch (e) {
-          console.error("Failed to parse participant emails:", e)
+          console.error("Failed to parse participant emails:", e);
         }
 
         // Get formatted participant names (e.g., "First Last <email@domain.com>")
-        const participantNames = await getThreadParticipantNames(thread.id, userId)
+        const participantNames = await getThreadParticipantNames(
+          thread.id,
+          userId
+        );
 
         threadItems.push({
           id: thread.id,
@@ -513,26 +530,26 @@ export const listThreads = new Elysia().get(
           has_unread: hasUnread,
           unread_count: unreadCount,
           is_archived: false, // TODO: Implement archiving
-        })
+        });
       }
 
       // If we got fewer threads than batch size, there are no more
       if (threads.length < batchSize) {
-        hasMore = threadItems.length >= limit && threads.length === batchSize
-        break
+        hasMore = threadItems.length >= limit && threads.length === batchSize;
+        break;
       }
 
       // Update cursor for next batch
-      currentCursor = threads[threads.length - 1].id
+      currentCursor = threads[threads.length - 1].id;
     }
 
     // Determine next cursor based on the last thread we actually returned
     const nextCursor =
       hasMore && threadItems.length > 0
         ? threadItems[threadItems.length - 1].id
-        : null
+        : null;
 
-    console.log(`✅ Successfully retrieved ${threadItems.length} threads`)
+    console.log(`✅ Successfully retrieved ${threadItems.length} threads`);
 
     return {
       threads: threadItems,
@@ -547,7 +564,7 @@ export const listThreads = new Elysia().get(
         domain: resolvedDomain || undefined,
         address: resolvedAddress || undefined,
       },
-    }
+    };
   },
   {
     query: ListThreadsQuerySchema,
@@ -565,24 +582,8 @@ export const listThreads = new Elysia().get(
 **What is a Thread?**
 A thread groups related emails together based on the In-Reply-To and References headers, similar to how Gmail groups conversations. Each thread contains both inbound (received) and outbound (sent) messages.
 
-**Filtering:**
-- \`domain\` - Filter by domain ID or name (e.g., 'example.com'). Returns threads where any participant matches the domain.
-- \`address\` - Filter by email address (e.g., 'user@example.com'). Returns threads where the address is a participant.
-- \`search\` - Search in subject lines and participant emails.
-- \`unread\` - Set to 'true' to only return threads with unread messages.
-
-**Pagination:**
-Uses cursor-based pagination for efficient infinite scroll. Pass \`pagination.next_cursor\` from the response as the \`cursor\` parameter to get the next page.
-
-**Response:**
-Each thread includes:
-- Thread metadata (subject, participants, message count)
-- \`latest_message\` - Preview of the most recent message (inbound or outbound)
-- \`has_unread\` - Whether there are unread inbound messages
-- \`unread_count\` - Number of unread messages
-
 **Use with /mail/threads/:id:**
 Use this endpoint to list threads, then use \`GET /mail/threads/:id\` to fetch all messages in a specific thread.`,
     },
   }
-)
+);

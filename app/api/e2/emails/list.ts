@@ -1,14 +1,14 @@
-import { Elysia, t } from "elysia"
-import { validateAndRateLimit } from "../lib/auth"
-import { db } from "@/lib/db"
+import { Elysia, t } from "elysia";
+import { validateAndRateLimit } from "../lib/auth";
+import { db } from "@/lib/db";
 import {
   sentEmails,
   structuredEmails,
   scheduledEmails,
   emailDomains,
   emailAddresses,
-} from "@/lib/db/schema"
-import { eq, and, desc, sql, or, like, gte } from "drizzle-orm"
+} from "@/lib/db/schema";
+import { eq, and, desc, sql, or, like, gte } from "drizzle-orm";
 
 // Query parameters schema with full OpenAPI descriptions
 const ListEmailsQuerySchema = t.Object({
@@ -94,7 +94,7 @@ const ListEmailsQuerySchema = t.Object({
       default: "0",
     })
   ),
-})
+});
 
 // Email item schema with full OpenAPI descriptions
 const EmailItemSchema = t.Object({
@@ -110,9 +110,13 @@ const EmailItemSchema = t.Object({
   from_name: t.Optional(
     t.Nullable(t.String({ description: "Sender display name if available" }))
   ),
-  to: t.Array(t.String(), { description: "Array of recipient email addresses" }),
+  to: t.Array(t.String(), {
+    description: "Array of recipient email addresses",
+  }),
   cc: t.Optional(
-    t.Array(t.String(), { description: "Array of CC recipient email addresses" })
+    t.Array(t.String(), {
+      description: "Array of CC recipient email addresses",
+    })
   ),
   subject: t.String({ description: "Email subject line" }),
   preview: t.Optional(
@@ -137,7 +141,8 @@ const EmailItemSchema = t.Object({
   scheduled_at: t.Optional(
     t.Nullable(
       t.String({
-        description: "ISO 8601 timestamp when the email is scheduled to be sent",
+        description:
+          "ISO 8601 timestamp when the email is scheduled to be sent",
       })
     )
   ),
@@ -173,7 +178,7 @@ const EmailItemSchema = t.Object({
       })
     )
   ),
-})
+});
 
 // Response schemas
 const ListEmailsResponse = t.Object({
@@ -204,84 +209,87 @@ const ListEmailsResponse = t.Object({
     },
     { description: "Applied filters for this query" }
   ),
-})
+});
 
 const ListEmailsErrorResponse = t.Object({
   error: t.String({ description: "Error message describing what went wrong" }),
-})
+});
 
 // Helper to parse JSON fields safely
 function parseJsonField<T>(field: string | null, fallback: T): T {
-  if (!field) return fallback
+  if (!field) return fallback;
   try {
-    return JSON.parse(field)
+    return JSON.parse(field);
   } catch {
-    return fallback
+    return fallback;
   }
 }
 
-function parseFromData(field: string | null): { address: string; name: string | null } {
-  if (!field) return { address: "unknown", name: null }
+function parseFromData(field: string | null): {
+  address: string;
+  name: string | null;
+} {
+  if (!field) return { address: "unknown", name: null };
   try {
-    const parsed = JSON.parse(field)
+    const parsed = JSON.parse(field);
     return {
       address: parsed?.addresses?.[0]?.address || parsed?.text || "unknown",
       name: parsed?.addresses?.[0]?.name || null,
-    }
+    };
   } catch {
-    return { address: "unknown", name: null }
+    return { address: "unknown", name: null };
   }
 }
 
 function parseAddressesFromData(field: string | null): string[] {
-  if (!field) return []
+  if (!field) return [];
   try {
-    const parsed = JSON.parse(field)
-    return parsed?.addresses?.map((a: any) => a.address).filter(Boolean) || []
+    const parsed = JSON.parse(field);
+    return parsed?.addresses?.map((a: any) => a.address).filter(Boolean) || [];
   } catch {
-    return []
+    return [];
   }
 }
 
 // Calculate time threshold from time_range parameter
 function getTimeThreshold(timeRange: string): Date | null {
-  if (timeRange === "all") return null
+  if (timeRange === "all") return null;
 
-  const now = new Date()
+  const now = new Date();
   switch (timeRange) {
     case "1h":
-      return new Date(now.getTime() - 1 * 60 * 60 * 1000)
+      return new Date(now.getTime() - 1 * 60 * 60 * 1000);
     case "24h":
-      return new Date(now.getTime() - 24 * 60 * 60 * 1000)
+      return new Date(now.getTime() - 24 * 60 * 60 * 1000);
     case "7d":
-      return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+      return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     case "30d":
-      return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+      return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     case "90d":
-      return new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000)
+      return new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
     default:
-      return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+      return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
   }
 }
 
 export const listEmails = new Elysia().get(
   "/emails",
   async ({ request, query, set }) => {
-    console.log("📧 GET /api/e2/emails - Starting request")
+    console.log("📧 GET /api/e2/emails - Starting request");
 
     // Auth & rate limit validation
-    const userId = await validateAndRateLimit(request, set)
-    console.log("✅ Authentication successful for userId:", userId)
+    const userId = await validateAndRateLimit(request, set);
+    console.log("✅ Authentication successful for userId:", userId);
 
     // Parse query parameters
-    const type = query.type || "all"
-    const status = query.status || "all"
-    const timeRange = query.time_range || "30d"
-    const searchQuery = query.search?.trim()
-    const limit = Math.min(parseInt(query.limit || "50"), 100)
-    const offset = parseInt(query.offset || "0")
-    const domainFilter = query.domain
-    const addressFilter = query.address
+    const type = query.type || "all";
+    const status = query.status || "all";
+    const timeRange = query.time_range || "30d";
+    const searchQuery = query.search?.trim();
+    const limit = Math.min(parseInt(query.limit || "50"), 100);
+    const offset = parseInt(query.offset || "0");
+    const domainFilter = query.domain;
+    const addressFilter = query.address;
 
     console.log("📊 Query parameters:", {
       type,
@@ -292,32 +300,32 @@ export const listEmails = new Elysia().get(
       offset,
       domainFilter,
       addressFilter,
-    })
+    });
 
     // Validate parameters
     if (limit < 1 || limit > 100) {
-      set.status = 400
-      return { error: "Limit must be between 1 and 100" }
+      set.status = 400;
+      return { error: "Limit must be between 1 and 100" };
     }
 
     if (offset < 0) {
-      set.status = 400
-      return { error: "Offset must be non-negative" }
+      set.status = 400;
+      return { error: "Offset must be non-negative" };
     }
 
-    const emails: any[] = []
-    let total = 0
-    let receivedTotal = 0
-    let sentTotal = 0
-    let scheduledTotal = 0
-    const timeThreshold = getTimeThreshold(timeRange)
+    const emails: any[] = [];
+    let total = 0;
+    let receivedTotal = 0;
+    let sentTotal = 0;
+    let scheduledTotal = 0;
+    const timeThreshold = getTimeThreshold(timeRange);
 
     // For "all" type queries, we need to fetch enough records from each table
     // to properly paginate after combining and sorting. Cap at 10000 to prevent memory issues.
-    const allTypeFetchLimit = Math.min(offset + limit, 10000)
+    const allTypeFetchLimit = Math.min(offset + limit, 10000);
 
     // Resolve domain filter - supports ID, registered domain, or raw domain name
-    let resolvedDomain: string | null = null
+    let resolvedDomain: string | null = null;
     if (domainFilter) {
       const domain = await db
         .select()
@@ -331,14 +339,14 @@ export const listEmails = new Elysia().get(
             )
           )
         )
-        .limit(1)
+        .limit(1);
 
       // Use resolved domain or raw filter value
-      resolvedDomain = domain.length > 0 ? domain[0].domain : domainFilter
+      resolvedDomain = domain.length > 0 ? domain[0].domain : domainFilter;
     }
 
     // Resolve address filter - supports ID, registered address, or raw email
-    let resolvedAddress: string | null = null
+    let resolvedAddress: string | null = null;
     if (addressFilter) {
       const address = await db
         .select()
@@ -352,42 +360,42 @@ export const listEmails = new Elysia().get(
             )
           )
         )
-        .limit(1)
+        .limit(1);
 
       // Use resolved address or raw filter value
-      resolvedAddress = address.length > 0 ? address[0].address : addressFilter
+      resolvedAddress = address.length > 0 ? address[0].address : addressFilter;
     }
 
     // Fetch received emails (if type is 'all' or 'received')
     if (type === "all" || type === "received") {
-      console.log("🔍 Fetching received emails...")
+      console.log("🔍 Fetching received emails...");
 
-      const receivedConditions: any[] = [eq(structuredEmails.userId, userId)]
+      const receivedConditions: any[] = [eq(structuredEmails.userId, userId)];
 
       // Time range filter
       if (timeThreshold) {
-        receivedConditions.push(gte(structuredEmails.createdAt, timeThreshold))
+        receivedConditions.push(gte(structuredEmails.createdAt, timeThreshold));
       }
 
       // Status filters for received emails
       if (status === "delivered") {
-        receivedConditions.push(eq(structuredEmails.parseSuccess, true))
+        receivedConditions.push(eq(structuredEmails.parseSuccess, true));
       } else if (status === "failed") {
-        receivedConditions.push(eq(structuredEmails.parseSuccess, false))
+        receivedConditions.push(eq(structuredEmails.parseSuccess, false));
       } else if (status === "unread") {
-        receivedConditions.push(eq(structuredEmails.isRead, false))
-        receivedConditions.push(eq(structuredEmails.isArchived, false))
+        receivedConditions.push(eq(structuredEmails.isRead, false));
+        receivedConditions.push(eq(structuredEmails.isArchived, false));
       } else if (status === "read") {
-        receivedConditions.push(eq(structuredEmails.isRead, true))
+        receivedConditions.push(eq(structuredEmails.isRead, true));
       } else if (status === "archived") {
-        receivedConditions.push(eq(structuredEmails.isArchived, true))
+        receivedConditions.push(eq(structuredEmails.isArchived, true));
       }
 
       // Domain filter
       if (resolvedDomain) {
         receivedConditions.push(
           like(structuredEmails.recipient, `%@${resolvedDomain}`)
-        )
+        );
       }
 
       // Address filter - match recipient or in toData
@@ -397,15 +405,15 @@ export const listEmails = new Elysia().get(
             eq(structuredEmails.recipient, resolvedAddress),
             like(structuredEmails.toData, `%${resolvedAddress}%`)
           )
-        )
+        );
       }
 
       // Search filter
       if (searchQuery) {
-        const searchPattern = `%${searchQuery}%`
+        const searchPattern = `%${searchQuery}%`;
         receivedConditions.push(
           sql`(${structuredEmails.subject} ILIKE ${searchPattern} OR ${structuredEmails.fromData}::text ILIKE ${searchPattern} OR ${structuredEmails.toData}::text ILIKE ${searchPattern})`
-        )
+        );
       }
 
       const receivedEmails = await db
@@ -414,18 +422,18 @@ export const listEmails = new Elysia().get(
         .where(and(...receivedConditions))
         .orderBy(desc(structuredEmails.createdAt))
         .limit(type === "received" ? limit : allTypeFetchLimit)
-        .offset(type === "received" ? offset : 0)
+        .offset(type === "received" ? offset : 0);
 
       for (const email of receivedEmails) {
-        const attachments = parseJsonField(email.attachments, [])
-        const fromParsed = parseFromData(email.fromData)
+        const attachments = parseJsonField(email.attachments, []);
+        const fromParsed = parseFromData(email.fromData);
 
         // Create preview from text body
-        let preview: string | null = null
+        let preview: string | null = null;
         if (email.textBody) {
-          preview = email.textBody.substring(0, 200).replace(/\n/g, " ").trim()
+          preview = email.textBody.substring(0, 200).replace(/\n/g, " ").trim();
           if (email.textBody.length > 200) {
-            preview += "..."
+            preview += "...";
           }
         }
 
@@ -440,7 +448,8 @@ export const listEmails = new Elysia().get(
           subject: email.subject || "No Subject",
           preview,
           status: email.parseSuccess ? "delivered" : "failed",
-          created_at: email.createdAt?.toISOString() || new Date().toISOString(),
+          created_at:
+            email.createdAt?.toISOString() || new Date().toISOString(),
           sent_at: null,
           scheduled_at: null,
           has_attachments: attachments.length > 0,
@@ -449,48 +458,52 @@ export const listEmails = new Elysia().get(
           read_at: email.readAt?.toISOString() || null,
           is_archived: email.isArchived || false,
           thread_id: email.threadId,
-        })
+        });
       }
 
       // Get count for pagination
       const [{ count }] = await db
         .select({ count: sql<number>`count(*)` })
         .from(structuredEmails)
-        .where(and(...receivedConditions))
+        .where(and(...receivedConditions));
 
-      receivedTotal = Number(count)
+      receivedTotal = Number(count);
       if (type === "received") {
-        total = receivedTotal
+        total = receivedTotal;
       }
     }
 
     // Fetch sent emails (if type is 'all' or 'sent')
     if (type === "all" || type === "sent") {
       // Skip if status filter only applies to received or scheduled emails
-      if (!["unread", "read", "archived", "scheduled", "cancelled"].includes(status)) {
-        console.log("🔍 Fetching sent emails...")
+      if (
+        !["unread", "read", "archived", "scheduled", "cancelled"].includes(
+          status
+        )
+      ) {
+        console.log("🔍 Fetching sent emails...");
 
-        const sentConditions: any[] = [eq(sentEmails.userId, userId)]
+        const sentConditions: any[] = [eq(sentEmails.userId, userId)];
 
         // Time range filter
         if (timeThreshold) {
-          sentConditions.push(gte(sentEmails.createdAt, timeThreshold))
+          sentConditions.push(gte(sentEmails.createdAt, timeThreshold));
         }
 
         // Status filters for sent emails
         if (status === "delivered") {
-          sentConditions.push(eq(sentEmails.status, "sent"))
+          sentConditions.push(eq(sentEmails.status, "sent"));
         } else if (status === "pending") {
-          sentConditions.push(eq(sentEmails.status, "pending"))
+          sentConditions.push(eq(sentEmails.status, "pending"));
         } else if (status === "failed") {
-          sentConditions.push(eq(sentEmails.status, "failed"))
+          sentConditions.push(eq(sentEmails.status, "failed"));
         } else if (status === "bounced") {
-          sentConditions.push(eq(sentEmails.status, "bounced"))
+          sentConditions.push(eq(sentEmails.status, "bounced"));
         }
 
         // Domain filter
         if (resolvedDomain) {
-          sentConditions.push(eq(sentEmails.fromDomain, resolvedDomain))
+          sentConditions.push(eq(sentEmails.fromDomain, resolvedDomain));
         }
 
         // Address filter - match from address or in to addresses
@@ -500,15 +513,15 @@ export const listEmails = new Elysia().get(
               eq(sentEmails.fromAddress, resolvedAddress),
               like(sentEmails.to, `%${resolvedAddress}%`)
             )
-          )
+          );
         }
 
         // Search filter
         if (searchQuery) {
-          const searchPattern = `%${searchQuery}%`
+          const searchPattern = `%${searchQuery}%`;
           sentConditions.push(
             sql`(${sentEmails.subject} ILIKE ${searchPattern} OR ${sentEmails.from} ILIKE ${searchPattern} OR ${sentEmails.to}::text ILIKE ${searchPattern})`
-          )
+          );
         }
 
         const sentEmailsList = await db
@@ -517,19 +530,22 @@ export const listEmails = new Elysia().get(
           .where(and(...sentConditions))
           .orderBy(desc(sentEmails.createdAt))
           .limit(type === "sent" ? limit : allTypeFetchLimit)
-          .offset(type === "sent" ? offset : 0)
+          .offset(type === "sent" ? offset : 0);
 
         for (const email of sentEmailsList) {
-          const attachments = parseJsonField(email.attachments, [])
-          const toAddresses = parseJsonField(email.to, [])
-          const ccAddresses = parseJsonField(email.cc, [])
+          const attachments = parseJsonField(email.attachments, []);
+          const toAddresses = parseJsonField(email.to, []);
+          const ccAddresses = parseJsonField(email.cc, []);
 
           // Create preview from text body
-          let preview: string | null = null
+          let preview: string | null = null;
           if (email.textBody) {
-            preview = email.textBody.substring(0, 200).replace(/\n/g, " ").trim()
+            preview = email.textBody
+              .substring(0, 200)
+              .replace(/\n/g, " ")
+              .trim();
             if (email.textBody.length > 200) {
-              preview += "..."
+              preview += "...";
             }
           }
 
@@ -544,24 +560,25 @@ export const listEmails = new Elysia().get(
             subject: email.subject || "No Subject",
             preview,
             status: email.status === "sent" ? "delivered" : email.status,
-            created_at: email.createdAt?.toISOString() || new Date().toISOString(),
+            created_at:
+              email.createdAt?.toISOString() || new Date().toISOString(),
             sent_at: email.sentAt?.toISOString() || null,
             scheduled_at: null,
             has_attachments: attachments.length > 0,
             attachment_count: attachments.length,
             thread_id: email.threadId,
-          })
+          });
         }
 
         // Get count for pagination
         const [{ count }] = await db
           .select({ count: sql<number>`count(*)` })
           .from(sentEmails)
-          .where(and(...sentConditions))
+          .where(and(...sentConditions));
 
-        sentTotal = Number(count)
+        sentTotal = Number(count);
         if (type === "sent") {
-          total = sentTotal
+          total = sentTotal;
         }
       }
     }
@@ -569,30 +586,36 @@ export const listEmails = new Elysia().get(
     // Fetch scheduled emails (if type is 'all' or 'scheduled')
     if (type === "all" || type === "scheduled") {
       // Skip if status filter only applies to received emails
-      if (!["unread", "read", "archived", "delivered", "bounced"].includes(status)) {
-        console.log("🔍 Fetching scheduled emails...")
+      if (
+        !["unread", "read", "archived", "delivered", "bounced"].includes(status)
+      ) {
+        console.log("🔍 Fetching scheduled emails...");
 
-        const scheduledConditions: any[] = [eq(scheduledEmails.userId, userId)]
+        const scheduledConditions: any[] = [eq(scheduledEmails.userId, userId)];
 
         // Time range filter (for scheduled, check scheduledAt)
         if (timeThreshold) {
-          scheduledConditions.push(gte(scheduledEmails.createdAt, timeThreshold))
+          scheduledConditions.push(
+            gte(scheduledEmails.createdAt, timeThreshold)
+          );
         }
 
         // Status filters for scheduled emails
         if (status === "scheduled") {
-          scheduledConditions.push(eq(scheduledEmails.status, "scheduled"))
+          scheduledConditions.push(eq(scheduledEmails.status, "scheduled"));
         } else if (status === "cancelled") {
-          scheduledConditions.push(eq(scheduledEmails.status, "cancelled"))
+          scheduledConditions.push(eq(scheduledEmails.status, "cancelled"));
         } else if (status === "pending") {
-          scheduledConditions.push(eq(scheduledEmails.status, "processing"))
+          scheduledConditions.push(eq(scheduledEmails.status, "processing"));
         } else if (status === "failed") {
-          scheduledConditions.push(eq(scheduledEmails.status, "failed"))
+          scheduledConditions.push(eq(scheduledEmails.status, "failed"));
         }
 
         // Domain filter
         if (resolvedDomain) {
-          scheduledConditions.push(eq(scheduledEmails.fromDomain, resolvedDomain))
+          scheduledConditions.push(
+            eq(scheduledEmails.fromDomain, resolvedDomain)
+          );
         }
 
         // Address filter
@@ -602,15 +625,15 @@ export const listEmails = new Elysia().get(
               eq(scheduledEmails.fromAddress, resolvedAddress),
               like(scheduledEmails.toAddresses, `%${resolvedAddress}%`)
             )
-          )
+          );
         }
 
         // Search filter
         if (searchQuery) {
-          const searchPattern = `%${searchQuery}%`
+          const searchPattern = `%${searchQuery}%`;
           scheduledConditions.push(
             sql`(${scheduledEmails.subject} ILIKE ${searchPattern} OR ${scheduledEmails.fromAddress} ILIKE ${searchPattern} OR ${scheduledEmails.toAddresses}::text ILIKE ${searchPattern})`
-          )
+          );
         }
 
         const scheduledEmailsList = await db
@@ -619,11 +642,11 @@ export const listEmails = new Elysia().get(
           .where(and(...scheduledConditions))
           .orderBy(desc(scheduledEmails.createdAt))
           .limit(type === "scheduled" ? limit : allTypeFetchLimit)
-          .offset(type === "scheduled" ? offset : 0)
+          .offset(type === "scheduled" ? offset : 0);
 
         for (const email of scheduledEmailsList) {
-          const attachments = parseJsonField(email.attachments, [])
-          const toAddresses = parseJsonField(email.toAddresses, [])
+          const attachments = parseJsonField(email.attachments, []);
+          const toAddresses = parseJsonField(email.toAddresses, []);
 
           emails.push({
             id: email.id,
@@ -636,23 +659,24 @@ export const listEmails = new Elysia().get(
             subject: email.subject || "No Subject",
             preview: null,
             status: email.status,
-            created_at: email.createdAt?.toISOString() || new Date().toISOString(),
+            created_at:
+              email.createdAt?.toISOString() || new Date().toISOString(),
             sent_at: email.sentAt?.toISOString() || null,
             scheduled_at: email.scheduledAt?.toISOString() || null,
             has_attachments: attachments.length > 0,
             attachment_count: attachments.length,
-          })
+          });
         }
 
         // Get count for pagination
         const [{ count }] = await db
           .select({ count: sql<number>`count(*)` })
           .from(scheduledEmails)
-          .where(and(...scheduledConditions))
+          .where(and(...scheduledConditions));
 
-        scheduledTotal = Number(count)
+        scheduledTotal = Number(count);
         if (type === "scheduled") {
-          total = scheduledTotal
+          total = scheduledTotal;
         }
       }
     }
@@ -662,14 +686,14 @@ export const listEmails = new Elysia().get(
       emails.sort(
         (a, b) =>
           new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      )
+      );
       // Calculate true total from individual counts
-      total = receivedTotal + sentTotal + scheduledTotal
-      const paginatedEmails = emails.slice(offset, offset + limit)
+      total = receivedTotal + sentTotal + scheduledTotal;
+      const paginatedEmails = emails.slice(offset, offset + limit);
 
       console.log(
         `✅ Successfully retrieved ${paginatedEmails.length} emails (total: ${total})`
-      )
+      );
 
       return {
         data: paginatedEmails,
@@ -687,10 +711,12 @@ export const listEmails = new Elysia().get(
           domain: resolvedDomain || undefined,
           address: resolvedAddress || undefined,
         },
-      }
+      };
     }
 
-    console.log(`✅ Successfully retrieved ${emails.length} emails (total: ${total})`)
+    console.log(
+      `✅ Successfully retrieved ${emails.length} emails (total: ${total})`
+    );
 
     return {
       data: emails,
@@ -708,7 +734,7 @@ export const listEmails = new Elysia().get(
         domain: resolvedDomain || undefined,
         address: resolvedAddress || undefined,
       },
-    }
+    };
   },
   {
     query: ListEmailsQuerySchema,
@@ -721,35 +747,7 @@ export const listEmails = new Elysia().get(
     detail: {
       tags: ["Emails"],
       summary: "List all emails",
-      description: `List all email activity (sent, received, and scheduled) with comprehensive filtering options.
-
-**Type Filtering:**
-- \`all\` - Returns sent, received, and scheduled emails combined (default)
-- \`sent\` - Only outbound emails you've sent
-- \`received\` - Only inbound emails you've received
-- \`scheduled\` - Only emails scheduled for future delivery
-
-**Status Filtering:**
-- \`delivered\` - Successfully delivered emails
-- \`pending\` - Emails currently being processed
-- \`failed\` - Emails that failed to deliver
-- \`bounced\` - Emails that bounced (sent only)
-- \`scheduled\` - Emails scheduled for future delivery
-- \`cancelled\` - Cancelled scheduled emails
-- \`unread\` - Unread received emails
-- \`read\` - Read received emails
-- \`archived\` - Archived received emails
-
-**Time Range Filtering:**
-- \`1h\` - Last hour
-- \`24h\` - Last 24 hours
-- \`7d\` - Last 7 days
-- \`30d\` - Last 30 days (default)
-- \`90d\` - Last 90 days
-- \`all\` - All time
-
-**Address Filtering:**
-Supports filtering by domain ID, domain name, address ID, or raw email address (e.g., 'user@example.com').`,
+      description: "List all email activity (sent, received, and scheduled) with comprehensive filtering options.",
     },
   }
-)
+);

@@ -1,43 +1,43 @@
-import { Elysia, t } from "elysia"
-import { validateAndRateLimit } from "../lib/auth"
-import { db } from "@/lib/db"
+import { Elysia, t } from "elysia";
+import { validateAndRateLimit } from "../lib/auth";
+import { db } from "@/lib/db";
 import {
   sentEmails,
   emailDomains,
   structuredEmails,
   SENT_EMAIL_STATUS,
-} from "@/lib/db/schema"
-import { eq, and } from "drizzle-orm"
-import { nanoid } from "nanoid"
-import { Autumn as autumn } from "autumn-js"
-import { SESv2Client, SendEmailCommand } from "@aws-sdk/client-sesv2"
-import { waitUntil } from "@vercel/functions"
+} from "@/lib/db/schema";
+import { eq, and } from "drizzle-orm";
+import { nanoid } from "nanoid";
+import { Autumn as autumn } from "autumn-js";
+import { SESv2Client, SendEmailCommand } from "@aws-sdk/client-sesv2";
+import { waitUntil } from "@vercel/functions";
 import {
   canUserSendFromEmail,
   extractEmailAddress,
   extractDomain,
   extractEmailName,
-} from "@/lib/email-management/agent-email-helper"
+} from "@/lib/email-management/agent-email-helper";
 import {
   processAttachments,
   attachmentsToStorageFormat,
-} from "../../v2/helper/attachment-processor"
-import { evaluateSending } from "@/lib/email-management/email-evaluation"
-import { checkSendingSpike } from "@/lib/email-management/sending-spike-detector"
-import { isSubdomain, getRootDomain } from "@/lib/domains-and-dns/domain-utils"
+} from "../../v2/helper/attachment-processor";
+import { evaluateSending } from "@/lib/email-management/email-evaluation";
+import { checkSendingSpike } from "@/lib/email-management/sending-spike-detector";
+import { isSubdomain, getRootDomain } from "@/lib/domains-and-dns/domain-utils";
 import {
   getTenantSendingInfoForDomainOrParent,
   type TenantSendingInfo,
-} from "@/lib/aws-ses/identity-arn-helper"
-import { EmailThreader } from "@/lib/email-management/email-threader"
-import { checkRecipientsAgainstBlocklist } from "@/lib/email-management/email-blocking"
+} from "@/lib/aws-ses/identity-arn-helper";
+import { EmailThreader } from "@/lib/email-management/email-threader";
+import { checkRecipientsAgainstBlocklist } from "@/lib/email-management/email-blocking";
 
 // Initialize SES client
-const awsRegion = process.env.AWS_REGION || "us-east-2"
-const awsAccessKeyId = process.env.AWS_ACCESS_KEY_ID
-const awsSecretAccessKey = process.env.AWS_SECRET_ACCESS_KEY
+const awsRegion = process.env.AWS_REGION || "us-east-2";
+const awsAccessKeyId = process.env.AWS_ACCESS_KEY_ID;
+const awsSecretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
 
-let sesClient: SESv2Client | null = null
+let sesClient: SESv2Client | null = null;
 
 if (awsAccessKeyId && awsSecretAccessKey) {
   sesClient = new SESv2Client({
@@ -46,7 +46,7 @@ if (awsAccessKeyId && awsSecretAccessKey) {
       accessKeyId: awsAccessKeyId,
       secretAccessKey: awsSecretAccessKey,
     },
-  })
+  });
 }
 
 // Request schema
@@ -55,12 +55,12 @@ const AttachmentSchema = t.Object({
   content: t.String(),
   content_type: t.Optional(t.String()),
   path: t.Optional(t.String()),
-})
+});
 
 const TagSchema = t.Object({
   name: t.String(),
   value: t.String(),
-})
+});
 
 const ReplyEmailBodySchema = t.Object({
   from: t.String({ description: "Sender email address" }),
@@ -69,14 +69,24 @@ const ReplyEmailBodySchema = t.Object({
       description: "Recipient email address(es) - defaults to original sender",
     })
   ),
-  subject: t.Optional(t.String({ description: "Email subject - defaults to Re: original subject" })),
+  subject: t.Optional(
+    t.String({
+      description: "Email subject - defaults to Re: original subject",
+    })
+  ),
   html: t.Optional(t.String({ description: "HTML content of the email" })),
-  text: t.Optional(t.String({ description: "Plain text content of the email" })),
-  headers: t.Optional(t.Record(t.String(), t.String(), { description: "Custom email headers" })),
+  text: t.Optional(
+    t.String({ description: "Plain text content of the email" })
+  ),
+  headers: t.Optional(
+    t.Record(t.String(), t.String(), { description: "Custom email headers" })
+  ),
   attachments: t.Optional(t.Array(AttachmentSchema)),
-  reply_all: t.Optional(t.Boolean({ description: "Include original CC recipients" })),
+  reply_all: t.Optional(
+    t.Boolean({ description: "Include original CC recipients" })
+  ),
   tags: t.Optional(t.Array(TagSchema)),
-})
+});
 
 // Response schemas
 const ReplyEmailSuccessResponse = t.Object({
@@ -86,33 +96,33 @@ const ReplyEmailSuccessResponse = t.Object({
   replied_to_email_id: t.String(),
   replied_to_thread_id: t.Optional(t.String()),
   is_thread_reply: t.Boolean(),
-})
+});
 
 const ReplyEmailErrorResponse = t.Object({
   error: t.String(),
-})
+});
 
 // Helper functions
 function toArray(value: string | string[] | undefined): string[] {
-  if (!value) return []
-  return Array.isArray(value) ? value : [value]
+  if (!value) return [];
+  return Array.isArray(value) ? value : [value];
 }
 
 function formatSenderAddress(email: string, name?: string): string {
-  if (!name) return email
+  if (!name) return email;
 
-  const escapedName = name.replace(/"/g, '\\"')
-  const needsQuotes = /[,<>()[\]:;@\\"]/.test(name)
+  const escapedName = name.replace(/"/g, '\\"');
+  const needsQuotes = /[,<>()[\]:;@\\"]/.test(name);
 
   if (needsQuotes) {
-    return `"${escapedName}" <${email}>`
+    return `"${escapedName}" <${email}>`;
   } else {
-    return `${escapedName} <${email}>`
+    return `${escapedName} <${email}>`;
   }
 }
 
 function formatEmailDate(date: Date): string {
-  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const months = [
     "Jan",
     "Feb",
@@ -126,93 +136,95 @@ function formatEmailDate(date: Date): string {
     "Oct",
     "Nov",
     "Dec",
-  ]
+  ];
 
-  const day = days[date.getUTCDay()]
-  const dayNum = date.getUTCDate()
-  const month = months[date.getUTCMonth()]
-  const year = date.getUTCFullYear()
-  const hours = date.getUTCHours().toString().padStart(2, "0")
-  const minutes = date.getUTCMinutes().toString().padStart(2, "0")
-  const seconds = date.getUTCSeconds().toString().padStart(2, "0")
+  const day = days[date.getUTCDay()];
+  const dayNum = date.getUTCDate();
+  const month = months[date.getUTCMonth()];
+  const year = date.getUTCFullYear();
+  const hours = date.getUTCHours().toString().padStart(2, "0");
+  const minutes = date.getUTCMinutes().toString().padStart(2, "0");
+  const seconds = date.getUTCSeconds().toString().padStart(2, "0");
 
-  return `${day}, ${dayNum} ${month} ${year} ${hours}:${minutes}:${seconds} +0000`
+  return `${day}, ${dayNum} ${month} ${year} ${hours}:${minutes}:${seconds} +0000`;
 }
 
 function extractEmailsFromParsedData(parsedData: string | null): string[] {
-  if (!parsedData) return []
+  if (!parsedData) return [];
 
   try {
-    const parsed = JSON.parse(parsedData)
+    const parsed = JSON.parse(parsedData);
     if (parsed?.addresses && Array.isArray(parsed.addresses)) {
       return parsed.addresses
         .map((addr: any) => addr.address)
-        .filter((email: string) => email && typeof email === "string")
+        .filter((email: string) => email && typeof email === "string");
     }
   } catch (e) {
-    console.error("Failed to parse email data:", e)
+    console.error("Failed to parse email data:", e);
   }
 
-  return []
+  return [];
 }
 
 // Check warmup limits for new accounts
 async function checkNewAccountWarmupLimits(userId: string): Promise<{
-  allowed: boolean
-  error?: string
+  allowed: boolean;
+  error?: string;
 }> {
-  return { allowed: true }
+  return { allowed: true };
 }
 
 export const replyToEmail = new Elysia().post(
   "/emails/:id/reply",
   async ({ request, params, body, set }) => {
-    const requestId = `req_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`
-    console.log(`📧 [${requestId}] POST /api/e2/emails/:id/reply - Starting request`)
+    const requestId = `req_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    console.log(
+      `📧 [${requestId}] POST /api/e2/emails/:id/reply - Starting request`
+    );
 
     // Auth & rate limit validation
-    const userId = await validateAndRateLimit(request, set)
-    console.log("✅ Authentication successful for userId:", userId)
+    const userId = await validateAndRateLimit(request, set);
+    console.log("✅ Authentication successful for userId:", userId);
 
     // Check new account warmup limits
-    const warmupCheck = await checkNewAccountWarmupLimits(userId)
+    const warmupCheck = await checkNewAccountWarmupLimits(userId);
     if (!warmupCheck.allowed) {
-      console.log(`🚫 Warmup limit exceeded for user ${userId}`)
-      set.status = 429
-      return { error: warmupCheck.error || "Warmup limit exceeded" }
+      console.log(`🚫 Warmup limit exceeded for user ${userId}`);
+      set.status = 429;
+      return { error: warmupCheck.error || "Warmup limit exceeded" };
     }
 
-    const id = params.id
-    console.log("📨 Replying to ID:", id)
+    const id = params.id;
+    console.log("📨 Replying to ID:", id);
 
     // Validate ID
     if (!id || typeof id !== "string") {
-      console.log("⚠️ Invalid ID provided:", id)
-      set.status = 400
-      return { error: "Valid email ID or thread ID is required" }
+      console.log("⚠️ Invalid ID provided:", id);
+      set.status = 400;
+      return { error: "Valid email ID or thread ID is required" };
     }
 
     // Resolve whether this is an email ID or thread ID
-    console.log("🔍 Resolving ID type...")
-    const resolvedId = await EmailThreader.resolveEmailId(id, userId)
+    console.log("🔍 Resolving ID type...");
+    const resolvedId = await EmailThreader.resolveEmailId(id, userId);
 
     if (!resolvedId) {
-      console.log("📭 ID not found in emails or threads")
-      set.status = 404
-      return { error: "Email or thread not found" }
+      console.log("📭 ID not found in emails or threads");
+      set.status = 404;
+      return { error: "Email or thread not found" };
     }
 
-    const emailId = resolvedId.emailId
-    const isThreadReply = resolvedId.isThreadId
+    const emailId = resolvedId.emailId;
+    const isThreadReply = resolvedId.isThreadId;
 
     console.log(
       `📧 Resolved to email ID: ${emailId} ${isThreadReply ? "(from thread ID)" : "(direct email ID)"}`
-    )
+    );
 
     // Idempotency Key Check
-    const idempotencyKey = request.headers.get("Idempotency-Key")
+    const idempotencyKey = request.headers.get("Idempotency-Key");
     if (idempotencyKey) {
-      console.log("🔑 Idempotency key provided:", idempotencyKey)
+      console.log("🔑 Idempotency key provided:", idempotencyKey);
 
       const existingEmail = await db
         .select()
@@ -223,13 +235,13 @@ export const replyToEmail = new Elysia().post(
             eq(sentEmails.idempotencyKey, idempotencyKey)
           )
         )
-        .limit(1)
+        .limit(1);
 
       if (existingEmail.length > 0) {
         console.log(
           "♻️ Idempotent request - returning existing email:",
           existingEmail[0].id
-        )
+        );
         return {
           id: existingEmail[0].id,
           message_id: existingEmail[0].messageId || "",
@@ -237,13 +249,13 @@ export const replyToEmail = new Elysia().post(
           replied_to_email_id: emailId,
           replied_to_thread_id: resolvedId.threadId,
           is_thread_reply: isThreadReply,
-        }
+        };
       }
     }
 
     // Retrieve the original email from the database
     // Note: emailId from resolveEmailId is the structuredEmails.id field
-    console.log("🔍 Fetching original email")
+    console.log("🔍 Fetching original email");
     const originalEmail = await db
       .select()
       .from(structuredEmails)
@@ -253,130 +265,136 @@ export const replyToEmail = new Elysia().post(
           eq(structuredEmails.userId, userId)
         )
       )
-      .limit(1)
+      .limit(1);
 
     if (originalEmail.length === 0) {
-      console.log("📭 Original email not found")
-      set.status = 404
-      return { error: "Email not found" }
+      console.log("📭 Original email not found");
+      set.status = 404;
+      return { error: "Email not found" };
     }
 
-    const original = originalEmail[0]
+    const original = originalEmail[0];
 
     // Validate content
     if (!body.html && !body.text) {
-      console.log("⚠️ No email content provided")
-      set.status = 400
-      return { error: "Either html or text content must be provided" }
+      console.log("⚠️ No email content provided");
+      set.status = 400;
+      return { error: "Either html or text content must be provided" };
     }
 
     // Validate 'from' field
-    if (!body.from || typeof body.from !== "string" || body.from.trim().length === 0) {
-      console.log("⚠️ Invalid from field")
-      set.status = 400
-      return { error: 'The "from" field is required and must be a valid email address' }
+    if (
+      !body.from ||
+      typeof body.from !== "string" ||
+      body.from.trim().length === 0
+    ) {
+      console.log("⚠️ Invalid from field");
+      set.status = 400;
+      return {
+        error: 'The "from" field is required and must be a valid email address',
+      };
     }
 
     // Extract and validate email components
-    let fromAddress: string
-    let fromDomain: string
-    let senderName: string | undefined
+    let fromAddress: string;
+    let fromDomain: string;
+    let senderName: string | undefined;
 
     try {
-      fromAddress = extractEmailAddress(body.from)
+      fromAddress = extractEmailAddress(body.from);
 
       if (!fromAddress) {
-        set.status = 400
-        return { error: "Could not extract email address from 'from' field" }
+        set.status = 400;
+        return { error: "Could not extract email address from 'from' field" };
       }
 
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(fromAddress)) {
-        set.status = 400
-        return { error: "Invalid email address format" }
+        set.status = 400;
+        return { error: "Invalid email address format" };
       }
 
-      fromDomain = extractDomain(body.from)
+      fromDomain = extractDomain(body.from);
       if (!fromDomain) {
-        set.status = 400
-        return { error: "Could not extract domain from email address" }
+        set.status = 400;
+        return { error: "Could not extract domain from email address" };
       }
 
-      senderName = extractEmailName(body.from) || undefined
+      senderName = extractEmailName(body.from) || undefined;
     } catch (extractionError) {
-      console.error("Email extraction error:", extractionError)
-      set.status = 400
-      return { error: "Failed to process email address" }
+      console.error("Email extraction error:", extractionError);
+      set.status = 400;
+      return { error: "Failed to process email address" };
     }
 
-    const formattedFromAddress = formatSenderAddress(fromAddress, senderName)
+    const formattedFromAddress = formatSenderAddress(fromAddress, senderName);
     console.log(`📧 [${requestId}] From address components:`, {
       rawFrom: body.from,
       extractedAddress: fromAddress,
       extractedName: senderName,
       formattedFrom: formattedFromAddress,
-    })
+    });
 
     // Parse original email data
-    let originalFromData = null
+    let originalFromData = null;
     if (original.fromData) {
       try {
-        originalFromData = JSON.parse(original.fromData)
+        originalFromData = JSON.parse(original.fromData);
       } catch (e) {
-        console.error("❌ Failed to parse original fromData:", e)
+        console.error("❌ Failed to parse original fromData:", e);
       }
     }
 
     // Determine reply recipients
-    const originalSenderAddress = originalFromData?.addresses?.[0]?.address
+    const originalSenderAddress = originalFromData?.addresses?.[0]?.address;
     if (!originalSenderAddress && !body.to) {
-      console.log("⚠️ Cannot determine recipient for reply")
-      set.status = 400
-      return { error: "Cannot determine recipient email address" }
+      console.log("⚠️ Cannot determine recipient for reply");
+      set.status = 400;
+      return { error: "Cannot determine recipient email address" };
     }
 
     // Build recipient list based on reply_all flag
-    let toAddresses: string[] = []
+    let toAddresses: string[] = [];
 
     if (body.to) {
-      toAddresses = toArray(body.to)
+      toAddresses = toArray(body.to);
     } else if (body.reply_all) {
-      console.log("📧 Reply All requested - including original CC recipients")
+      console.log("📧 Reply All requested - including original CC recipients");
 
-      const originalSender = originalFromData?.text || originalSenderAddress
+      const originalSender = originalFromData?.text || originalSenderAddress;
       if (originalSender) {
-        toAddresses.push(originalSender)
+        toAddresses.push(originalSender);
       }
 
-      const originalCcEmails = extractEmailsFromParsedData(original.ccData)
+      const originalCcEmails = extractEmailsFromParsedData(original.ccData);
 
       for (const ccEmail of originalCcEmails) {
         if (ccEmail.toLowerCase() !== fromAddress.toLowerCase()) {
-          toAddresses.push(ccEmail)
+          toAddresses.push(ccEmail);
         }
       }
 
-      toAddresses = [...new Set(toAddresses)]
+      toAddresses = [...new Set(toAddresses)];
     } else {
-      toAddresses = [originalFromData?.text || originalSenderAddress]
+      toAddresses = [originalFromData?.text || originalSenderAddress];
     }
 
-    const subject = body.subject || `Re: ${original.subject || "No Subject"}`
+    const subject = body.subject || `Re: ${original.subject || "No Subject"}`;
 
     // Check if this is the agent email (not allowed for replies)
-    const { isAgentEmail } = canUserSendFromEmail(body.from)
+    const { isAgentEmail } = canUserSendFromEmail(body.from);
 
     if (isAgentEmail) {
-      console.log("❌ Agent email cannot be used for replies")
-      set.status = 400
+      console.log("❌ Agent email cannot be used for replies");
+      set.status = 400;
       return {
         error:
           "agent@inbnd.dev cannot be used for replies. Please use a verified domain email address.",
-      }
+      };
     }
 
     // Verify sender domain ownership
-    console.log("🔍 Verifying domain ownership for:", fromDomain)
+    console.log("🔍 Verifying domain ownership for:", fromDomain);
     let userDomain = await db
       .select()
       .from(emailDomains)
@@ -387,14 +405,14 @@ export const replyToEmail = new Elysia().post(
           eq(emailDomains.status, "verified")
         )
       )
-      .limit(1)
+      .limit(1);
 
     if (userDomain.length === 0 && isSubdomain(fromDomain)) {
-      const rootDomain = getRootDomain(fromDomain)
+      const rootDomain = getRootDomain(fromDomain);
       if (rootDomain) {
         console.log(
           `🔍 Checking parent domain ${rootDomain} for subdomain ${fromDomain}`
-        )
+        );
         userDomain = await db
           .select()
           .from(emailDomains)
@@ -405,56 +423,58 @@ export const replyToEmail = new Elysia().post(
               eq(emailDomains.status, "verified")
             )
           )
-          .limit(1)
+          .limit(1);
       }
     }
 
     if (userDomain.length === 0) {
-      console.log("❌ User does not own the sender domain:", fromDomain)
-      set.status = 403
+      console.log("❌ User does not own the sender domain:", fromDomain);
+      set.status = 403;
       return {
         error: `You don't have permission to send from domain: ${fromDomain}`,
-      }
+      };
     }
 
     // Validate email addresses
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     for (const email of toAddresses) {
-      const address = extractEmailAddress(email)
+      const address = extractEmailAddress(email);
       if (!emailRegex.test(address)) {
-        console.log("⚠️ Invalid email format:", email)
-        set.status = 400
-        return { error: `Invalid email format: ${email}` }
+        console.log("⚠️ Invalid email format:", email);
+        set.status = 400;
+        return { error: `Invalid email format: ${email}` };
       }
     }
 
     // Check if any recipients are on the blocklist (hard bounces)
     // This prevents replying to addresses that previously bounced
-    console.log("🔍 Checking reply recipients against blocklist")
-    const blocklistCheck = await checkRecipientsAgainstBlocklist(toAddresses)
+    console.log("🔍 Checking reply recipients against blocklist");
+    const blocklistCheck = await checkRecipientsAgainstBlocklist(toAddresses);
     if (blocklistCheck.hasBlockedRecipients) {
-      console.log(`🚫 Blocked recipients found: ${blocklistCheck.blockedAddresses.join(", ")}`)
-      set.status = 400
+      console.log(
+        `🚫 Blocked recipients found: ${blocklistCheck.blockedAddresses.join(", ")}`
+      );
+      set.status = 400;
       return {
-        error: `Cannot reply to blocked recipient(s): ${blocklistCheck.blockedAddresses.join(", ")}. These addresses previously bounced.`
-      }
+        error: `Cannot reply to blocked recipient(s): ${blocklistCheck.blockedAddresses.join(", ")}. These addresses previously bounced.`,
+      };
     }
 
     // Process attachments
-    console.log("📎 Processing reply attachments")
-    let processedAttachments: any[] = []
+    console.log("📎 Processing reply attachments");
+    let processedAttachments: any[] = [];
     if (body.attachments && body.attachments.length > 0) {
       try {
-        processedAttachments = await processAttachments(body.attachments)
+        processedAttachments = await processAttachments(body.attachments);
       } catch (attachmentError) {
-        console.error("❌ Reply attachment processing error:", attachmentError)
-        set.status = 400
+        console.error("❌ Reply attachment processing error:", attachmentError);
+        set.status = 400;
         return {
           error:
             attachmentError instanceof Error
               ? attachmentError.message
               : "Failed to process attachments",
-        }
+        };
       }
     }
 
@@ -462,97 +482,95 @@ export const replyToEmail = new Elysia().post(
     const { data: emailCheck, error: emailCheckError } = await autumn.check({
       customer_id: userId,
       feature_id: "emails_sent",
-    })
+    });
 
     if (emailCheckError) {
-      console.error("❌ Autumn email check error:", emailCheckError)
-      set.status = 500
-      return { error: "Failed to check email sending limits" }
+      console.error("❌ Autumn email check error:", emailCheckError);
+      set.status = 500;
+      return { error: "Failed to check email sending limits" };
     }
 
     if (!emailCheck.allowed) {
-      console.log("❌ Email sending limit reached for user:", userId)
-      set.status = 429
+      console.log("❌ Email sending limit reached for user:", userId);
+      set.status = 429;
       return {
         error:
           "Email sending limit reached. Please upgrade your plan to send more emails.",
-      }
+      };
     }
 
     // Create email record
-    const replyEmailId = nanoid()
-    const messageId = `${replyEmailId}@${fromDomain}`
+    const replyEmailId = nanoid();
+    const messageId = `${replyEmailId}@${fromDomain}`;
 
     // Build threading headers
     const formatMessageId = (id: string) => {
-      if (!id) return ""
-      id = id.trim()
-      if (!id.startsWith("<")) id = `<${id}`
-      if (!id.endsWith(">")) id = `${id}>`
-      return id
-    }
+      if (!id) return "";
+      id = id.trim();
+      if (!id.startsWith("<")) id = `<${id}`;
+      if (!id.endsWith(">")) id = `${id}>`;
+      return id;
+    };
 
     const inReplyTo = original.messageId
       ? formatMessageId(original.messageId)
-      : null
+      : null;
 
-    let references: string[] = []
+    let references: string[] = [];
 
     if (original.references) {
       try {
-        const parsedRefs = JSON.parse(original.references)
+        const parsedRefs = JSON.parse(original.references);
         if (Array.isArray(parsedRefs)) {
           references = parsedRefs
             .map((ref) => formatMessageId(ref))
-            .filter((ref) => ref.length > 0)
+            .filter((ref) => ref.length > 0);
         }
       } catch (e) {
-        console.error("Failed to parse references:", e)
+        console.error("Failed to parse references:", e);
       }
     }
 
     if (original.messageId) {
-      const formattedId = formatMessageId(original.messageId)
+      const formattedId = formatMessageId(original.messageId);
       if (!references.includes(formattedId)) {
-        references.push(formattedId)
+        references.push(formattedId);
       }
     }
 
-    const referencesString = references.join(" ")
+    const referencesString = references.join(" ");
 
-    console.log("💾 Creating email record:", replyEmailId)
+    console.log("💾 Creating email record:", replyEmailId);
 
-    await db
-      .insert(sentEmails)
-      .values({
-        id: replyEmailId,
-        from: formattedFromAddress,
-        fromAddress,
-        fromDomain,
-        to: JSON.stringify(toAddresses),
-        cc: null,
-        bcc: null,
-        replyTo: null,
-        subject,
-        textBody: body.text || "",
-        htmlBody: body.html || null,
-        headers: JSON.stringify({
-          "In-Reply-To": inReplyTo,
-          References: referencesString,
-          ...(body.headers || {}),
-        }),
-        attachments:
-          processedAttachments.length > 0
-            ? JSON.stringify(attachmentsToStorageFormat(processedAttachments))
-            : null,
-        tags: body.tags ? JSON.stringify(body.tags) : null,
-        status: SENT_EMAIL_STATUS.PENDING,
-        messageId,
-        userId,
-        idempotencyKey,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      })
+    await db.insert(sentEmails).values({
+      id: replyEmailId,
+      from: formattedFromAddress,
+      fromAddress,
+      fromDomain,
+      to: JSON.stringify(toAddresses),
+      cc: null,
+      bcc: null,
+      replyTo: null,
+      subject,
+      textBody: body.text || "",
+      htmlBody: body.html || null,
+      headers: JSON.stringify({
+        "In-Reply-To": inReplyTo,
+        References: referencesString,
+        ...(body.headers || {}),
+      }),
+      attachments:
+        processedAttachments.length > 0
+          ? JSON.stringify(attachmentsToStorageFormat(processedAttachments))
+          : null,
+      tags: body.tags ? JSON.stringify(body.tags) : null,
+      status: SENT_EMAIL_STATUS.PENDING,
+      messageId,
+      userId,
+      idempotencyKey,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
 
     // Process threading for sent email
     try {
@@ -560,17 +578,20 @@ export const replyToEmail = new Elysia().post(
         replyEmailId,
         emailId,
         userId
-      )
+      );
       console.log(
         `🧵 Reply ${replyEmailId} added to thread ${threadingResult.threadId} at position ${threadingResult.threadPosition}`
-      )
+      );
     } catch (threadingError) {
-      console.error(`⚠️ Threading failed for reply ${replyEmailId}:`, threadingError)
+      console.error(
+        `⚠️ Threading failed for reply ${replyEmailId}:`,
+        threadingError
+      );
     }
 
     // Check if SES is configured
     if (!sesClient) {
-      console.log("❌ AWS SES not configured")
+      console.log("❌ AWS SES not configured");
 
       await db
         .update(sentEmails)
@@ -579,31 +600,31 @@ export const replyToEmail = new Elysia().post(
           failureReason: "AWS SES not configured",
           updatedAt: new Date(),
         })
-        .where(eq(sentEmails.id, replyEmailId))
+        .where(eq(sentEmails.id, replyEmailId));
 
-      set.status = 500
-      return { error: "Email service not configured. Please contact support." }
+      set.status = 500;
+      return { error: "Email service not configured. Please contact support." };
     }
 
     try {
-      console.log("📤 Sending reply email via AWS SES")
+      console.log("📤 Sending reply email via AWS SES");
 
       // Build raw email message
-      const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).substring(2)}`
-      let rawMessage = ""
+      const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).substring(2)}`;
+      let rawMessage = "";
 
-      const formattedMessageId = formatMessageId(messageId)
+      const formattedMessageId = formatMessageId(messageId);
 
-      rawMessage += `From: ${formattedFromAddress}\r\n`
-      rawMessage += `To: ${toAddresses.join(", ")}\r\n`
-      rawMessage += `Subject: ${subject}\r\n`
-      rawMessage += `Message-ID: ${formattedMessageId}\r\n`
+      rawMessage += `From: ${formattedFromAddress}\r\n`;
+      rawMessage += `To: ${toAddresses.join(", ")}\r\n`;
+      rawMessage += `Subject: ${subject}\r\n`;
+      rawMessage += `Message-ID: ${formattedMessageId}\r\n`;
 
       if (inReplyTo) {
-        rawMessage += `In-Reply-To: ${inReplyTo}\r\n`
+        rawMessage += `In-Reply-To: ${inReplyTo}\r\n`;
       }
       if (referencesString) {
-        rawMessage += `References: ${referencesString}\r\n`
+        rawMessage += `References: ${referencesString}\r\n`;
       }
 
       if (body.headers) {
@@ -618,94 +639,94 @@ export const replyToEmail = new Elysia().post(
               "references",
             ].includes(key.toLowerCase())
           ) {
-            rawMessage += `${key}: ${value}\r\n`
+            rawMessage += `${key}: ${value}\r\n`;
           }
         }
       }
 
-      rawMessage += `Date: ${formatEmailDate(new Date())}\r\n`
-      rawMessage += `MIME-Version: 1.0\r\n`
+      rawMessage += `Date: ${formatEmailDate(new Date())}\r\n`;
+      rawMessage += `MIME-Version: 1.0\r\n`;
 
       // Handle content and attachments
       if (processedAttachments.length > 0) {
-        rawMessage += `Content-Type: multipart/mixed; boundary="${boundary}"\r\n\r\n`
-        rawMessage += `--${boundary}\r\n`
+        rawMessage += `Content-Type: multipart/mixed; boundary="${boundary}"\r\n\r\n`;
+        rawMessage += `--${boundary}\r\n`;
 
         if (body.html && body.text) {
-          const altBoundary = `----=_Alt_${Date.now()}_${Math.random().toString(36).substring(2)}`
-          rawMessage += `Content-Type: multipart/alternative; boundary="${altBoundary}"\r\n\r\n`
+          const altBoundary = `----=_Alt_${Date.now()}_${Math.random().toString(36).substring(2)}`;
+          rawMessage += `Content-Type: multipart/alternative; boundary="${altBoundary}"\r\n\r\n`;
 
-          rawMessage += `--${altBoundary}\r\n`
-          rawMessage += `Content-Type: text/plain; charset=UTF-8\r\n`
-          rawMessage += `Content-Transfer-Encoding: quoted-printable\r\n\r\n`
-          rawMessage += `${body.text}\r\n`
+          rawMessage += `--${altBoundary}\r\n`;
+          rawMessage += `Content-Type: text/plain; charset=UTF-8\r\n`;
+          rawMessage += `Content-Transfer-Encoding: quoted-printable\r\n\r\n`;
+          rawMessage += `${body.text}\r\n`;
 
-          rawMessage += `--${altBoundary}\r\n`
-          rawMessage += `Content-Type: text/html; charset=UTF-8\r\n`
-          rawMessage += `Content-Transfer-Encoding: quoted-printable\r\n\r\n`
-          rawMessage += `${body.html}\r\n`
+          rawMessage += `--${altBoundary}\r\n`;
+          rawMessage += `Content-Type: text/html; charset=UTF-8\r\n`;
+          rawMessage += `Content-Transfer-Encoding: quoted-printable\r\n\r\n`;
+          rawMessage += `${body.html}\r\n`;
 
-          rawMessage += `--${altBoundary}--\r\n`
+          rawMessage += `--${altBoundary}--\r\n`;
         } else if (body.html) {
-          rawMessage += `Content-Type: text/html; charset=UTF-8\r\n`
-          rawMessage += `Content-Transfer-Encoding: quoted-printable\r\n\r\n`
-          rawMessage += `${body.html}\r\n`
+          rawMessage += `Content-Type: text/html; charset=UTF-8\r\n`;
+          rawMessage += `Content-Transfer-Encoding: quoted-printable\r\n\r\n`;
+          rawMessage += `${body.html}\r\n`;
         } else {
-          rawMessage += `Content-Type: text/plain; charset=UTF-8\r\n`
-          rawMessage += `Content-Transfer-Encoding: quoted-printable\r\n\r\n`
-          rawMessage += `${body.text}\r\n`
+          rawMessage += `Content-Type: text/plain; charset=UTF-8\r\n`;
+          rawMessage += `Content-Transfer-Encoding: quoted-printable\r\n\r\n`;
+          rawMessage += `${body.text}\r\n`;
         }
 
         for (const attachment of processedAttachments) {
-          rawMessage += `--${boundary}\r\n`
-          rawMessage += `Content-Type: ${attachment.contentType}\r\n`
-          rawMessage += `Content-Transfer-Encoding: base64\r\n`
-          rawMessage += `Content-Disposition: attachment; filename="${attachment.filename}"\r\n\r\n`
-          rawMessage += `${attachment.content}\r\n`
+          rawMessage += `--${boundary}\r\n`;
+          rawMessage += `Content-Type: ${attachment.contentType}\r\n`;
+          rawMessage += `Content-Transfer-Encoding: base64\r\n`;
+          rawMessage += `Content-Disposition: attachment; filename="${attachment.filename}"\r\n\r\n`;
+          rawMessage += `${attachment.content}\r\n`;
         }
 
-        rawMessage += `--${boundary}--\r\n`
+        rawMessage += `--${boundary}--\r\n`;
       } else {
         if (body.html && body.text) {
-          rawMessage += `Content-Type: multipart/alternative; boundary="${boundary}"\r\n\r\n`
+          rawMessage += `Content-Type: multipart/alternative; boundary="${boundary}"\r\n\r\n`;
 
-          rawMessage += `--${boundary}\r\n`
-          rawMessage += `Content-Type: text/plain; charset=UTF-8\r\n`
-          rawMessage += `Content-Transfer-Encoding: quoted-printable\r\n\r\n`
-          rawMessage += `${body.text}\r\n`
+          rawMessage += `--${boundary}\r\n`;
+          rawMessage += `Content-Type: text/plain; charset=UTF-8\r\n`;
+          rawMessage += `Content-Transfer-Encoding: quoted-printable\r\n\r\n`;
+          rawMessage += `${body.text}\r\n`;
 
-          rawMessage += `--${boundary}\r\n`
-          rawMessage += `Content-Type: text/html; charset=UTF-8\r\n`
-          rawMessage += `Content-Transfer-Encoding: quoted-printable\r\n\r\n`
-          rawMessage += `${body.html}\r\n`
+          rawMessage += `--${boundary}\r\n`;
+          rawMessage += `Content-Type: text/html; charset=UTF-8\r\n`;
+          rawMessage += `Content-Transfer-Encoding: quoted-printable\r\n\r\n`;
+          rawMessage += `${body.html}\r\n`;
 
-          rawMessage += `--${boundary}--\r\n`
+          rawMessage += `--${boundary}--\r\n`;
         } else if (body.html) {
-          rawMessage += `Content-Type: text/html; charset=UTF-8\r\n`
-          rawMessage += `Content-Transfer-Encoding: quoted-printable\r\n\r\n`
-          rawMessage += `${body.html}\r\n`
+          rawMessage += `Content-Type: text/html; charset=UTF-8\r\n`;
+          rawMessage += `Content-Transfer-Encoding: quoted-printable\r\n\r\n`;
+          rawMessage += `${body.html}\r\n`;
         } else {
-          rawMessage += `Content-Type: text/plain; charset=UTF-8\r\n`
-          rawMessage += `Content-Transfer-Encoding: quoted-printable\r\n\r\n`
-          rawMessage += `${body.text}\r\n`
+          rawMessage += `Content-Type: text/plain; charset=UTF-8\r\n`;
+          rawMessage += `Content-Transfer-Encoding: quoted-printable\r\n\r\n`;
+          rawMessage += `${body.text}\r\n`;
         }
       }
 
       // Get tenant sending info
       const parentDomain = isSubdomain(fromDomain)
         ? getRootDomain(fromDomain)
-        : undefined
+        : undefined;
       const tenantSendingInfo: TenantSendingInfo =
         await getTenantSendingInfoForDomainOrParent(
           userId,
           fromDomain,
           parentDomain || undefined
-        )
+        );
 
       if (!tenantSendingInfo.identityArn) {
         console.error(
           `❌ Failed to get identity ARN for ${fromAddress}. Cannot send reply email.`
-        )
+        );
         await db
           .update(sentEmails)
           .set({
@@ -713,12 +734,12 @@ export const replyToEmail = new Elysia().post(
             failureReason: `Failed to get identity ARN for ${fromAddress}`,
             updatedAt: new Date(),
           })
-          .where(eq(sentEmails.id, replyEmailId))
+          .where(eq(sentEmails.id, replyEmailId));
 
-        set.status = 500
+        set.status = 500;
         return {
           error: `Failed to get identity ARN for ${fromAddress}. Please ensure the email is verified and associated with a tenant.`,
-        }
+        };
       }
 
       const sesCommand = new SendEmailCommand({
@@ -740,12 +761,12 @@ export const replyToEmail = new Elysia().post(
         ...(tenantSendingInfo.tenantName && {
           TenantName: tenantSendingInfo.tenantName,
         }),
-      })
+      });
 
-      const sesResponse = await sesClient.send(sesCommand)
-      const sesMessageId = sesResponse.MessageId
+      const sesResponse = await sesClient.send(sesCommand);
+      const sesMessageId = sesResponse.MessageId;
 
-      console.log("✅ Reply sent successfully via SES:", sesMessageId)
+      console.log("✅ Reply sent successfully via SES:", sesMessageId);
 
       // Update email record with success
       await db
@@ -757,19 +778,19 @@ export const replyToEmail = new Elysia().post(
           sentAt: new Date(),
           updatedAt: new Date(),
         })
-        .where(eq(sentEmails.id, replyEmailId))
+        .where(eq(sentEmails.id, replyEmailId));
 
       // Track email usage with Autumn
       if (!emailCheck.unlimited) {
-        console.log("📊 Tracking email usage with Autumn")
+        console.log("📊 Tracking email usage with Autumn");
         const { error: trackError } = await autumn.track({
           customer_id: userId,
           feature_id: "emails_sent",
           value: 1,
-        })
+        });
 
         if (trackError) {
-          console.error("❌ Failed to track email usage:", trackError)
+          console.error("❌ Failed to track email usage:", trackError);
         }
       }
 
@@ -782,12 +803,12 @@ export const replyToEmail = new Elysia().post(
           textBody: body.text,
           htmlBody: body.html,
         })
-      )
+      );
 
       // Check for sending spikes (non-blocking)
-      waitUntil(checkSendingSpike(userId))
+      waitUntil(checkSendingSpike(userId));
 
-      console.log("✅ Reply processing complete")
+      console.log("✅ Reply processing complete");
       return {
         id: replyEmailId,
         message_id: messageId,
@@ -795,9 +816,9 @@ export const replyToEmail = new Elysia().post(
         replied_to_email_id: emailId,
         replied_to_thread_id: resolvedId.threadId,
         is_thread_reply: isThreadReply,
-      }
+      };
     } catch (sesError) {
-      console.error("❌ SES send error:", sesError)
+      console.error("❌ SES send error:", sesError);
 
       await db
         .update(sentEmails)
@@ -808,10 +829,10 @@ export const replyToEmail = new Elysia().post(
           providerResponse: JSON.stringify(sesError),
           updatedAt: new Date(),
         })
-        .where(eq(sentEmails.id, replyEmailId))
+        .where(eq(sentEmails.id, replyEmailId));
 
-      set.status = 500
-      return { error: "Failed to send reply. Please try again later." }
+      set.status = 500;
+      return { error: "Failed to send reply. Please try again later." };
     }
   },
   {
@@ -835,5 +856,4 @@ export const replyToEmail = new Elysia().post(
         "Reply to an email or thread. Accepts either an email ID or thread ID (replies to latest message in thread). Supports reply all functionality.",
     },
   }
-)
-
+);

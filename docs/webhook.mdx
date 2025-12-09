@@ -8,7 +8,7 @@ description: "Webhook payload structure"
 When emails arrive at your configured addresses, Inbound sends a webhook to your endpoint with the complete email data.
 
 ```typescript
-import type { InboundWebhookPayload } from '@inboundemail/sdk'
+import type { InboundWebhookPayload } from 'inboundemail'
 ```
 
 ## Webhook Payload Structure
@@ -126,7 +126,7 @@ Every webhook request includes security headers that you should verify:
 The SDK provides a simple helper function to verify webhook requests:
 
 ```typescript
-import { Inbound, verifyWebhookFromHeaders } from '@inboundemail/sdk'
+import { Inbound, verifyWebhookFromHeaders } from 'inboundemail'
 
 const inbound = new Inbound(process.env.INBOUND_API_KEY!)
 
@@ -154,7 +154,7 @@ export async function POST(request: Request) {
 Here's a complete example that combines webhook verification with payload processing:
 
 ```typescript
-import { Inbound, verifyWebhookFromHeaders, type InboundWebhookPayload } from '@inboundemail/sdk'
+import { Inbound, verifyWebhookFromHeaders, type InboundWebhookPayload } from 'inboundemail'
 
 const inbound = new Inbound(process.env.INBOUND_API_KEY!)
 

@@ -1,8 +1,8 @@
-import { Elysia, t } from "elysia"
-import { validateAndRateLimit } from "../lib/auth"
-import { db } from "@/lib/db"
-import { sentEmails, structuredEmails, scheduledEmails } from "@/lib/db/schema"
-import { eq, and } from "drizzle-orm"
+import { Elysia, t } from "elysia";
+import { validateAndRateLimit } from "../lib/auth";
+import { db } from "@/lib/db";
+import { sentEmails, structuredEmails, scheduledEmails } from "@/lib/db/schema";
+import { eq, and } from "drizzle-orm";
 
 // Response schemas
 const EmailDetailSchema = t.Object({
@@ -32,68 +32,71 @@ const EmailDetailSchema = t.Object({
   thread_position: t.Optional(t.Nullable(t.Number())),
   headers: t.Optional(t.Any({ "x-stainless-any": true })),
   tags: t.Optional(t.Array(t.Any({ "x-stainless-any": true }))),
-})
+});
 
 const GetEmailErrorResponse = t.Object({
   error: t.String(),
-})
+});
 
 // Helper to parse JSON fields safely
 function parseJsonField<T>(field: string | null, fallback: T): T {
-  if (!field) return fallback
+  if (!field) return fallback;
   try {
-    return JSON.parse(field)
+    return JSON.parse(field);
   } catch {
-    return fallback
+    return fallback;
   }
 }
 
 function parseFromData(field: string | null): string {
-  if (!field) return "unknown"
+  if (!field) return "unknown";
   try {
-    const parsed = JSON.parse(field)
-    return parsed?.addresses?.[0]?.address || parsed?.text || "unknown"
+    const parsed = JSON.parse(field);
+    return parsed?.addresses?.[0]?.address || parsed?.text || "unknown";
   } catch {
-    return "unknown"
+    return "unknown";
   }
 }
 
 function parseAddressesFromData(field: string | null): string[] {
-  if (!field) return []
+  if (!field) return [];
   try {
-    const parsed = JSON.parse(field)
-    return parsed?.addresses?.map((a: any) => a.address).filter(Boolean) || []
+    const parsed = JSON.parse(field);
+    return parsed?.addresses?.map((a: any) => a.address).filter(Boolean) || [];
   } catch {
-    return []
+    return [];
   }
 }
 
 export const getEmail = new Elysia().get(
   "/emails/:id",
   async ({ request, params, set }) => {
-    console.log("📧 GET /api/e2/emails/:id - Starting request for:", params.id)
+    console.log("📧 GET /api/e2/emails/:id - Starting request for:", params.id);
 
     // Auth & rate limit validation
-    const userId = await validateAndRateLimit(request, set)
-    console.log("✅ Authentication successful for userId:", userId)
+    const userId = await validateAndRateLimit(request, set);
+    console.log("✅ Authentication successful for userId:", userId);
 
-    const emailId = params.id
+    const emailId = params.id;
 
     // Try to find in received emails (structuredEmails) first
-    console.log("🔍 Searching received emails...")
+    console.log("🔍 Searching received emails...");
     const receivedEmail = await db
       .select()
       .from(structuredEmails)
       .where(
-        and(eq(structuredEmails.id, emailId), eq(structuredEmails.userId, userId))
+        and(
+          eq(structuredEmails.id, emailId),
+          eq(structuredEmails.userId, userId)
+        )
       )
-      .limit(1)
+      .limit(1);
 
     if (receivedEmail.length > 0) {
-      const email = receivedEmail[0]
-      console.log("✅ Found in received emails")
+      const email = receivedEmail[0];
+      console.log("✅ Found in received emails");
 
-      const attachments = parseJsonField(email.attachments, [])
+      const attachments = parseJsonField(email.attachments, []);
 
       return {
         object: "email" as const,
@@ -117,23 +120,23 @@ export const getEmail = new Elysia().get(
         thread_id: email.threadId,
         thread_position: email.threadPosition,
         headers: parseJsonField(email.headers, {}),
-      }
+      };
     }
 
     // Try to find in sent emails
-    console.log("🔍 Searching sent emails...")
+    console.log("🔍 Searching sent emails...");
     const sentEmail = await db
       .select()
       .from(sentEmails)
       .where(and(eq(sentEmails.id, emailId), eq(sentEmails.userId, userId)))
-      .limit(1)
+      .limit(1);
 
     if (sentEmail.length > 0) {
-      const email = sentEmail[0]
-      console.log("✅ Found in sent emails")
+      const email = sentEmail[0];
+      console.log("✅ Found in sent emails");
 
-      const attachments = parseJsonField(email.attachments, [])
-      const tags = parseJsonField(email.tags, [])
+      const attachments = parseJsonField(email.attachments, []);
+      const tags = parseJsonField(email.tags, []);
 
       return {
         object: "email" as const,
@@ -157,25 +160,25 @@ export const getEmail = new Elysia().get(
         thread_position: email.threadPosition,
         headers: parseJsonField(email.headers, {}),
         tags,
-      }
+      };
     }
 
     // Try to find in scheduled emails
-    console.log("🔍 Searching scheduled emails...")
+    console.log("🔍 Searching scheduled emails...");
     const scheduledEmail = await db
       .select()
       .from(scheduledEmails)
       .where(
         and(eq(scheduledEmails.id, emailId), eq(scheduledEmails.userId, userId))
       )
-      .limit(1)
+      .limit(1);
 
     if (scheduledEmail.length > 0) {
-      const email = scheduledEmail[0]
-      console.log("✅ Found in scheduled emails")
+      const email = scheduledEmail[0];
+      console.log("✅ Found in scheduled emails");
 
-      const attachments = parseJsonField(email.attachments, [])
-      const tags = parseJsonField(email.tags, [])
+      const attachments = parseJsonField(email.attachments, []);
+      const tags = parseJsonField(email.tags, []);
 
       return {
         object: "email" as const,
@@ -197,13 +200,13 @@ export const getEmail = new Elysia().get(
         attachments,
         headers: parseJsonField(email.headers, {}),
         tags,
-      }
+      };
     }
 
     // Email not found
-    console.log("❌ Email not found:", emailId)
-    set.status = 404
-    return { error: "Email not found" }
+    console.log("❌ Email not found:", emailId);
+    set.status = 404;
+    return { error: "Email not found" };
   },
   {
     params: t.Object({
@@ -222,5 +225,4 @@ export const getEmail = new Elysia().get(
         "Retrieve a single email by ID. Works for sent, received, and scheduled emails.",
     },
   }
-)
-
+);

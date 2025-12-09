@@ -1,27 +1,31 @@
-import { Elysia, t } from "elysia"
-import { validateAndRateLimit } from "../lib/auth"
-import { db } from "@/lib/db"
-import { endpoints, emailGroups } from "@/lib/db/schema"
-import { nanoid } from "nanoid"
-import { validateEndpointConfig } from "./validation"
+import { Elysia, t } from "elysia";
+import { validateAndRateLimit } from "../lib/auth";
+import { db } from "@/lib/db";
+import { endpoints, emailGroups } from "@/lib/db/schema";
+import { nanoid } from "nanoid";
+import { validateEndpointConfig } from "./validation";
 
 // Request/Response Types (OpenAPI-compatible)
 const WebhookConfigSchema = t.Object({
   url: t.String(),
   timeout: t.Optional(t.Number({ minimum: 1, maximum: 300 })),
   retryAttempts: t.Optional(t.Number({ minimum: 0, maximum: 10 })),
-  headers: t.Optional(t.Record(t.String(), t.String(), { description: "Custom headers to include with webhook requests" })),
-})
+  headers: t.Optional(
+    t.Record(t.String(), t.String(), {
+      description: "Custom headers to include with webhook requests",
+    })
+  ),
+});
 
 const EmailConfigSchema = t.Object({
   forwardTo: t.String({ format: "email" }),
   preserveHeaders: t.Optional(t.Boolean()),
-})
+});
 
 const EmailGroupConfigSchema = t.Object({
   emails: t.Array(t.String({ format: "email" }), { minItems: 1, maxItems: 50 }),
   preserveHeaders: t.Optional(t.Boolean()),
-})
+});
 
 const CreateEndpointBody = t.Object({
   name: t.String({ minLength: 1, maxLength: 255 }),
@@ -30,16 +34,20 @@ const CreateEndpointBody = t.Object({
     t.Literal("email"),
     t.Literal("email_group"),
   ]),
-  config: t.Union([WebhookConfigSchema, EmailConfigSchema, EmailGroupConfigSchema]),
+  config: t.Union([
+    WebhookConfigSchema,
+    EmailConfigSchema,
+    EmailGroupConfigSchema,
+  ]),
   description: t.Optional(t.String({ maxLength: 1000 })),
-})
+});
 
 const DeliveryStatsSchema = t.Object({
   total: t.Number(),
   successful: t.Number(),
   failed: t.Number(),
   lastDelivery: t.Nullable(t.String()),
-})
+});
 
 const EndpointResponse = t.Object({
   id: t.String(),
@@ -57,45 +65,45 @@ const EndpointResponse = t.Object({
   updatedAt: t.String(),
   groupEmails: t.Nullable(t.Array(t.String())),
   deliveryStats: DeliveryStatsSchema,
-})
+});
 
 const ErrorResponse = t.Object({
   error: t.String(),
   message: t.String(),
   statusCode: t.Number(),
-})
+});
 
 const ValidationErrorResponse = t.Object({
   error: t.String(),
   details: t.Optional(t.String()),
-})
+});
 
 export const createEndpoint = new Elysia().post(
   "/endpoints",
   async ({ request, body, set }) => {
-    console.log("➕ POST /api/e2/endpoints - Starting create request")
+    console.log("➕ POST /api/e2/endpoints - Starting create request");
 
     // Auth & rate limit validation - throws on error
-    const userId = await validateAndRateLimit(request, set)
-    console.log("✅ Authentication successful for userId:", userId)
+    const userId = await validateAndRateLimit(request, set);
+    console.log("✅ Authentication successful for userId:", userId);
 
     console.log("📝 Received endpoint data:", {
       name: body.name,
       type: body.type,
       hasConfig: !!body.config,
       description: body.description,
-    })
+    });
 
     // Validate config based on type
-    console.log("🔍 Validating endpoint configuration")
-    const validationResult = validateEndpointConfig(body.type, body.config)
+    console.log("🔍 Validating endpoint configuration");
+    const validationResult = validateEndpointConfig(body.type, body.config);
     if (!validationResult.valid) {
-      console.log("❌ Invalid configuration:", validationResult.error)
-      set.status = 400
+      console.log("❌ Invalid configuration:", validationResult.error);
+      set.status = 400;
       return {
         error: "Invalid configuration",
         details: validationResult.error,
-      }
+      };
     }
 
     const newEndpoint = {
@@ -108,32 +116,32 @@ export const createEndpoint = new Elysia().post(
       isActive: true,
       createdAt: new Date(),
       updatedAt: new Date(),
-    }
+    };
 
-    console.log("💾 Creating endpoint in database")
+    console.log("💾 Creating endpoint in database");
     const [createdEndpoint] = await db
       .insert(endpoints)
       .values(newEndpoint)
-      .returning()
+      .returning();
 
     // If it's an email group, create the group entries
-    let groupEmails: string[] | null = null
+    let groupEmails: string[] | null = null;
     if (body.type === "email_group" && "emails" in body.config) {
       console.log(
         "📧 Creating email group entries, count:",
         body.config.emails.length
-      )
-      groupEmails = body.config.emails as string[]
-      
+      );
+      groupEmails = body.config.emails as string[];
+
       const groupEntries = groupEmails.map((email) => ({
         id: nanoid(),
         endpointId: createdEndpoint.id,
         emailAddress: email,
         createdAt: new Date(),
-      }))
+      }));
 
       if (groupEntries.length > 0) {
-        await db.insert(emailGroups).values(groupEntries)
+        await db.insert(emailGroups).values(groupEntries);
       }
     }
 
@@ -159,11 +167,11 @@ export const createEndpoint = new Elysia().post(
         failed: 0,
         lastDelivery: null,
       },
-    }
+    };
 
-    console.log("✅ Successfully created endpoint:", createdEndpoint.id)
-    set.status = 201
-    return response
+    console.log("✅ Successfully created endpoint:", createdEndpoint.id);
+    set.status = 201;
+    return response;
   },
   {
     body: CreateEndpointBody,
@@ -180,4 +188,4 @@ export const createEndpoint = new Elysia().post(
         "Create a new endpoint (webhook, email, or email_group) for the authenticated user",
     },
   }
-)
+);

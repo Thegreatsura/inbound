@@ -1,30 +1,30 @@
-import { Elysia, t } from "elysia"
-import { validateAndRateLimit } from "../lib/auth"
-import { db } from "@/lib/db"
-import { endpoints } from "@/lib/db/schema"
-import { eq, and } from "drizzle-orm"
-import { generateTestPayload } from "@/lib/webhooks/webhook-formats"
-import type { WebhookFormat } from "@/lib/db/schema"
-import { nanoid } from "nanoid"
-import { getOrCreateVerificationToken } from "@/lib/webhooks/verification"
-import { sanitizeHtml } from "@/lib/email-management/email-parser"
+import { Elysia, t } from "elysia";
+import { validateAndRateLimit } from "../lib/auth";
+import { db } from "@/lib/db";
+import { endpoints } from "@/lib/db/schema";
+import { eq, and } from "drizzle-orm";
+import { generateTestPayload } from "@/lib/webhooks/webhook-formats";
+import type { WebhookFormat } from "@/lib/db/schema";
+import { nanoid } from "nanoid";
+import { getOrCreateVerificationToken } from "@/lib/webhooks/verification";
+import { sanitizeHtml } from "@/lib/email-management/email-parser";
 import type {
   InboundWebhookPayload,
   InboundEmailAddress,
   InboundEmailHeaders,
-} from "@inboundemail/sdk"
+} from "@inboundemail/sdk";
 
 // Request/Response Types (OpenAPI-compatible)
 const EndpointParamsSchema = t.Object({
   id: t.String(),
-})
+});
 
 const TestEndpointBody = t.Object({
   webhookFormat: t.Optional(
     t.Union([t.Literal("inbound"), t.Literal("discord"), t.Literal("slack")])
   ),
   overrideUrl: t.Optional(t.String()),
-})
+});
 
 const TestEndpointResponse = t.Object({
   success: t.Boolean(),
@@ -38,39 +38,39 @@ const TestEndpointResponse = t.Object({
     t.Union([t.Literal("inbound"), t.Literal("discord"), t.Literal("slack")])
   ),
   urlTested: t.Optional(t.String()),
-})
+});
 
 const ErrorResponse = t.Object({
   error: t.String(),
   message: t.String(),
   statusCode: t.Number(),
-})
+});
 
 const NotFoundResponse = t.Object({
   error: t.String(),
-})
+});
 
 const ValidationErrorResponse = t.Object({
   error: t.String(),
   validFormats: t.Optional(t.Array(t.String())),
-})
+});
 
 // Response for disabled endpoint or other test failures that return 400
 const TestFailureResponse = t.Object({
   success: t.Literal(false),
   message: t.String(),
   responseTime: t.Number(),
-})
+});
 
 // Build a mock payload that matches the exact real webhook payload structure
 function buildMockInboundWebhookPayload(endpoint: {
-  id: string
-  name: string
-  type: "webhook" | "email" | "email_group"
+  id: string;
+  name: string;
+  type: "webhook" | "email" | "email_group";
 }): InboundWebhookPayload {
-  const nowIso = new Date().toISOString()
-  const structuredEmailId = nanoid()
-  const msgId = `<test-${nanoid()}@mail.inbound.new>`
+  const nowIso = new Date().toISOString();
+  const structuredEmailId = nanoid();
+  const msgId = `<test-${nanoid()}@mail.inbound.new>`;
 
   const fromAddress: InboundEmailAddress = {
     text: "Inbound Test <test@example.com>",
@@ -80,7 +80,7 @@ function buildMockInboundWebhookPayload(endpoint: {
         address: "test@example.com",
       },
     ],
-  }
+  };
 
   const toAddress: InboundEmailAddress = {
     text: "Test Recipient <test@yourdomain.com>",
@@ -90,7 +90,7 @@ function buildMockInboundWebhookPayload(endpoint: {
         address: "test@yourdomain.com",
       },
     ],
-  }
+  };
 
   const headers: InboundEmailHeaders = {
     "return-path": {
@@ -148,11 +148,11 @@ function buildMockInboundWebhookPayload(endpoint: {
       value: "multipart/alternative",
       params: { boundary: `BOUNDARY-${nanoid(7)}` },
     },
-  }
+  };
 
   const html =
-    "<div><p>This is a test email.</p><p><strong>Rendered for webhook testing.</strong></p></div>"
-  const text = "This is a test email.\nRendered for webhook testing."
+    "<div><p>This is a test email.</p><p><strong>Rendered for webhook testing.</strong></p></div>";
+  const text = "This is a test email.\nRendered for webhook testing.";
 
   const payload: InboundWebhookPayload = {
     event: "email.received",
@@ -165,6 +165,8 @@ function buildMockInboundWebhookPayload(endpoint: {
       recipient: "test@yourdomain.com",
       subject: "Test Email - Inbound Email Service",
       receivedAt: nowIso,
+      threadId: null,
+      threadPosition: null,
       parsedData: {
         messageId: msgId,
         date: new Date(nowIso),
@@ -197,9 +199,9 @@ function buildMockInboundWebhookPayload(endpoint: {
       name: endpoint.name,
       type: endpoint.type,
     },
-  }
+  };
 
-  return payload
+  return payload;
 }
 
 function resolveEffectiveUrl(
@@ -209,28 +211,28 @@ function resolveEffectiveUrl(
   const raw =
     (overrideUrl && overrideUrl.trim()) ||
     (fallbackUrl && String(fallbackUrl).trim()) ||
-    ""
-  if (!raw) throw new Error("No URL configured for webhook test")
-  let u: URL
+    "";
+  if (!raw) throw new Error("No URL configured for webhook test");
+  let u: URL;
   try {
-    u = new URL(raw)
+    u = new URL(raw);
   } catch {
-    throw new Error("Invalid URL")
+    throw new Error("Invalid URL");
   }
   if (u.protocol !== "http:" && u.protocol !== "https:")
-    throw new Error("Only http/https URLs are allowed")
-  const host = u.hostname.toLowerCase()
+    throw new Error("Only http/https URLs are allowed");
+  const host = u.hostname.toLowerCase();
   if (
     host === "localhost" ||
     host === "127.0.0.1" ||
     host === "::1" ||
     host.endsWith(".local")
   ) {
-    throw new Error("Local addresses are not allowed")
+    throw new Error("Local addresses are not allowed");
   }
-  const ipv4 = host.match(/^\d{1,3}(?:\.\d{1,3}){3}$/)
+  const ipv4 = host.match(/^\d{1,3}(?:\.\d{1,3}){3}$/);
   if (ipv4) {
-    const [a, b] = host.split(".").map(Number)
+    const [a, b] = host.split(".").map(Number);
     if (
       a === 10 ||
       (a === 172 && b >= 16 && b <= 31) ||
@@ -238,113 +240,116 @@ function resolveEffectiveUrl(
       a === 127 ||
       (a === 169 && b === 254)
     ) {
-      throw new Error("Private IPs are not allowed")
+      throw new Error("Private IPs are not allowed");
     }
   }
-  return u.toString()
+  return u.toString();
 }
 
 function maskUrl(u: string): string {
   try {
-    const url = new URL(u)
-    url.username = ""
-    url.password = ""
-    url.search = ""
-    return url.toString()
+    const url = new URL(u);
+    url.username = "";
+    url.password = "";
+    url.search = "";
+    return url.toString();
   } catch {
-    return "[invalid URL]"
+    return "[invalid URL]";
   }
 }
 
 export const testEndpoint = new Elysia().post(
   "/endpoints/:id/test",
   async ({ request, params, body, set }) => {
-    const { id } = params
+    const { id } = params;
     console.log(
       "🧪 POST /api/e2/endpoints/:id/test - Starting test for endpoint:",
       id
-    )
+    );
 
     // Auth & rate limit validation - throws on error
-    const userId = await validateAndRateLimit(request, set)
-    console.log("✅ Authentication successful for userId:", userId)
+    const userId = await validateAndRateLimit(request, set);
+    console.log("✅ Authentication successful for userId:", userId);
 
-    const preferredFormat = body.webhookFormat || "inbound"
-    console.log("📋 Using webhook format preference:", preferredFormat)
+    const preferredFormat = body.webhookFormat || "inbound";
+    console.log("📋 Using webhook format preference:", preferredFormat);
 
     // Validate webhook format
     if (!["inbound", "discord", "slack"].includes(preferredFormat)) {
-      console.log("❌ Invalid webhook format:", preferredFormat)
-      set.status = 400
+      console.log("❌ Invalid webhook format:", preferredFormat);
+      set.status = 400;
       return {
         error: "Invalid webhook format",
         validFormats: ["inbound", "discord", "slack"],
-      }
+      };
     }
 
     // Check if endpoint exists and belongs to user
-    console.log("🔍 Checking if endpoint exists and belongs to user")
+    console.log("🔍 Checking if endpoint exists and belongs to user");
     const endpointResult = await db
       .select()
       .from(endpoints)
       .where(and(eq(endpoints.id, id), eq(endpoints.userId, userId)))
-      .limit(1)
+      .limit(1);
 
     if (!endpointResult[0]) {
-      console.log("❌ Endpoint not found for user:", userId, "endpoint:", id)
-      set.status = 404
-      return { error: "Endpoint not found or access denied" }
+      console.log("❌ Endpoint not found for user:", userId, "endpoint:", id);
+      set.status = 404;
+      return { error: "Endpoint not found or access denied" };
     }
 
-    const endpoint = endpointResult[0]
-    console.log("✅ Found endpoint:", endpoint.name, "type:", endpoint.type)
+    const endpoint = endpointResult[0];
+    console.log("✅ Found endpoint:", endpoint.name, "type:", endpoint.type);
 
     if (!endpoint.isActive) {
-      console.log("❌ Endpoint is disabled:", id)
-      set.status = 400
+      console.log("❌ Endpoint is disabled:", id);
+      set.status = 400;
       return {
         success: false,
         message: "Endpoint is disabled",
         responseTime: 0,
-      }
+      };
     }
 
-    const config = JSON.parse(endpoint.config)
-    const startTime = Date.now()
+    const config = JSON.parse(endpoint.config);
+    const startTime = Date.now();
 
     let testResult: any = {
       success: false,
       message: "Test not implemented for this endpoint type",
       responseTime: 0,
-    }
+    };
 
     switch (endpoint.type) {
       case "webhook":
         try {
-          const effectiveUrl = resolveEffectiveUrl(body.overrideUrl, config.url)
+          const effectiveUrl = resolveEffectiveUrl(
+            body.overrideUrl,
+            config.url
+          );
           console.log(
             "🔗 Testing webhook endpoint:",
             maskUrl(effectiveUrl),
             body.overrideUrl ? "(override)" : ""
-          )
-          console.log("📋 Using webhook format:", preferredFormat)
+          );
+          console.log("📋 Using webhook format:", preferredFormat);
 
           // Parse custom headers safely (applies to all formats)
-          let customHeaders: Record<string, string> = {}
+          let customHeaders: Record<string, string> = {};
           if (config.headers) {
             try {
               customHeaders =
                 typeof config.headers === "string"
                   ? JSON.parse(config.headers)
-                  : config.headers
+                  : config.headers;
             } catch (headerError) {
               console.warn(
                 "⚠️ Invalid custom headers for endpoint",
                 id,
                 ":",
                 headerError
-              )
-              customHeaders = {}
+              );
+              customHeaders = {};
             }
           }
 
@@ -354,10 +359,10 @@ export const testEndpoint = new Elysia().post(
               id: endpoint.id,
               name: endpoint.name,
               type: endpoint.type as any,
-            })
+            });
 
             // Get or create verification token for this endpoint
-            const verificationToken = getOrCreateVerificationToken(config)
+            const verificationToken = getOrCreateVerificationToken(config);
 
             // Save token if it was newly generated
             if (!config.verificationToken) {
@@ -367,7 +372,7 @@ export const testEndpoint = new Elysia().post(
                   config: JSON.stringify(config),
                   updatedAt: new Date(),
                 })
-                .where(eq(endpoints.id, endpoint.id))
+                .where(eq(endpoints.id, endpoint.id));
             }
 
             const requestHeaders = {
@@ -380,17 +385,17 @@ export const testEndpoint = new Elysia().post(
               "X-Message-ID": testPayload.email.messageId || "",
               "X-Webhook-Verification-Token": verificationToken,
               ...customHeaders,
-            }
+            };
 
             console.log(
               "📤 Sending test payload to webhook (inbound):",
               maskUrl(effectiveUrl)
-            )
+            );
 
             const timeoutMs =
               (Number.isFinite(Number(config.timeout))
                 ? Math.max(1, Math.min(120, Number(config.timeout)))
-                : 30) * 1000
+                : 30) * 1000;
             const response = await fetch(effectiveUrl, {
               method: "POST",
               headers: requestHeaders,
@@ -398,14 +403,14 @@ export const testEndpoint = new Elysia().post(
               redirect: "error",
               referrerPolicy: "no-referrer",
               signal: AbortSignal.timeout(timeoutMs),
-            })
+            });
 
-            const responseTime = Date.now() - startTime
-            let responseBody = ""
+            const responseTime = Date.now() - startTime;
+            let responseBody = "";
             try {
-              responseBody = await response.text()
+              responseBody = await response.text();
             } catch {
-              responseBody = "Unable to read response body"
+              responseBody = "Unable to read response body";
             }
 
             testResult = {
@@ -419,11 +424,11 @@ export const testEndpoint = new Elysia().post(
               testPayload,
               webhookFormat: preferredFormat as WebhookFormat,
               urlTested: effectiveUrl,
-            }
+            };
 
             console.log(
               `${response.ok ? "✅" : "❌"} Webhook test ${response.ok ? "passed" : "failed"}: ${response.status} in ${responseTime}ms`
-            )
+            );
           } else {
             // Keep existing behavior for discord/slack formats
             const testPayload = generateTestPayload(
@@ -435,10 +440,10 @@ export const testEndpoint = new Elysia().post(
                 subject: "Test Email - Inbound Email Service",
                 recipient: "test@yourdomain.com",
               }
-            )
+            );
 
             // Get or create verification token for this endpoint
-            const verificationToken2 = getOrCreateVerificationToken(config)
+            const verificationToken2 = getOrCreateVerificationToken(config);
 
             // Save token if it was newly generated
             if (!config.verificationToken) {
@@ -448,7 +453,7 @@ export const testEndpoint = new Elysia().post(
                   config: JSON.stringify(config),
                   updatedAt: new Date(),
                 })
-                .where(eq(endpoints.id, endpoint.id))
+                .where(eq(endpoints.id, endpoint.id));
             }
 
             const requestHeaders = {
@@ -459,17 +464,17 @@ export const testEndpoint = new Elysia().post(
               "X-Webhook-Format": preferredFormat,
               "X-Webhook-Verification-Token": verificationToken2,
               ...customHeaders,
-            }
+            };
 
             console.log(
               "📤 Sending test payload to webhook (discord/slack):",
               maskUrl(effectiveUrl)
-            )
+            );
 
             const timeoutMs2 =
               (Number.isFinite(Number(config.timeout))
                 ? Math.max(1, Math.min(120, Number(config.timeout)))
-                : 30) * 1000
+                : 30) * 1000;
             const response = await fetch(effectiveUrl, {
               method: "POST",
               headers: requestHeaders,
@@ -477,14 +482,14 @@ export const testEndpoint = new Elysia().post(
               redirect: "error",
               referrerPolicy: "no-referrer",
               signal: AbortSignal.timeout(timeoutMs2),
-            })
+            });
 
-            const responseTime = Date.now() - startTime
-            let responseBody = ""
+            const responseTime = Date.now() - startTime;
+            let responseBody = "";
             try {
-              responseBody = await response.text()
+              responseBody = await response.text();
             } catch {
-              responseBody = "Unable to read response body"
+              responseBody = "Unable to read response body";
             }
 
             testResult = {
@@ -498,21 +503,21 @@ export const testEndpoint = new Elysia().post(
               testPayload,
               webhookFormat: preferredFormat as WebhookFormat,
               urlTested: effectiveUrl,
-            }
+            };
 
             console.log(
               `${response.ok ? "✅" : "❌"} Webhook test ${response.ok ? "passed" : "failed"}: ${response.status} in ${responseTime}ms`
-            )
+            );
           }
         } catch (error) {
-          const responseTime = Date.now() - startTime
-          let errorMessage = "Unknown error"
+          const responseTime = Date.now() - startTime;
+          let errorMessage = "Unknown error";
 
           if (error instanceof Error) {
             if (error.name === "AbortError") {
-              errorMessage = `Request timeout after ${config.timeout || 30}s`
+              errorMessage = `Request timeout after ${config.timeout || 30}s`;
             } else {
-              errorMessage = error.message
+              errorMessage = error.message;
             }
           }
 
@@ -522,11 +527,11 @@ export const testEndpoint = new Elysia().post(
             responseTime,
             error: errorMessage,
             webhookFormat: preferredFormat as WebhookFormat,
-          }
+          };
 
-          console.error("❌ Webhook test failed:", errorMessage)
+          console.error("❌ Webhook test failed:", errorMessage);
         }
-        break
+        break;
 
       case "email":
         // For email endpoints, we simulate the forwarding process
@@ -534,9 +539,9 @@ export const testEndpoint = new Elysia().post(
           console.log(
             "📧 Testing email forwarding endpoint to:",
             config.forwardTo
-          )
+          );
 
-          const responseTime = Date.now() - startTime
+          const responseTime = Date.now() - startTime;
           testResult = {
             success: true,
             message: `Email forwarding endpoint configured to forward to: ${config.forwardTo}`,
@@ -549,21 +554,21 @@ export const testEndpoint = new Elysia().post(
               from: "test@example.com",
               timestamp: new Date().toISOString(),
             },
-          }
+          };
 
-          console.log("✅ Email endpoint test completed successfully")
+          console.log("✅ Email endpoint test completed successfully");
         } catch (error) {
-          const responseTime = Date.now() - startTime
+          const responseTime = Date.now() - startTime;
           testResult = {
             success: false,
             message: "Email endpoint test failed",
             responseTime,
             error: error instanceof Error ? error.message : "Unknown error",
-          }
+          };
 
-          console.error("❌ Email endpoint test failed:", error)
+          console.error("❌ Email endpoint test failed:", error);
         }
-        break
+        break;
 
       case "email_group":
         // For email group endpoints, we simulate the group forwarding process
@@ -572,9 +577,9 @@ export const testEndpoint = new Elysia().post(
             "📧 Testing email group endpoint with",
             config.emails?.length || 0,
             "recipients"
-          )
+          );
 
-          const responseTime = Date.now() - startTime
+          const responseTime = Date.now() - startTime;
           testResult = {
             success: true,
             message: `Email group endpoint configured to forward to ${config.emails?.length || 0} recipients`,
@@ -587,38 +592,38 @@ export const testEndpoint = new Elysia().post(
               from: "test@example.com",
               timestamp: new Date().toISOString(),
             },
-          }
+          };
 
-          console.log("✅ Email group endpoint test completed successfully")
+          console.log("✅ Email group endpoint test completed successfully");
         } catch (error) {
-          const responseTime = Date.now() - startTime
+          const responseTime = Date.now() - startTime;
           testResult = {
             success: false,
             message: "Email group endpoint test failed",
             responseTime,
             error: error instanceof Error ? error.message : "Unknown error",
-          }
+          };
 
-          console.error("❌ Email group endpoint test failed:", error)
+          console.error("❌ Email group endpoint test failed:", error);
         }
-        break
+        break;
 
       default:
-        const responseTime = Date.now() - startTime
+        const responseTime = Date.now() - startTime;
         testResult = {
           success: false,
           message: `Unknown endpoint type: ${endpoint.type}`,
           responseTime,
           error: `Unsupported endpoint type: ${endpoint.type}`,
-        }
-        console.log("❌ Unknown endpoint type:", endpoint.type)
+        };
+        console.log("❌ Unknown endpoint type:", endpoint.type);
     }
 
     console.log(
       `${testResult.success ? "✅" : "❌"} Test ${testResult.success ? "passed" : "failed"} for endpoint ${id} (${endpoint.type})`
-    )
+    );
 
-    return testResult
+    return testResult;
   },
   {
     params: EndpointParamsSchema,
@@ -635,19 +640,6 @@ export const testEndpoint = new Elysia().post(
       summary: "Test endpoint",
       description:
         "Test an endpoint by sending a test payload. For webhooks, supports inbound, discord, and slack formats. For email endpoints, simulates the forwarding process.",
-      "x-codeSamples": [
-        {
-          lang: "javascript",
-          label: "Node.js",
-          source: `import { Inbound } from 'inboundemail'
-
-const inbound = new Inbound(process.env.INBOUND_API_KEY)
-
-const { data: result } = await inbound.endpoints.test('endp_abc123', {
-  webhookFormat: 'inbound'
-})`,
-        },
-      ],
     },
   }
-)
+);

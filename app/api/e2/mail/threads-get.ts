@@ -1,24 +1,34 @@
-import { Elysia, t } from "elysia"
-import { validateAndRateLimit } from "../lib/auth"
-import { getThreadParticipantNames } from "../lib/participants"
-import { db } from "@/lib/db"
-import { emailThreads, structuredEmails, sentEmails } from "@/lib/db/schema"
-import { eq, and, asc } from "drizzle-orm"
+import { Elysia, t } from "elysia";
+import { validateAndRateLimit } from "../lib/auth";
+import { getThreadParticipantNames } from "../lib/participants";
+import { db } from "@/lib/db";
+import { emailThreads, structuredEmails, sentEmails } from "@/lib/db/schema";
+import { eq, and, asc } from "drizzle-orm";
 
 // Attachment schema
 const AttachmentSchema = t.Object({
-  filename: t.Optional(t.String({ description: "Original filename of the attachment" })),
-  contentType: t.Optional(t.String({ description: "MIME type of the attachment" })),
-  size: t.Optional(t.Number({ description: "Size of the attachment in bytes" })),
-  contentId: t.Optional(t.Nullable(t.String({ description: "Content-ID for inline attachments" }))),
-  content: t.Optional(t.String({ description: "Base64-encoded content (if included)" })),
-})
+  filename: t.Optional(
+    t.String({ description: "Original filename of the attachment" })
+  ),
+  contentType: t.Optional(
+    t.String({ description: "MIME type of the attachment" })
+  ),
+  size: t.Optional(
+    t.Number({ description: "Size of the attachment in bytes" })
+  ),
+  contentId: t.Optional(
+    t.Nullable(t.String({ description: "Content-ID for inline attachments" }))
+  ),
+  content: t.Optional(
+    t.String({ description: "Base64-encoded content (if included)" })
+  ),
+});
 
 // Tag schema for sent emails
 const TagSchema = t.Object({
   name: t.String({ description: "Tag name" }),
   value: t.String({ description: "Tag value" }),
-})
+});
 
 // Thread message schema with full OpenAPI descriptions
 const ThreadMessageSchema = t.Object({
@@ -27,7 +37,8 @@ const ThreadMessageSchema = t.Object({
     t.Nullable(t.String({ description: "RFC 2822 Message-ID header value" }))
   ),
   type: t.Union([t.Literal("inbound"), t.Literal("outbound")], {
-    description: "Whether the message was received (inbound) or sent (outbound)",
+    description:
+      "Whether the message was received (inbound) or sent (outbound)",
   }),
   thread_position: t.Number({
     description: "Position of the message in the thread (0 = first message)",
@@ -52,9 +63,15 @@ const ThreadMessageSchema = t.Object({
   from_address: t.Optional(
     t.Nullable(t.String({ description: "Sender email address" }))
   ),
-  to: t.Array(t.String(), { description: "Array of recipient email addresses" }),
-  cc: t.Array(t.String(), { description: "Array of CC recipient email addresses" }),
-  bcc: t.Array(t.String(), { description: "Array of BCC recipient email addresses" }),
+  to: t.Array(t.String(), {
+    description: "Array of recipient email addresses",
+  }),
+  cc: t.Array(t.String(), {
+    description: "Array of CC recipient email addresses",
+  }),
+  bcc: t.Array(t.String(), {
+    description: "Array of BCC recipient email addresses",
+  }),
 
   // Timestamps
   date: t.Optional(
@@ -65,14 +82,16 @@ const ThreadMessageSchema = t.Object({
   received_at: t.Optional(
     t.Nullable(
       t.String({
-        description: "ISO 8601 timestamp when the message was received (inbound only)",
+        description:
+          "ISO 8601 timestamp when the message was received (inbound only)",
       })
     )
   ),
   sent_at: t.Optional(
     t.Nullable(
       t.String({
-        description: "ISO 8601 timestamp when the message was sent (outbound only)",
+        description:
+          "ISO 8601 timestamp when the message was sent (outbound only)",
       })
     )
   ),
@@ -83,19 +102,21 @@ const ThreadMessageSchema = t.Object({
   }),
   read_at: t.Optional(
     t.Nullable(
-      t.String({ description: "ISO 8601 timestamp when the message was marked as read" })
+      t.String({
+        description: "ISO 8601 timestamp when the message was marked as read",
+      })
     )
   ),
-  has_attachments: t.Boolean({ description: "Whether the message has any attachments" }),
+  has_attachments: t.Boolean({
+    description: "Whether the message has any attachments",
+  }),
   attachments: t.Array(AttachmentSchema, {
     description: "Array of attachment metadata",
   }),
 
   // Threading metadata
   in_reply_to: t.Optional(
-    t.Nullable(
-      t.String({ description: "RFC 2822 In-Reply-To header value" })
-    )
+    t.Nullable(t.String({ description: "RFC 2822 In-Reply-To header value" }))
   ),
   references: t.Array(t.String(), {
     description: "Array of Message-IDs from the References header",
@@ -113,15 +134,18 @@ const ThreadMessageSchema = t.Object({
   // Status (for sent emails)
   status: t.Optional(
     t.String({
-      description: "Delivery status for outbound messages (pending, sent, failed, bounced)",
+      description:
+        "Delivery status for outbound messages (pending, sent, failed, bounced)",
     })
   ),
   failure_reason: t.Optional(
     t.Nullable(
-      t.String({ description: "Error message if the outbound message failed to send" })
+      t.String({
+        description: "Error message if the outbound message failed to send",
+      })
     )
   ),
-})
+});
 
 // Thread details schema with full descriptions
 const ThreadDetailsSchema = t.Object({
@@ -137,7 +161,8 @@ const ThreadDetailsSchema = t.Object({
     )
   ),
   participant_emails: t.Array(t.String(), {
-    description: "Array of all unique email addresses that have participated in this thread",
+    description:
+      "Array of all unique email addresses that have participated in this thread",
   }),
   participant_names: t.Array(t.String(), {
     description:
@@ -155,81 +180,82 @@ const ThreadDetailsSchema = t.Object({
   updated_at: t.String({
     description: "ISO 8601 timestamp when the thread was last updated",
   }),
-})
+});
 
 // Response schemas
 const GetThreadResponse = t.Object({
   thread: ThreadDetailsSchema,
   messages: t.Array(ThreadMessageSchema, {
-    description: "Array of all messages in the thread, sorted by thread position (chronological)",
+    description:
+      "Array of all messages in the thread, sorted by thread position (chronological)",
   }),
   total_count: t.Number({
     description: "Total number of messages returned",
   }),
-})
+});
 
 const GetThreadErrorResponse = t.Object({
   error: t.String({ description: "Error message describing what went wrong" }),
-})
+});
 
 // Helper to extract email addresses from parsed email data
 function extractEmailAddresses(emailData: string | null): string[] {
-  if (!emailData) return []
+  if (!emailData) return [];
 
   try {
-    const parsed = JSON.parse(emailData)
+    const parsed = JSON.parse(emailData);
     if (parsed?.addresses && Array.isArray(parsed.addresses)) {
       return parsed.addresses
         .map((addr: any) => addr.address)
-        .filter((email: string) => email && typeof email === "string")
+        .filter((email: string) => email && typeof email === "string");
     }
   } catch (e) {
     // Ignore parsing errors
   }
 
-  return []
+  return [];
 }
 
 export const getThread = new Elysia().get(
   "/mail/threads/:id",
   async ({ request, params, set }) => {
-    console.log("🧵 GET /api/e2/mail/threads/:id - Starting request")
+    console.log("🧵 GET /api/e2/mail/threads/:id - Starting request");
 
     // Auth & rate limit validation
-    const userId = await validateAndRateLimit(request, set)
-    console.log("✅ Authentication successful for userId:", userId)
+    const userId = await validateAndRateLimit(request, set);
+    console.log("✅ Authentication successful for userId:", userId);
 
-    const threadId = params.id
-    console.log("🧵 Requested thread ID:", threadId)
+    const threadId = params.id;
+    console.log("🧵 Requested thread ID:", threadId);
 
     // Validate thread ID
     if (!threadId || typeof threadId !== "string") {
-      console.log("⚠️ Invalid thread ID provided:", threadId)
-      set.status = 400
-      return { error: "Valid thread ID is required" }
+      console.log("⚠️ Invalid thread ID provided:", threadId);
+      set.status = 400;
+      return { error: "Valid thread ID is required" };
     }
 
     // Get thread info
-    console.log("🔍 Fetching thread details")
+    console.log("🔍 Fetching thread details");
     const thread = await db
       .select()
       .from(emailThreads)
       .where(
         and(eq(emailThreads.id, threadId), eq(emailThreads.userId, userId))
       )
-      .limit(1)
+      .limit(1);
 
     if (thread.length === 0) {
-      console.log("📭 Thread not found")
-      set.status = 404
-      return { error: "Thread not found" }
+      console.log("📭 Thread not found");
+      set.status = 404;
+      return { error: "Thread not found" };
     }
 
-    const threadDetails = thread[0]
-    console.log(`📊 Thread found: ${threadDetails.messageCount} messages`)
+    const threadDetails = thread[0];
+    console.log(`📊 Thread found: ${threadDetails.messageCount} messages`);
 
     // Get all inbound messages in the thread
-    console.log("📥 Fetching inbound messages")
+    console.log("📥 Fetching inbound messages");
     const inboundMessages = await db
       .select()
       .from(structuredEmails)
@@ -239,39 +265,39 @@ export const getThread = new Elysia().get(
           eq(structuredEmails.userId, userId)
         )
       )
-      .orderBy(asc(structuredEmails.threadPosition))
+      .orderBy(asc(structuredEmails.threadPosition));
 
     // Get all outbound messages in the thread
-    console.log("📤 Fetching outbound messages")
+    console.log("📤 Fetching outbound messages");
     const outboundMessages = await db
       .select()
       .from(sentEmails)
       .where(
         and(eq(sentEmails.threadId, threadId), eq(sentEmails.userId, userId))
       )
-      .orderBy(asc(sentEmails.threadPosition))
+      .orderBy(asc(sentEmails.threadPosition));
 
     console.log(
       `📊 Found ${inboundMessages.length} inbound and ${outboundMessages.length} outbound messages`
-    )
+    );
 
     // Convert to unified message format
-    const messages: any[] = []
+    const messages: any[] = [];
 
     // Process inbound messages
     for (const email of inboundMessages) {
-      let fromData = null
-      let attachments: any[] = []
-      let references: string[] = []
-      let headers: Record<string, any> = {}
+      let fromData = null;
+      let attachments: any[] = [];
+      let references: string[] = [];
+      let headers: Record<string, any> = {};
 
       try {
-        fromData = email.fromData ? JSON.parse(email.fromData) : null
-        attachments = email.attachments ? JSON.parse(email.attachments) : []
-        references = email.references ? JSON.parse(email.references) : []
-        headers = email.headers ? JSON.parse(email.headers) : {}
+        fromData = email.fromData ? JSON.parse(email.fromData) : null;
+        attachments = email.attachments ? JSON.parse(email.attachments) : [];
+        references = email.references ? JSON.parse(email.references) : [];
+        headers = email.headers ? JSON.parse(email.headers) : {};
       } catch (e) {
-        console.error("Failed to parse inbound email data:", e)
+        console.error("Failed to parse inbound email data:", e);
       }
 
       messages.push({
@@ -311,34 +337,34 @@ export const getThread = new Elysia().get(
         // Headers and tags
         headers: headers,
         tags: [],
-      })
+      });
     }
 
     // Process outbound messages
     for (const email of outboundMessages) {
-      let toAddresses: string[] = []
-      let ccAddresses: string[] = []
-      let bccAddresses: string[] = []
-      let headers: Record<string, any> = {}
-      let attachments: any[] = []
-      let tags: Array<{ name: string; value: string }> = []
+      let toAddresses: string[] = [];
+      let ccAddresses: string[] = [];
+      let bccAddresses: string[] = [];
+      let headers: Record<string, any> = {};
+      let attachments: any[] = [];
+      let tags: Array<{ name: string; value: string }> = [];
 
       try {
-        toAddresses = email.to ? JSON.parse(email.to) : []
-        ccAddresses = email.cc ? JSON.parse(email.cc) : []
-        bccAddresses = email.bcc ? JSON.parse(email.bcc) : []
-        headers = email.headers ? JSON.parse(email.headers) : {}
-        attachments = email.attachments ? JSON.parse(email.attachments) : []
-        tags = email.tags ? JSON.parse(email.tags) : []
+        toAddresses = email.to ? JSON.parse(email.to) : [];
+        ccAddresses = email.cc ? JSON.parse(email.cc) : [];
+        bccAddresses = email.bcc ? JSON.parse(email.bcc) : [];
+        headers = email.headers ? JSON.parse(email.headers) : {};
+        attachments = email.attachments ? JSON.parse(email.attachments) : [];
+        tags = email.tags ? JSON.parse(email.tags) : [];
       } catch (e) {
-        console.error("Failed to parse outbound email data:", e)
+        console.error("Failed to parse outbound email data:", e);
       }
 
       const references: string[] = headers["References"]
         ? typeof headers["References"] === "string"
           ? headers["References"].split(/\s+/).filter(Boolean)
           : []
-        : []
+        : [];
 
       messages.push({
         id: email.id,
@@ -381,24 +407,24 @@ export const getThread = new Elysia().get(
         // Status
         status: email.status,
         failure_reason: email.failureReason,
-      })
+      });
     }
 
     // Sort messages by thread position
-    messages.sort((a, b) => a.thread_position - b.thread_position)
+    messages.sort((a, b) => a.thread_position - b.thread_position);
 
     // Parse participant emails
-    let participantEmails: string[] = []
+    let participantEmails: string[] = [];
     try {
       participantEmails = threadDetails.participantEmails
         ? JSON.parse(threadDetails.participantEmails)
-        : []
+        : [];
     } catch (e) {
-      console.error("Failed to parse participant emails:", e)
+      console.error("Failed to parse participant emails:", e);
     }
 
     // Get formatted participant names (e.g., "First Last <email@domain.com>")
-    const participantNames = await getThreadParticipantNames(threadId, userId)
+    const participantNames = await getThreadParticipantNames(threadId, userId);
 
     // Build response
     const response = {
@@ -410,7 +436,8 @@ export const getThread = new Elysia().get(
         participant_names: participantNames,
         message_count: threadDetails.messageCount || 0,
         last_message_at:
-          threadDetails.lastMessageAt?.toISOString() || new Date().toISOString(),
+          threadDetails.lastMessageAt?.toISOString() ||
+          new Date().toISOString(),
         created_at:
           threadDetails.createdAt?.toISOString() || new Date().toISOString(),
         updated_at:
@@ -418,10 +445,12 @@ export const getThread = new Elysia().get(
       },
       messages,
       total_count: messages.length,
-    }
+    };
 
-    console.log(`✅ Successfully retrieved thread with ${messages.length} messages`)
-    return response
+    console.log(
+      `✅ Successfully retrieved thread with ${messages.length} messages`
+    );
+    return response;
   },
   {
     params: t.Object({
@@ -447,20 +476,7 @@ export const getThread = new Elysia().get(
 **Message Types:**
 - \`inbound\` - Emails you received
 - \`outbound\` - Emails you sent (includes delivery status)
-
-**Message Content:**
-Each message includes:
-- Full body content (text and HTML)
-- Sender and recipient information
-- Attachments metadata
-- Read status and timestamps
-- Threading headers (In-Reply-To, References)
-
-**Typical Workflow:**
-1. List threads using \`GET /mail/threads\`
-2. User clicks a thread
-3. Fetch full thread using this endpoint
-4. Display conversation view with all messages`,
+`,
     },
   }
-)
+);

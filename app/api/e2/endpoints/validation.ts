@@ -4,8 +4,8 @@
  */
 
 export interface ValidationResult {
-  valid: boolean
-  error?: string
+  valid: boolean;
+  error?: string;
 }
 
 /**
@@ -21,20 +21,20 @@ export function validateEndpointConfig(
   try {
     switch (type) {
       case "webhook":
-        return validateWebhookConfig(config)
+        return validateWebhookConfig(config);
 
       case "email":
-        return validateEmailConfig(config)
+        return validateEmailConfig(config);
 
       case "email_group":
-        return validateEmailGroupConfig(config)
+        return validateEmailGroupConfig(config);
 
       default:
-        return { valid: false, error: "Unknown endpoint type" }
+        return { valid: false, error: "Unknown endpoint type" };
     }
   } catch (error) {
-    console.error("💥 Error during config validation:", error)
-    return { valid: false, error: "Configuration validation failed" }
+    console.error("💥 Error during config validation:", error);
+    return { valid: false, error: "Configuration validation failed" };
   }
 }
 
@@ -43,17 +43,17 @@ export function validateEndpointConfig(
  */
 function validateWebhookConfig(config: any): ValidationResult {
   if (!config.url) {
-    return { valid: false, error: "Webhook URL is required" }
+    return { valid: false, error: "Webhook URL is required" };
   }
 
   if (typeof config.url !== "string") {
-    return { valid: false, error: "Webhook URL must be a string" }
+    return { valid: false, error: "Webhook URL must be a string" };
   }
 
   try {
-    new URL(config.url)
+    new URL(config.url);
   } catch {
-    return { valid: false, error: "Invalid webhook URL format" }
+    return { valid: false, error: "Invalid webhook URL format" };
   }
 
   if (
@@ -65,7 +65,7 @@ function validateWebhookConfig(config: any): ValidationResult {
     return {
       valid: false,
       error: "Timeout must be a number between 1 and 300 seconds",
-    }
+    };
   }
 
   if (
@@ -77,10 +77,10 @@ function validateWebhookConfig(config: any): ValidationResult {
     return {
       valid: false,
       error: "Retry attempts must be a number between 0 and 10",
-    }
+    };
   }
 
-  return { valid: true }
+  return { valid: true };
 }
 
 /**
@@ -88,19 +88,19 @@ function validateWebhookConfig(config: any): ValidationResult {
  */
 function validateEmailConfig(config: any): ValidationResult {
   if (!config.forwardTo) {
-    return { valid: false, error: "Forward-to email address is required" }
+    return { valid: false, error: "Forward-to email address is required" };
   }
 
   if (typeof config.forwardTo !== "string") {
-    return { valid: false, error: "Forward-to email must be a string" }
+    return { valid: false, error: "Forward-to email must be a string" };
   }
 
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(config.forwardTo)) {
-    return { valid: false, error: "Invalid forward-to email address format" }
+    return { valid: false, error: "Invalid forward-to email address format" };
   }
 
-  return { valid: true }
+  return { valid: true };
 }
 
 /**
@@ -108,37 +108,40 @@ function validateEmailConfig(config: any): ValidationResult {
  */
 function validateEmailGroupConfig(config: any): ValidationResult {
   if (!config.emails || !Array.isArray(config.emails)) {
-    return { valid: false, error: "Email group must have an emails array" }
+    return { valid: false, error: "Email group must have an emails array" };
   }
 
   if (config.emails.length === 0) {
     return {
       valid: false,
       error: "Email group must have at least one email address",
-    }
+    };
   }
 
   if (config.emails.length > 50) {
     return {
       valid: false,
       error: "Email group cannot have more than 50 email addresses",
-    }
+    };
   }
 
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   for (const email of config.emails) {
     if (typeof email !== "string" || !emailRegex.test(email)) {
-      return { valid: false, error: `Invalid email address in group: ${email}` }
+      return {
+        valid: false,
+        error: `Invalid email address in group: ${email}`,
+      };
     }
   }
 
-  const uniqueEmails = new Set(config.emails)
+  const uniqueEmails = new Set(config.emails);
   if (uniqueEmails.size !== config.emails.length) {
     return {
       valid: false,
       error: "Email group contains duplicate email addresses",
-    }
+    };
   }
 
-  return { valid: true }
+  return { valid: true };
 }
