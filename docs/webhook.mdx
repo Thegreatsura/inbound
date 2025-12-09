@@ -72,7 +72,7 @@ const payload: InboundWebhookPayload = {
           size: 45678,
           contentId: '<att_abc123>',
           contentDisposition: 'attachment',
-          downloadUrl: 'https://inbound.new/api/v2/attachments/inbnd_abc123def456ghi/order-receipt.pdf'
+          downloadUrl: 'https://inbound.new/api/e2/attachments/inbnd_abc123def456ghi/order-receipt.pdf'
         }
       ],
       headers: {},
@@ -90,7 +90,7 @@ const payload: InboundWebhookPayload = {
           size: 45678,
           contentId: '<att_abc123>',
           contentDisposition: 'attachment',
-          downloadUrl: 'https://inbound.new/api/v2/attachments/inbnd_abc123def456ghi/order-receipt.pdf'
+          downloadUrl: 'https://inbound.new/api/e2/attachments/inbnd_abc123def456ghi/order-receipt.pdf'
         }
       ],
       headers: {}
@@ -245,7 +245,7 @@ export async function POST(request: NextRequest) {
 ```
 
 <Note>
-The download URL follows the format: `https://inbound.new/api/v2/attachments/{emailId}/{filename}`
+The download URL follows the format: `https://inbound.new/api/e2/attachments/{emailId}/{filename}`
 
 Authentication via API key in the Authorization header is required to download attachments.
 </Note>

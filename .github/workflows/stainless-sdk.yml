@@ -74,7 +74,7 @@ jobs:
           echo "Triggering Mintlify documentation update..."
           
           response=$(curl -s -w "\n%{http_code}" -X POST \
-            "https://api.mintlify.com/v1/project/update/${{ secrets.MINTLIFY_PROJECT_ID }}" \
+            "https://api.mintlify.com/v1/project/update/${{ env.MINTLIFY_PROJECT_ID }}" \
             -H "Authorization: Bearer ${{ secrets.MINTLIFY_API_KEY }}" \
             -H "Content-Type: application/json")
           

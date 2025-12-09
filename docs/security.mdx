@@ -125,7 +125,7 @@ async function verifyWebhookManually(
   apiKey: string
 ): Promise<boolean> {
   // Fetch endpoint from API
-  const response = await fetch(`https://inbound.new/api/v2/endpoints/${endpointId}`, {
+  const response = await fetch(`https://inbound.new/api/e2/endpoints/${endpointId}`, {
     headers: {
       'Authorization': `Bearer ${apiKey}`
     }
