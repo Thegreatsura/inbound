@@ -1,14 +1,27 @@
 {
-    "$schema": "https://opencode.ai/config.json",
-    "mcp": {
-        "basehub": {
-            "type": "remote",
-            "url": "https://basehub.com/api/mcp",
-            "enabled": true,
-            "headers": {
-                "Authorization": "Bearer {env:BASEHUB_MCP_TOKEN}"
-            }
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "basehub": {
+      "type": "remote",
+      "url": "https://basehub.com/api/mcp",
+      "enabled": true,
+      "headers": {
+        "Authorization": "Bearer {env:BASEHUB_MCP_TOKEN}"
+      }
+    },
+    "inboundemail_api": {
+      "type": "local",
 
-        }
+      "command": [
+        "bunx",
+        "-y",
+        "inbound-docs-mcp",
+        "--client=claude",
+        "--tools=dynamic"
+      ],
+      "environment": {
+        "INBOUND_API_KEY": "env:INBOUND_API_KEY"
+      }
     }
+  }
 }

@@ -1,0 +1,72 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "maple",
+  "name": "inbound",
+  "colors": {
+    "primary": "#6C47FF",
+    "light": "#6C47FF",
+    "dark": "#6C47FF"
+  },
+  "favicon": "/favicon.svg",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "API Reference",
+        "openapi": "https://app.stainless.com/api/spec/documented/inbound/openapi.documented.yml",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "index",
+              "rate-limits",
+              "webhook",
+              "security",
+              "errors"
+            ]
+          }
+        ]
+      }
+    ],
+    "global": {
+      "anchors": [
+        {
+          "anchor": "Dashboard",
+          "href": "https://inbound.new/logs",
+          "icon": "chart-line"
+        },
+        {
+          "anchor": "Support",
+          "href": "mailto:support@inbound.new",
+          "icon": "envelope"
+        },
+        {
+          "anchor": "GitHub",
+          "href": "https://github.com/r44vc0rp/inbound",
+          "icon": "github"
+        }
+      ]
+    }
+  },
+  "logo": {
+    "light": "/logo/light.svg",
+    "dark": "/logo/dark.svg"
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "Mail Flow",
+        "href": "https://inbound.new/logs"
+      }
+    ],
+    "primary": {
+      "type": "button",
+      "label": "Get Started",
+      "href": "https://inbound.new"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/r44vc0rp/inbound"
+    }
+  }
+}
