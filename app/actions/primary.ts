@@ -2881,7 +2881,21 @@ export async function getUnifiedEmailLogs(options?: {
           ${structuredEmails.subject} ILIKE ${`%${searchQuery}%`} OR
           ${structuredEmails.messageId} ILIKE ${`%${searchQuery}%`} OR
           ${structuredEmails.fromData}::text ILIKE ${`%${searchQuery}%`} OR
-          ${structuredEmails.toData}::text ILIKE ${`%${searchQuery}%`}
+          ${structuredEmails.toData}::text ILIKE ${`%${searchQuery}%`} OR
+          ${structuredEmails.id} ILIKE ${`%${searchQuery}%`} OR
+          ${structuredEmails.emailId} ILIKE ${`%${searchQuery}%`} OR
+          ${structuredEmails.threadId} ILIKE ${`%${searchQuery}%`} OR
+          ${structuredEmails.attachments}::text ILIKE ${`%${searchQuery}%`} OR
+          ${structuredEmails.guardReason} ILIKE ${`%${searchQuery}%`} OR
+          EXISTS (
+            SELECT 1 FROM ${endpointDeliveries}
+            LEFT JOIN ${endpoints} ON ${endpointDeliveries.endpointId} = ${endpoints.id}
+            WHERE ${endpointDeliveries.emailId} = ${structuredEmails.emailId}
+            AND (
+              ${endpoints.name} ILIKE ${`%${searchQuery}%`} OR
+              ${endpointDeliveries.responseData}::text ILIKE ${`%${searchQuery}%`}
+            )
+          )
         )`
       );
     }
@@ -2936,7 +2950,12 @@ export async function getUnifiedEmailLogs(options?: {
           ${sentEmails.subject} ILIKE ${`%${searchQuery}%`} OR
           ${sentEmails.messageId} ILIKE ${`%${searchQuery}%`} OR
           ${sentEmails.from} ILIKE ${`%${searchQuery}%`} OR
-          ${sentEmails.to}::text ILIKE ${`%${searchQuery}%`}
+          ${sentEmails.to}::text ILIKE ${`%${searchQuery}%`} OR
+          ${sentEmails.id} ILIKE ${`%${searchQuery}%`} OR
+          ${sentEmails.threadId} ILIKE ${`%${searchQuery}%`} OR
+          ${sentEmails.attachments}::text ILIKE ${`%${searchQuery}%`} OR
+          ${sentEmails.sesMessageId} ILIKE ${`%${searchQuery}%`} OR
+          ${sentEmails.failureReason} ILIKE ${`%${searchQuery}%`}
         )`
       );
     }

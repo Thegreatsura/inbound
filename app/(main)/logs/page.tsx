@@ -393,7 +393,7 @@ export default function LogsPage() {
             <div className="relative flex-1">
               <Magnifier2 width="16" height="16" className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Search logs..."
+                placeholder="Search by subject, email, thread ID, attachment…"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10 h-9 rounded-xl"
