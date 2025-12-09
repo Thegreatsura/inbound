@@ -74,3 +74,6 @@ scripts-and-work/
 tmp-files/
 
 temps/
+
+# Generated OpenAPI spec
+public/openapi.json

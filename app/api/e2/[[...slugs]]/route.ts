@@ -1,33 +1,33 @@
-import { Elysia } from "elysia"
-import { openapi } from "@elysiajs/openapi"
-import { listDomains } from "../domains/list"
-import { createDomain } from "../domains/create"
-import { getDomain } from "../domains/get"
-import { updateDomain } from "../domains/update"
-import { deleteDomain } from "../domains/delete"
-import { listEndpoints } from "../endpoints/list"
-import { createEndpoint } from "../endpoints/create"
-import { getEndpoint } from "../endpoints/get"
-import { updateEndpoint } from "../endpoints/update"
-import { deleteEndpoint } from "../endpoints/delete"
-import { testEndpoint } from "../endpoints/test"
-import { listEmailAddresses } from "../email-addresses/list"
-import { getEmailAddress } from "../email-addresses/get"
-import { createEmailAddress } from "../email-addresses/create"
-import { updateEmailAddress } from "../email-addresses/update"
-import { deleteEmailAddress } from "../email-addresses/delete"
-import { getAttachment } from "../attachments/get"
-import { AuthError } from "../lib/auth"
+import { Elysia } from "elysia";
+import { openapi } from "@elysiajs/openapi";
+import { listDomains } from "../domains/list";
+import { createDomain } from "../domains/create";
+import { getDomain } from "../domains/get";
+import { updateDomain } from "../domains/update";
+import { deleteDomain } from "../domains/delete";
+import { listEndpoints } from "../endpoints/list";
+import { createEndpoint } from "../endpoints/create";
+import { getEndpoint } from "../endpoints/get";
+import { updateEndpoint } from "../endpoints/update";
+import { deleteEndpoint } from "../endpoints/delete";
+import { testEndpoint } from "../endpoints/test";
+import { listEmailAddresses } from "../email-addresses/list";
+import { getEmailAddress } from "../email-addresses/get";
+import { createEmailAddress } from "../email-addresses/create";
+import { updateEmailAddress } from "../email-addresses/update";
+import { deleteEmailAddress } from "../email-addresses/delete";
+import { getAttachment } from "../attachments/get";
+import { AuthError } from "../lib/auth";
 // Email routes
-import { sendEmail } from "../emails/send"
-import { listEmails } from "../emails/list"
-import { getEmail } from "../emails/get"
-import { cancelEmail } from "../emails/cancel"
-import { replyToEmail } from "../emails/reply"
-import { retryEmail } from "../emails/retry"
+import { sendEmail } from "../emails/send";
+import { listEmails } from "../emails/list";
+import { getEmail } from "../emails/get";
+import { cancelEmail } from "../emails/cancel";
+import { replyToEmail } from "../emails/reply";
+import { retryEmail } from "../emails/retry";
 // Inbox routes (threaded conversations)
-import { listThreads } from "../mail/threads-list"
-import { getThread } from "../mail/threads-get"
+import { listThreads } from "../mail/threads-list";
+import { getThread } from "../mail/threads-get";
 
 // Webhook documentation content (rendered as a documentation page)
 const webhookStructureDoc = `
@@ -159,16 +159,16 @@ for (const attachment of email.parsedData.attachments) {
 \`\`\`
 
 > **Note:** Authentication via API key in the Authorization header is required to download attachments.
-`
+`;
 
 const app = new Elysia({ prefix: "/api/e2" })
-  .use(
-    openapi({
-      documentation: {
-        info: {
-          title: "Inbound Email API",
-          version: "2.0.0",
-          description: `
+	.use(
+		openapi({
+			documentation: {
+				info: {
+					title: "Inbound Email API",
+					version: "2.0.0",
+					description: `
 # Inbound API
 
 The Inbound API allows you to manage email infrastructure programmatically - domains, email addresses, webhooks, and more.
@@ -196,238 +196,263 @@ https://inbound.new/api/e2
 4. **Create an endpoint** - Configure where emails are delivered (webhook, forwarding, etc.)
 
 `,
-        },
-        webhooks: {
-          emailReceived: {
-            post: {
-              summary: "Email Received",
-              description: webhookStructureDoc,
-              tags: ["Webhooks"],
-              requestBody: {
-                description: "Webhook payload sent when an email is received",
-                content: {
-                  "application/json": {
-                    schema: {
-                      type: "object",
-                      properties: {
-                        event: {
-                          type: "string",
-                          example: "email.received",
-                          description: "The event type",
-                        },
-                        timestamp: {
-                          type: "string",
-                          format: "date-time",
-                          example: "2024-01-15T10:30:00Z",
-                        },
-                        email: {
-                          type: "object",
-                          properties: {
-                            id: { type: "string", example: "inbnd_abc123def456ghi" },
-                            messageId: { type: "string", example: "<unique-id@sender.com>" },
-                            subject: { type: "string", example: "Help with my order" },
-                            recipient: { type: "string", example: "support@yourdomain.com" },
-                            from: {
-                              type: "object",
-                              properties: {
-                                text: { type: "string" },
-                                addresses: {
-                                  type: "array",
-                                  items: {
-                                    type: "object",
-                                    properties: {
-                                      name: { type: "string", nullable: true },
-                                      address: { type: "string" },
-                                    },
-                                  },
-                                },
-                              },
-                            },
-                            to: {
-                              type: "object",
-                              properties: {
-                                text: { type: "string" },
-                                addresses: {
-                                  type: "array",
-                                  items: {
-                                    type: "object",
-                                    properties: {
-                                      name: { type: "string", nullable: true },
-                                      address: { type: "string" },
-                                    },
-                                  },
-                                },
-                              },
-                            },
-                            parsedData: {
-                              type: "object",
-                              properties: {
-                                textBody: { type: "string", nullable: true },
-                                htmlBody: { type: "string", nullable: true },
-                                attachments: {
-                                  type: "array",
-                                  items: {
-                                    type: "object",
-                                    properties: {
-                                      filename: { type: "string" },
-                                      contentType: { type: "string" },
-                                      size: { type: "integer" },
-                                      downloadUrl: { type: "string" },
-                                    },
-                                  },
-                                },
-                              },
-                            },
-                          },
-                        },
-                        endpoint: {
-                          type: "object",
-                          properties: {
-                            id: { type: "string", example: "endp_xyz789" },
-                            name: { type: "string", example: "Support Webhook" },
-                            type: { type: "string", example: "webhook" },
-                          },
-                        },
-                      },
-                    },
-                  },
-                },
-              },
-              responses: {
-                "200": {
-                  description: "Webhook processed successfully",
-                },
-              },
-            },
-          },
-        },
-        tags: [
-          {
-            name: "Webhooks",
-            description: "Webhooks sent by Inbound to your configured endpoints when events occur.",
-          },
-          {
-            name: "Emails",
-            description: "Send, list, and manage emails. Supports immediate sending, scheduling, replies, and retry functionality.",
-          },
-          {
-            name: "Mail",
-            description: "Inbox and thread views for received emails. Filter by domain, address, or search.",
-          },
-          {
-            name: "Domains",
-            description: "Manage domains for sending and receiving emails. Domains must be verified via DNS before use.",
-          },
-          {
-            name: "Endpoints",
-            description: "Configure where incoming emails are delivered - webhooks, email forwarding, or custom handlers.",
-          },
-          {
-            name: "Email Addresses",
-            description: "Create and manage email addresses on your verified domains.",
-          },
-          {
-            name: "Attachments",
-            description: "Download email attachments using authenticated requests.",
-          },
-        ],
-        components: {
-          securitySchemes: {
-            bearerAuth: {
-              type: "http",
-              scheme: "bearer",
-              bearerFormat: "API Key",
-              description:
-                "Your Inbound API key. Include it in the Authorization header as: Bearer <your-api-key>",
-            },
-          },
-        },
-        security: [
-          {
-            bearerAuth: [],
-          },
-        ],
-      } as Record<string, unknown>,
-      path: "/docs",
-      specPath: "/openapi.json",
-    })
-  )
-  // Global error handler for RFC-compliant error responses
-  .onError(({ code, error, set }) => {
-    console.log("🔥 Error handler triggered:", {
-      code,
-      error: error instanceof Error ? error.message : "Unknown error",
-    })
+				},
+				webhooks: {
+					emailReceived: {
+						post: {
+							summary: "Email Received",
+							description: webhookStructureDoc,
+							tags: ["Webhooks"],
+							requestBody: {
+								description: "Webhook payload sent when an email is received",
+								content: {
+									"application/json": {
+										schema: {
+											type: "object",
+											properties: {
+												event: {
+													type: "string",
+													example: "email.received",
+													description: "The event type",
+												},
+												timestamp: {
+													type: "string",
+													format: "date-time",
+													example: "2024-01-15T10:30:00Z",
+												},
+												email: {
+													type: "object",
+													properties: {
+														id: {
+															type: "string",
+															example: "inbnd_abc123def456ghi",
+														},
+														messageId: {
+															type: "string",
+															example: "<unique-id@sender.com>",
+														},
+														subject: {
+															type: "string",
+															example: "Help with my order",
+														},
+														recipient: {
+															type: "string",
+															example: "support@yourdomain.com",
+														},
+														from: {
+															type: "object",
+															properties: {
+																text: { type: "string" },
+																addresses: {
+																	type: "array",
+																	items: {
+																		type: "object",
+																		properties: {
+																			name: { type: "string", nullable: true },
+																			address: { type: "string" },
+																		},
+																	},
+																},
+															},
+														},
+														to: {
+															type: "object",
+															properties: {
+																text: { type: "string" },
+																addresses: {
+																	type: "array",
+																	items: {
+																		type: "object",
+																		properties: {
+																			name: { type: "string", nullable: true },
+																			address: { type: "string" },
+																		},
+																	},
+																},
+															},
+														},
+														parsedData: {
+															type: "object",
+															properties: {
+																textBody: { type: "string", nullable: true },
+																htmlBody: { type: "string", nullable: true },
+																attachments: {
+																	type: "array",
+																	items: {
+																		type: "object",
+																		properties: {
+																			filename: { type: "string" },
+																			contentType: { type: "string" },
+																			size: { type: "integer" },
+																			downloadUrl: { type: "string" },
+																		},
+																	},
+																},
+															},
+														},
+													},
+												},
+												endpoint: {
+													type: "object",
+													properties: {
+														id: { type: "string", example: "endp_xyz789" },
+														name: {
+															type: "string",
+															example: "Support Webhook",
+														},
+														type: { type: "string", example: "webhook" },
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+							responses: {
+								"200": {
+									description: "Webhook processed successfully",
+								},
+							},
+						},
+					},
+				},
+				tags: [
+					{
+						name: "Webhooks",
+						description:
+							"Webhooks sent by Inbound to your configured endpoints when events occur.",
+					},
+					{
+						name: "Emails",
+						description:
+							"Send, list, and manage emails. Supports immediate sending, scheduling, replies, and retry functionality.",
+					},
+					{
+						name: "Mail",
+						description:
+							"Inbox and thread views for received emails. Filter by domain, address, or search.",
+					},
+					{
+						name: "Domains",
+						description:
+							"Manage domains for sending and receiving emails. Domains must be verified via DNS before use.",
+					},
+					{
+						name: "Endpoints",
+						description:
+							"Configure where incoming emails are delivered - webhooks, email forwarding, or custom handlers.",
+					},
+					{
+						name: "Email Addresses",
+						description:
+							"Create and manage email addresses on your verified domains.",
+					},
+					{
+						name: "Attachments",
+						description:
+							"Download email attachments using authenticated requests.",
+					},
+				],
+				components: {
+					securitySchemes: {
+						bearerAuth: {
+							type: "http",
+							scheme: "bearer",
+							bearerFormat: "API Key",
+							description:
+								"Your Inbound API key. Include it in the Authorization header as: Bearer <your-api-key>",
+						},
+					},
+				},
+				security: [
+					{
+						bearerAuth: [],
+					},
+				],
+			} as Record<string, unknown>,
+			path: "/docs",
+			specPath: "/openapi.json",
+		}),
+	)
+	// Global error handler for RFC-compliant error responses
+	.onError(({ code, error, set }) => {
+		console.log("🔥 Error handler triggered:", {
+			code,
+			error: error instanceof Error ? error.message : "Unknown error",
+		});
 
-    // Handle AuthError with RFC-compliant formatting
-    if (error instanceof AuthError) {
-      // Headers are already set by validateAndRateLimit
-      return error.response
-    }
+		// Handle AuthError with RFC-compliant formatting
+		if (error instanceof AuthError) {
+			// Headers are already set by validateAndRateLimit
+			return error.response;
+		}
 
-    // Handle other Elysia errors
-    if (code === "VALIDATION") {
-      set.status = 400
-      return {
-        error: "Bad Request",
-        message: "Validation failed. Check your request parameters.",
-        statusCode: 400,
-      }
-    }
+		// Handle other Elysia errors
+		if (code === "VALIDATION") {
+			set.status = 400;
+			return {
+				error: "Bad Request",
+				message: "Validation failed. Check your request parameters.",
+				statusCode: 400,
+			};
+		}
 
-    if (code === "NOT_FOUND") {
-      set.status = 404
-      return {
-        error: "Not Found",
-        message: "The requested resource was not found.",
-        statusCode: 404,
-      }
-    }
+		if (code === "NOT_FOUND") {
+			set.status = 404;
+			return {
+				error: "Not Found",
+				message: "The requested resource was not found.",
+				statusCode: 404,
+			};
+		}
 
-    // Generic error handler
-    set.status = 500
-    return {
-      error: "Internal Server Error",
-      message: "An unexpected error occurred.",
-      statusCode: 500,
-    }
-  })
-  // Domain routes
-  .use(listDomains)
-  .use(createDomain)
-  .use(getDomain)
-  .use(updateDomain)
-  .use(deleteDomain)
-  // Endpoint routes
-  .use(listEndpoints)
-  .use(createEndpoint)
-  .use(getEndpoint)
-  .use(updateEndpoint)
-  .use(deleteEndpoint)
-  .use(testEndpoint)
-  // Email Address routes
-  .use(listEmailAddresses)
-  .use(getEmailAddress)
-  .use(createEmailAddress)
-  .use(updateEmailAddress)
-  .use(deleteEmailAddress)
-  // Attachment routes
-  .use(getAttachment)
-  // Email routes (sending, listing, managing)
-  .use(sendEmail)
-  .use(listEmails)
-  .use(getEmail)
-  .use(cancelEmail)
-  .use(replyToEmail)
-  .use(retryEmail)
-  // Inbox routes (threaded conversations)
-  .use(listThreads)
-  .use(getThread)
+		// Generic error handler
+		set.status = 500;
+		return {
+			error: "Internal Server Error",
+			message: "An unexpected error occurred.",
+			statusCode: 500,
+		};
+	})
+	// Domain routes
+	.use(listDomains)
+	.use(createDomain)
+	.use(getDomain)
+	.use(updateDomain)
+	.use(deleteDomain)
+	// Endpoint routes
+	.use(listEndpoints)
+	.use(createEndpoint)
+	.use(getEndpoint)
+	.use(updateEndpoint)
+	.use(deleteEndpoint)
+	.use(testEndpoint)
+	// Email Address routes
+	.use(listEmailAddresses)
+	.use(getEmailAddress)
+	.use(createEmailAddress)
+	.use(updateEmailAddress)
+	.use(deleteEmailAddress)
+	// Attachment routes
+	.use(getAttachment)
+	// Email routes (sending, listing, managing)
+	.use(sendEmail)
+	.use(listEmails)
+	.use(getEmail)
+	.use(cancelEmail)
+	.use(replyToEmail)
+	.use(retryEmail)
+	// Inbox routes (threaded conversations)
+	.use(listThreads)
+	.use(getThread);
 
-export const GET = app.fetch
-export const POST = app.fetch
-export const PUT = app.fetch
-export const PATCH = app.fetch
-export const DELETE = app.fetch
+export const GET = app.fetch;
+export const POST = app.fetch;
+export const PUT = app.fetch;
+export const PATCH = app.fetch;
+export const DELETE = app.fetch;
 
-export type App = typeof app
+export type App = typeof app;
+
+// Export app instance for OpenAPI generation script
+export { app };

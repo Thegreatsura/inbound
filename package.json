@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "basehub dev & next dev",
     "dev:basehub": "basehub dev",
-    "prebuild": "drizzle-kit generate && drizzle-kit push",
+    "generate:openapi": "bun run scripts/generate-openapi.ts",
+    "verify:openapi": "bun run scripts/verify-openapi.ts",
+    "prebuild": "bun run generate:openapi && drizzle-kit generate && drizzle-kit push",
     "build": "basehub build && next build",
     "test-api": "bun run app/api/v2/api.test.ts",
     "test-sdk": "bun run app/api/v2/sdk.test.ts",
