@@ -19,6 +19,8 @@ concurrency:
 env:
   STAINLESS_PROJECT: inbound
   API_BASE_URL: https://inbound.new
+  MINTLIFY_PROJECT_ID: 684319e452e43891b702c525
+  MINTLIFY_API_KEY: ${{ secrets.MINTLIFY_API_KEY }}
 
 jobs:
   build-sdk:
@@ -61,3 +63,34 @@ jobs:
           stainless_api_key: ${{ secrets.STAINLESS_API_KEY }}
           project: ${{ env.STAINLESS_PROJECT }}
           oas_path: openapi.json
+
+      - name: Wait for Stainless to process
+        run: |
+          echo "Waiting for Stainless to generate SDK code samples..."
+          sleep 120
+
+      - name: Trigger Mintlify documentation update
+        run: |
+          echo "Triggering Mintlify documentation update..."
+          
+          response=$(curl -s -w "\n%{http_code}" -X POST \
+            "https://api.mintlify.com/v1/project/update/${{ secrets.MINTLIFY_PROJECT_ID }}" \
+            -H "Authorization: Bearer ${{ secrets.MINTLIFY_API_KEY }}" \
+            -H "Content-Type: application/json")
+          
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+          
+          echo "Response: $body"
+          echo "HTTP Status: $http_code"
+          
+          if [ "$http_code" = "202" ]; then
+            echo "✅ Mintlify update triggered successfully"
+            status_id=$(echo "$body" | jq -r '.statusId // empty')
+            if [ -n "$status_id" ]; then
+              echo "Status ID: $status_id"
+            fi
+          else
+            echo "⚠️ Failed to trigger Mintlify update (HTTP $http_code)"
+            echo "This is non-blocking - docs will update on next push to docs branch"
+          fi
