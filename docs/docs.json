@@ -1,51 +1,70 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "maple",
+  "theme": "almond",
+  "appearance": {
+    "default": "dark"
+  },
   "name": "inbound",
   "colors": {
-    "primary": "#6C47FF",
-    "light": "#6C47FF",
-    "dark": "#6C47FF"
+    "primary": "#8161FF",
+    "light": "#8161FF",
+    "dark": "#8161FF"
+  },
+  "background": {
+    "color": {
+      "light": "#FAFAF9"
+    }
+  },
+  "font": {
+    "headings": {
+      "family": "Geist",
+      "weight": 600
+    },
+    "body": {
+      "family": "Geist",
+      "weight": 500
+    }
   },
   "favicon": "/favicon.svg",
   "navigation": {
-    "tabs": [
+    "anchors": [
       {
-        "tab": "API Reference",
-        "openapi": "https://app.stainless.com/api/spec/documented/inbound/openapi.documented.yml",
+        "anchor": "Documentation",
+        "icon": "book-open",
+        "groups": [
+          {
+            "group": "Quickstart",
+            "pages": [
+              "quickstart/introduction",
+              "quickstart/getting-started"
+            ]
+          },
+          {
+            "group": "Integrations",
+            "pages": [
+              "integrations/better-auth"
+            ]
+          }
+        ]
+      },
+      {
+        "anchor": "API Reference",
+        "icon": "square-terminal",
         "groups": [
           {
             "group": "Overview",
             "pages": [
-              "index",
-              "rate-limits",
-              "webhook",
-              "security",
-              "errors"
+              "api-reference/introduction",
+              "api-reference/rate-limits",
+              "api-reference/webhook",
+              "api-reference/security",
+              "api-reference/errors"
             ]
           }
-        ]
+        ],
+        "openapi": "https://app.stainless.com/api/spec/documented/inbound/openapi.documented.yml"
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Dashboard",
-          "href": "https://inbound.new/logs",
-          "icon": "chart-line"
-        },
-        {
-          "anchor": "Support",
-          "href": "mailto:support@inbound.new",
-          "icon": "envelope"
-        },
-        {
-          "anchor": "GitHub",
-          "href": "https://github.com/r44vc0rp/inbound",
-          "icon": "github"
-        }
-      ]
-    }
+    ]
   },
   "logo": {
     "light": "/logo/light.svg",
