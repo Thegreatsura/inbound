@@ -5,12 +5,8 @@ on:
     branches: [main]
     paths:
       - 'app/api/e2/**'
+      - 'stainless.yml'
   workflow_dispatch:
-    inputs:
-      skip_wait:
-        description: 'Skip deployment wait (for local testing)'
-        type: boolean
-        default: false
 
 concurrency:
   group: stainless-sdk-${{ github.ref }}
@@ -18,9 +14,7 @@ concurrency:
 
 env:
   STAINLESS_PROJECT: inbound
-  API_BASE_URL: https://inbound.new
   MINTLIFY_PROJECT_ID: 684319e452e43891b702c525
-  MINTLIFY_API_KEY: ${{ secrets.MINTLIFY_API_KEY }}
 
 jobs:
   build-sdk:
@@ -32,43 +26,75 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Wait for Vercel deployment to propagate
-        if: ${{ github.event.inputs.skip_wait != 'true' }}
-        run: |
-          echo "Waiting for Vercel deployment to complete..."
-          sleep 180
-          
-          echo "Checking if API is available..."
-          for i in {1..30}; do
-            if curl -sSf "${{ env.API_BASE_URL }}/api/e2/openapi.json" > /dev/null 2>&1; then
-              echo "API is available!"
-              break
-            fi
-            echo "Attempt $i: API not ready, waiting 10s..."
-            sleep 10
-          done
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
 
-      - name: Fetch OpenAPI spec from live API
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Validate stainless.yml against schema
         run: |
-          echo "Fetching OpenAPI spec from ${{ env.API_BASE_URL }}/openapi.json"
-          curl -sSf -o openapi.json "${{ env.API_BASE_URL }}/openapi.json"
-          echo "OpenAPI spec fetched successfully"
-          
+          pip install check-jsonschema
+          check-jsonschema --schemafile https://app.stainless.com/config.schema.json stainless.yml
+          echo "✅ stainless.yml is valid"
+
+      - name: Generate OpenAPI spec
+        run: |
+          bun run generate:openapi
           echo "=== Spec Summary ==="
-          jq '{title: .info.title, version: .info.version, paths: (.paths | keys | length)}' openapi.json
+          jq '{title: .info.title, version: .info.version, paths: (.paths | keys | length)}' public/openapi.json
 
       - name: Upload to Stainless
+        id: stainless
         uses: stainless-api/upload-openapi-spec-action/build@v1
         with:
           stainless_api_key: ${{ secrets.STAINLESS_API_KEY }}
           project: ${{ env.STAINLESS_PROJECT }}
-          oas_path: openapi.json
+          oas_path: public/openapi.json
           config_path: stainless.yml
 
-      - name: Wait for Stainless to process
+      - name: Install Stainless CLI
         run: |
-          echo "Waiting for Stainless to generate SDK code samples..."
-          sleep 120
+          curl -fsSL https://app.stainless.com/install.sh | sh
+          echo "$HOME/.stainless/bin" >> $GITHUB_PATH
+
+      - name: Poll for build completion
+        env:
+          STAINLESS_API_KEY: ${{ secrets.STAINLESS_API_KEY }}
+        run: |
+          echo "Polling for build completion..."
+          BUILD_ID="${{ steps.stainless.outputs.build_id }}"
+          
+          if [ -z "$BUILD_ID" ]; then
+            echo "No build ID returned, waiting 60s as fallback..."
+            sleep 60
+            exit 0
+          fi
+          
+          echo "Build ID: $BUILD_ID"
+          
+          for i in {1..30}; do
+            status=$(stl builds retrieve "$BUILD_ID" --project "${{ env.STAINLESS_PROJECT }}" --json 2>/dev/null | jq -r '.status // "unknown"' || echo "pending")
+            echo "Attempt $i: Status = $status"
+            
+            case "$status" in
+              "completed"|"success")
+                echo "✅ Build completed successfully!"
+                exit 0
+                ;;
+              "failed"|"error")
+                echo "❌ Build failed!"
+                exit 1
+                ;;
+              *)
+                sleep 10
+                ;;
+            esac
+          done
+          
+          echo "⚠️ Timeout waiting for build, proceeding anyway..."
 
       - name: Trigger Mintlify documentation update
         run: |
