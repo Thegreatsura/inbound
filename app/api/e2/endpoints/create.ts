@@ -6,26 +6,38 @@ import { nanoid } from "nanoid";
 import { validateEndpointConfig } from "./validation";
 
 // Request/Response Types (OpenAPI-compatible)
-const WebhookConfigSchema = t.Object({
-  url: t.String(),
-  timeout: t.Optional(t.Number({ minimum: 1, maximum: 300 })),
-  retryAttempts: t.Optional(t.Number({ minimum: 0, maximum: 10 })),
-  headers: t.Optional(
-    t.Record(t.String(), t.String(), {
-      description: "Custom headers to include with webhook requests",
-    })
-  ),
-});
+const WebhookConfigSchema = t.Object(
+  {
+    url: t.String(),
+    timeout: t.Optional(t.Number({ minimum: 1, maximum: 300 })),
+    retryAttempts: t.Optional(t.Number({ minimum: 0, maximum: 10 })),
+    headers: t.Optional(
+      t.Record(t.String(), t.String(), {
+        description: "Custom headers to include with webhook requests",
+      })
+    ),
+  },
+  { title: "WebhookConfig" }
+);
 
-const EmailConfigSchema = t.Object({
-  forwardTo: t.String({ format: "email" }),
-  preserveHeaders: t.Optional(t.Boolean()),
-});
+const EmailConfigSchema = t.Object(
+  {
+    forwardTo: t.String({ format: "email" }),
+    preserveHeaders: t.Optional(t.Boolean()),
+  },
+  { title: "EmailConfig" }
+);
 
-const EmailGroupConfigSchema = t.Object({
-  emails: t.Array(t.String({ format: "email" }), { minItems: 1, maxItems: 50 }),
-  preserveHeaders: t.Optional(t.Boolean()),
-});
+const EmailGroupConfigSchema = t.Object(
+  {
+    emails: t.Array(t.String({ format: "email" }), {
+      minItems: 1,
+      maxItems: 50,
+    }),
+    preserveHeaders: t.Optional(t.Boolean()),
+  },
+  { title: "EmailGroupConfig" }
+);
 
 const CreateEndpointBody = t.Object({
   name: t.String({ minLength: 1, maxLength: 255 }),
