@@ -133,7 +133,3 @@ readme:
       type: request
       endpoint: get /api/e2/domains
       params: {}
-
-custom_casings:
-  API:
-    initialism: true
