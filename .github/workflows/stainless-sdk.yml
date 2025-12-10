@@ -63,6 +63,7 @@ jobs:
           stainless_api_key: ${{ secrets.STAINLESS_API_KEY }}
           project: ${{ env.STAINLESS_PROJECT }}
           oas_path: openapi.json
+          config_path: stainless.yml
 
       - name: Wait for Stainless to process
         run: |

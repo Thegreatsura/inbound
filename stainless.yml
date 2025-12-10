@@ -1,5 +1,6 @@
 # yaml-language-server: $schema=https://app.stainless.com/config.schema.json
 
+## ADMIN: Last updated on 12/10/2025 - Ryan Vogel
 
 # The main edition for the config, see the [docs] for more information.
 #
@@ -10,7 +11,7 @@ edition: 2025-10-10
 openapi:
   code_samples: 'mintlify'
 
-## ADMIN: Last updated on 12/09/2025 - Ryan Vogel
+
 
 organization:
   # Name of your organization or company, used to determine the name of the client
@@ -34,6 +35,10 @@ targets:
     publish:
       npm: true
     options:
+      client_name: Inbound
+      browser:
+        state: disallow
+        message: 'The Inbound SDK is not supported in browser environments. Use server-side environments only.'
       mcp_server:
         package_name: inbound-docs-mcp
         enable_all_resources: true
@@ -109,6 +114,11 @@ client_settings:
         security_scheme: bearerAuth
       description: 'Your Inbound API key. Include it in the Authorization header as: Bearer <your-api-key>'
       read_env: INBOUND_API_KEY
+  default_timeout: 60000
+  default_retries:
+    max_retries: 2
+    initial_delay: 500
+    max_delay: 5000
 
 # `readme` is used to configure the code snippets that will be rendered in the
 # README.md of various SDKs. In particular, you can change the `headline`
@@ -123,3 +133,7 @@ readme:
       type: request
       endpoint: get /api/e2/domains
       params: {}
+
+custom_casings:
+  API:
+    initialism: true
