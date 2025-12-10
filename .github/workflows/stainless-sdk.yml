@@ -47,54 +47,12 @@ jobs:
           jq '{title: .info.title, version: .info.version, paths: (.paths | keys | length)}' public/openapi.json
 
       - name: Upload to Stainless
-        id: stainless
         uses: stainless-api/upload-openapi-spec-action/build@v1
         with:
           stainless_api_key: ${{ secrets.STAINLESS_API_KEY }}
           project: ${{ env.STAINLESS_PROJECT }}
           oas_path: public/openapi.json
           config_path: stainless.yml
-
-      - name: Install Stainless CLI
-        run: |
-          curl -fsSL https://app.stainless.com/install.sh | sh
-          echo "$HOME/.stainless/bin" >> $GITHUB_PATH
-
-      - name: Poll for build completion
-        env:
-          STAINLESS_API_KEY: ${{ secrets.STAINLESS_API_KEY }}
-        run: |
-          echo "Polling for build completion..."
-          BUILD_ID="${{ steps.stainless.outputs.build_id }}"
-          
-          if [ -z "$BUILD_ID" ]; then
-            echo "No build ID returned, waiting 60s as fallback..."
-            sleep 60
-            exit 0
-          fi
-          
-          echo "Build ID: $BUILD_ID"
-          
-          for i in {1..30}; do
-            status=$(stl builds retrieve "$BUILD_ID" --project "${{ env.STAINLESS_PROJECT }}" --json 2>/dev/null | jq -r '.status // "unknown"' || echo "pending")
-            echo "Attempt $i: Status = $status"
-            
-            case "$status" in
-              "completed"|"success")
-                echo "✅ Build completed successfully!"
-                exit 0
-                ;;
-              "failed"|"error")
-                echo "❌ Build failed!"
-                exit 1
-                ;;
-              *)
-                sleep 10
-                ;;
-            esac
-          done
-          
-          echo "⚠️ Timeout waiting for build, proceeding anyway..."
 
       - name: Trigger Mintlify documentation update
         run: |
