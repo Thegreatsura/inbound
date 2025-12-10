@@ -97,17 +97,13 @@ const SendEmailBodySchema = t.Object({
   ),
 });
 
-// Response schemas
-const SendEmailSuccessResponse = t.Object({
+// Response schemas - unified to avoid SDK union type issues
+const EmailSendSuccessResponse = t.Object({
   id: t.String(),
   message_id: t.Optional(t.String()),
-});
-
-const ScheduledEmailSuccessResponse = t.Object({
-  id: t.String(),
-  scheduled_at: t.String(),
-  status: t.Literal("scheduled"),
-  timezone: t.String(),
+  scheduled_at: t.Optional(t.String()),
+  status: t.Optional(t.Union([t.Literal("sent"), t.Literal("scheduled")])),
+  timezone: t.Optional(t.String()),
 });
 
 const ErrorResponse = t.Object({
@@ -700,8 +696,7 @@ export const sendEmail = new Elysia().post(
   {
     body: SendEmailBodySchema,
     response: {
-      200: SendEmailSuccessResponse,
-      201: ScheduledEmailSuccessResponse,
+      200: EmailSendSuccessResponse,
       400: ErrorResponse,
       401: ErrorResponse,
       403: ErrorResponse,
