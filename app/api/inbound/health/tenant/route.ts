@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getTenantOwnerByConfigurationSet } from '@/lib/db/tenants';
 import { sendReputationAlertNotification } from '@/lib/email-management/email-notifications';
 import { pauseTenantSending } from '@/lib/aws-ses/aws-ses-tenants';
+import { processSESEvent, type RateAlert } from '@/lib/ses-monitoring/rate-tracker';
 
 // Slack webhook for admin notifications
 const SLACK_ADMIN_WEBHOOK_URL = process.env.SLACK_ADMIN_WEBHOOK_URL;
@@ -179,20 +180,19 @@ export async function POST(request: NextRequest) {
       }
     }
     
-    // Handle SES Events
+    // Handle SES Events - Process bounces and complaints for rate tracking
     if (parsedNotification.sesEvents) {
       console.log('--- SES Events Details ---');
       console.log(`Received ${parsedNotification.sesEvents.Records.length} SES event(s)`);
-      
+
       for (const event of parsedNotification.sesEvents.Records) {
         console.log(`Event Type: ${event.eventType}`);
         console.log(`Configuration Set: ${event.mail.configurationSetName || 'N/A'}`);
         console.log(`Message ID: ${event.mail.messageId}`);
-        
-        // For now, just log SES events - individual events don't trigger alerts
-        // Alarms are triggered by CloudWatch based on aggregate metrics
-        if (event.eventType === 'bounce' || event.eventType === 'complaint') {
-          console.log(`📊 ${event.eventType} event logged for monitoring`);
+
+        // Process bounce and complaint events for rate tracking
+        if ((event.eventType === 'bounce' || event.eventType === 'complaint') && event.mail.configurationSetName) {
+          await handleSESBounceOrComplaint(event);
         }
       }
     }
@@ -472,6 +472,163 @@ async function sendSlackAdminNotification(data: {
     }
   } catch (error) {
     console.error('❌ Failed to send Slack notification:', error);
+  }
+}
+
+/**
+ * Map AWS SES bounce types to our schema values
+ * AWS sends: 'Permanent' | 'Transient' | 'Undetermined'
+ * Schema expects: 'hard' | 'soft' | 'transient'
+ */
+function mapSESBounceType(sesBounceType: 'Permanent' | 'Transient' | 'Undetermined'): 'hard' | 'soft' | 'transient' {
+  switch (sesBounceType) {
+    case 'Permanent':
+      return 'hard';
+    case 'Transient':
+      return 'transient';
+    case 'Undetermined':
+    default:
+      return 'soft';
+  }
+}
+
+/**
+ * Handle SES bounce or complaint events
+ * Stores the event and triggers alerts if rate thresholds are exceeded
+ */
+async function handleSESBounceOrComplaint(event: SESEvent) {
+  try {
+    const configSetName = event.mail.configurationSetName;
+    if (!configSetName) {
+      console.log('⚠️ handleSESBounceOrComplaint - No configuration set name in event');
+      return;
+    }
+
+    console.log(`📊 handleSESBounceOrComplaint - Processing ${event.eventType} for ${configSetName}`);
+
+    // Get recipients from bounce or complaint
+    let recipients: string[] = [];
+    let bounceType: 'hard' | 'soft' | 'transient' | undefined;
+    let bounceSubType: string | undefined;
+    let diagnosticCode: string | undefined;
+
+    if (event.eventType === 'bounce' && event.bounce) {
+      recipients = event.bounce.bouncedRecipients.map(r => r.emailAddress);
+      bounceType = mapSESBounceType(event.bounce.bounceType);
+      bounceSubType = event.bounce.bounceSubType;
+      diagnosticCode = event.bounce.bouncedRecipients[0]?.diagnosticCode;
+    } else if (event.eventType === 'complaint' && event.complaint) {
+      recipients = event.complaint.complainedRecipients.map(r => r.emailAddress);
+    }
+
+    // Process each recipient
+    for (const recipient of recipients) {
+      const result = await processSESEvent({
+        eventType: event.eventType as 'bounce' | 'complaint',
+        configurationSetName: configSetName,
+        messageId: event.mail.messageId,
+        recipient,
+        bounceType,
+        bounceSubType,
+        diagnosticCode,
+        timestamp: new Date(event.mail.timestamp),
+      });
+
+      // Handle any alerts triggered by this event
+      if (result.alerts.length > 0) {
+        for (const alert of result.alerts) {
+          await handleRateAlert(alert, configSetName);
+        }
+      }
+    }
+
+    console.log(`✅ handleSESBounceOrComplaint - Processed ${event.eventType} for ${recipients.length} recipient(s)`);
+  } catch (error) {
+    console.error('❌ handleSESBounceOrComplaint - Error processing event:', error);
+  }
+}
+
+/**
+ * Handle a rate alert - send notifications and potentially pause sending
+ */
+async function handleRateAlert(alert: RateAlert, configSetName: string) {
+  try {
+    console.log(`🚨 handleRateAlert - ${alert.severity.toUpperCase()} ${alert.alertType} alert for ${configSetName}`);
+
+    // Look up tenant owner
+    const tenantOwner = await getTenantOwnerByConfigurationSet(configSetName);
+    if (!tenantOwner) {
+      console.log(`❌ handleRateAlert - No tenant owner found for: ${configSetName}`);
+      return;
+    }
+
+    const rateDisplay = `${(alert.currentRate * 100).toFixed(2)}%`;
+    const thresholdDisplay = `${(alert.threshold * 100).toFixed(2)}%`;
+
+    // Send Slack notification
+    await sendSlackAdminNotification({
+      alertType: alert.alertType,
+      severity: alert.severity,
+      currentRate: rateDisplay,
+      threshold: thresholdDisplay,
+      configurationSet: configSetName,
+      tenantName: tenantOwner.tenantName,
+      userEmail: tenantOwner.userEmail,
+      triggeredAt: new Date(),
+    });
+
+    // Auto-pause sending on CRITICAL alerts
+    let sendingPaused = false;
+    if (alert.severity === 'critical') {
+      console.log(`🚨 handleRateAlert - CRITICAL alert - Auto-pausing sending for: ${configSetName}`);
+
+      const pauseResult = await pauseTenantSending(
+        configSetName,
+        `Auto-paused due to critical ${alert.alertType} rate: ${rateDisplay}`
+      );
+
+      if (pauseResult.success) {
+        sendingPaused = true;
+        console.log(`✅ handleRateAlert - Sending paused for: ${configSetName}`);
+
+        // Send additional Slack notification about auto-pause
+        await sendSlackAdminNotification({
+          alertType: alert.alertType,
+          severity: 'critical',
+          currentRate: rateDisplay,
+          threshold: thresholdDisplay,
+          configurationSet: configSetName,
+          tenantName: tenantOwner.tenantName,
+          userEmail: tenantOwner.userEmail,
+          triggeredAt: new Date(),
+          action: 'SENDING_PAUSED',
+        });
+      } else {
+        console.error(`❌ handleRateAlert - Failed to pause sending: ${pauseResult.error}`);
+      }
+    }
+
+    // Send notification email to user
+    const emailResult = await sendReputationAlertNotification({
+      userEmail: tenantOwner.userEmail,
+      userName: tenantOwner.userName,
+      alertType: alert.alertType,
+      severity: alert.severity,
+      currentRate: alert.currentRate,
+      threshold: alert.threshold,
+      configurationSet: configSetName,
+      tenantName: tenantOwner.tenantName,
+      triggeredAt: new Date(),
+      sendingPaused,
+    });
+
+    if (emailResult.success) {
+      console.log(`✅ handleRateAlert - Alert email sent to: ${tenantOwner.userEmail}`);
+    } else {
+      console.error(`❌ handleRateAlert - Failed to send alert email: ${emailResult.error}`);
+    }
+  } catch (error) {
+    console.error('❌ handleRateAlert - Error handling alert:', error);
   }
 }
 

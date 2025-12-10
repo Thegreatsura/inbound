@@ -3,12 +3,12 @@ import { sesTenants } from './schema';
 import { eq } from 'drizzle-orm';
 
 /**
- * Get tenant owner information by configuration set name (AWS tenant ID)
+ * Get tenant owner information by configuration set name
  * Returns the user details for the tenant owner to send notifications
  */
-export async function getTenantOwnerByConfigurationSet(configurationSetName: string): Promise<{ 
-  userId: string; 
-  userEmail: string; 
+export async function getTenantOwnerByConfigurationSet(configurationSetName: string): Promise<{
+  userId: string;
+  userEmail: string;
   userName: string | null;
   tenantId: string;
   tenantName: string;
@@ -16,11 +16,12 @@ export async function getTenantOwnerByConfigurationSet(configurationSetName: str
 } | null> {
   try {
     console.log(`🔍 getTenantOwnerByConfigurationSet - Looking up owner for configuration set: ${configurationSetName}`);
-    
+
     // Import user table from auth schema
     const { user } = await import('./auth-schema');
-    
-    const result = await db
+
+    // Try looking up by configurationSetName first (new approach)
+    let result = await db
       .select({
         userId: sesTenants.userId,
         userEmail: user.email,
@@ -31,8 +32,25 @@ export async function getTenantOwnerByConfigurationSet(configurationSetName: str
       })
       .from(sesTenants)
       .innerJoin(user, eq(sesTenants.userId, user.id))
-      .where(eq(sesTenants.awsTenantId, configurationSetName))
+      .where(eq(sesTenants.configurationSetName, configurationSetName))
       .limit(1);
+
+    // Fallback: try looking up by awsTenantId (legacy approach)
+    if (!result[0]) {
+      result = await db
+        .select({
+          userId: sesTenants.userId,
+          userEmail: user.email,
+          userName: user.name,
+          tenantId: sesTenants.id,
+          tenantName: sesTenants.tenantName,
+          awsTenantId: sesTenants.awsTenantId,
+        })
+        .from(sesTenants)
+        .innerJoin(user, eq(sesTenants.userId, user.id))
+        .where(eq(sesTenants.awsTenantId, configurationSetName))
+        .limit(1);
+    }
 
     if (!result[0]) {
       console.log(`❌ getTenantOwnerByConfigurationSet - No owner found for configuration set: ${configurationSetName}`);

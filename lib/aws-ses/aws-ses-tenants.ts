@@ -33,10 +33,7 @@ import {
   SubscribeCommand,
   SetTopicAttributesCommand
 } from '@aws-sdk/client-sns'
-import { 
-  CloudWatchClient, 
-  PutMetricAlarmCommand 
-} from '@aws-sdk/client-cloudwatch'
+import { CloudWatchClient } from '@aws-sdk/client-cloudwatch'
 import { db } from '@/lib/db'
 import { sesTenants } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
@@ -123,14 +120,18 @@ export class SESTenantManager {
   }
 
   /**
-   * Setup SNS topics and CloudWatch alarms for a tenant's configuration set
-   * This enables real-time notifications for bounces/complaints and automated alerting
+   * Setup SNS topics for a tenant's configuration set
+   * This enables real-time notifications for bounces/complaints
+   *
+   * NOTE: CloudWatch alarms have been removed to reduce costs (~$165/month savings).
+   * Rate monitoring is now handled by the webhook at /api/inbound/health/tenant
+   * which processes SNS events and calculates rates in the application layer.
    */
-  async setupTenantMonitoring(configSetName: string, options?: { skipSns?: boolean; skipAlarms?: boolean }): Promise<{ 
-    success: boolean; 
-    snsTopicArn?: string; 
-    alertTopicArn?: string; 
-    error?: string 
+  async setupTenantMonitoring(configSetName: string, options?: { skipSns?: boolean; skipAlarms?: boolean }): Promise<{
+    success: boolean;
+    snsTopicArn?: string;
+    alertTopicArn?: string;
+    error?: string
   }> {
     if (!this.snsClient || !this.cloudWatchClient) {
       console.warn('⚠️ SNS/CloudWatch clients not configured, skipping monitoring setup')
@@ -235,82 +236,10 @@ export class SESTenantManager {
         }
       }
 
-      // Step 2: Create CloudWatch alarms for reputation metrics
-      if (!options?.skipAlarms && alertsTopicArn) {
-        console.log(`⏰ Creating CloudWatch alarms for: ${configSetName}`)
-
-        // Bounce rate warning at 5%
-        await this.cloudWatchClient.send(new PutMetricAlarmCommand({
-          AlarmName: `SES-BounceRate-5%-${configSetName}`,
-          AlarmDescription: `Bounce rate >= 5% for configuration set ${configSetName}`,
-          Namespace: 'AWS/SES',
-          MetricName: 'Reputation.BounceRate',
-          Dimensions: [{ Name: 'ConfigurationSet', Value: configSetName }],
-          Statistic: 'Maximum',
-          Period: 300,
-          EvaluationPeriods: 2,
-          DatapointsToAlarm: 2,
-          Threshold: 0.05,
-          ComparisonOperator: 'GreaterThanOrEqualToThreshold',
-          TreatMissingData: 'notBreaching',
-          AlarmActions: [alertsTopicArn]
-        }))
-        console.log(`✅ Bounce rate 5% warning alarm created`)
-
-        // Bounce rate critical at 7%
-        await this.cloudWatchClient.send(new PutMetricAlarmCommand({
-          AlarmName: `SES-BounceRate-7%-${configSetName}`,
-          AlarmDescription: `CRITICAL: Bounce rate >= 7% for configuration set ${configSetName}`,
-          Namespace: 'AWS/SES',
-          MetricName: 'Reputation.BounceRate',
-          Dimensions: [{ Name: 'ConfigurationSet', Value: configSetName }],
-          Statistic: 'Maximum',
-          Period: 300,
-          EvaluationPeriods: 1,
-          DatapointsToAlarm: 1,
-          Threshold: 0.07,
-          ComparisonOperator: 'GreaterThanOrEqualToThreshold',
-          TreatMissingData: 'notBreaching',
-          AlarmActions: [alertsTopicArn]
-        }))
-        console.log(`✅ Bounce rate 7% critical alarm created`)
-
-        // Complaint rate warning at 0.1%
-        await this.cloudWatchClient.send(new PutMetricAlarmCommand({
-          AlarmName: `SES-ComplaintRate-0.1%-${configSetName}`,
-          AlarmDescription: `Complaint rate >= 0.1% for configuration set ${configSetName}`,
-          Namespace: 'AWS/SES',
-          MetricName: 'Reputation.ComplaintRate',
-          Dimensions: [{ Name: 'ConfigurationSet', Value: configSetName }],
-          Statistic: 'Maximum',
-          Period: 300,
-          EvaluationPeriods: 2,
-          DatapointsToAlarm: 2,
-          Threshold: 0.001,
-          ComparisonOperator: 'GreaterThanOrEqualToThreshold',
-          TreatMissingData: 'notBreaching',
-          AlarmActions: [alertsTopicArn]
-        }))
-        console.log(`✅ Complaint rate 0.1% warning alarm created`)
-
-        // Complaint rate critical at 0.3%
-        await this.cloudWatchClient.send(new PutMetricAlarmCommand({
-          AlarmName: `SES-ComplaintRate-0.3%-${configSetName}`,
-          AlarmDescription: `CRITICAL: Complaint rate >= 0.3% for configuration set ${configSetName}`,
-          Namespace: 'AWS/SES',
-          MetricName: 'Reputation.ComplaintRate',
-          Dimensions: [{ Name: 'ConfigurationSet', Value: configSetName }],
-          Statistic: 'Maximum',
-          Period: 300,
-          EvaluationPeriods: 1,
-          DatapointsToAlarm: 1,
-          Threshold: 0.003,
-          ComparisonOperator: 'GreaterThanOrEqualToThreshold',
-          TreatMissingData: 'notBreaching',
-          AlarmActions: [alertsTopicArn]
-        }))
-        console.log(`✅ Complaint rate 0.3% critical alarm created`)
-      }
+      // NOTE: CloudWatch alarms have been removed to reduce costs (~$165/month)
+      // Rate monitoring is now handled by the webhook at /api/inbound/health/tenant
+      // which processes SNS events and calculates rates using the emailDeliveryEvents table.
+      // See: app/api/inbound/health/tenant/route.ts
 
       console.log(`✅ Tenant monitoring setup complete for: ${configSetName}`)
       return { 
