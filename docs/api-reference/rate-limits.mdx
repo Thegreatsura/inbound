@@ -14,12 +14,12 @@ The response headers describe your current rate limit following every request in
 
 ## Default Rate Limits
 
-The default maximum rate limit is **2 requests per second** across all API endpoints. This applies uniformly to:
+The default maximum rate limit is **10 requests per second** across all API endpoints. This applies uniformly to:
 
-- **Email sending endpoints**: 2 requests per second
-- **Email management endpoints**: 2 requests per second 
-- **Domain/configuration endpoints**: 2 requests per second
-- **All other API endpoints**: 2 requests per second
+- **Email sending endpoints**: 10 requests per second
+- **Email management endpoints**: 10 requests per second 
+- **Domain/configuration endpoints**: 10 requests per second
+- **All other API endpoints**: 10 requests per second
 
 This number can be increased for trusted senders upon request.
 
@@ -30,7 +30,7 @@ After exceeding the rate limit, you'll receive a `429 Too Many Requests` respons
 ```json
 {
   "error": "Rate limit exceeded",
-  "message": "Maximum 2 requests per second allowed. Upgrade or contact support for higher limits."
+  "message": "Maximum 10 requests per second allowed. Upgrade or contact support for higher limits."
 }
 ```
 
@@ -56,7 +56,7 @@ If you have specific requirements that exceed the default limits, you can reques
 
 
 <Warning>
-Rate limits are applied per API key. If you're using multiple API keys, each key has its own rate limit bucket.
+Rate limits are applied per account. If you're using multiple accounts, each account has its own rate limit bucket.
 </Warning>
 
 **Important**: The SDK will return rate limit errors directly - you must handle them in your application code.
@@ -64,11 +64,11 @@ Rate limits are applied per API key. If you're using multiple API keys, each key
 ## Next Steps
 
 <CardGroup cols={2}>
-  <Card title="Authentication" icon="key" href="/authentication">
+  <Card title="Authentication" icon="key" href="/api-reference/introduction#authentication">
     Learn how to authenticate your API requests
   </Card>
   
-  <Card title="Send Your First Email" icon="paper-plane" href="/api-reference/emails/send-email">
+  <Card title="Send Your First Email" icon="paper-plane" href="/api-reference/emails/send-an-email">
     Start sending emails with proper rate limiting
   </Card>
   
