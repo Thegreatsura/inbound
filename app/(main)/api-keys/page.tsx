@@ -30,7 +30,7 @@ import {
 	useUpdateApiKeyMutation,
 	useDeleteApiKeyMutation,
 } from "@/features/settings/hooks";
-import { ApiKey, CreateApiKeyForm } from "@/features/settings/types";
+import { CreateApiKeyForm } from "@/features/settings/types";
 import Key2 from "@/components/icons/key-2";
 import CircleCheck from "@/components/icons/circle-check";
 import CirclePlus from "@/components/icons/circle-plus";
@@ -167,7 +167,7 @@ export default function ApiKeysPage() {
 
 	// Filter API keys based on search query and status
 	const q = debouncedSearch.trim().toLowerCase();
-	const statusMatch = (apiKey: ApiKey) =>
+	const statusMatch = (apiKey: (typeof apiKeys)[number]) =>
 		debouncedStatus === "all"
 			? true
 			: debouncedStatus === "active"
@@ -195,7 +195,7 @@ export default function ApiKeysPage() {
 	});
 
 	// Helper functions
-	const getApiKeyStatusDot = (apiKey: ApiKey) => {
+	const getApiKeyStatusDot = (apiKey: (typeof apiKeys)[number]) => {
 		const isExpired =
 			apiKey.expiresAt && new Date(apiKey.expiresAt) < new Date();
 		return (
@@ -211,7 +211,7 @@ export default function ApiKeysPage() {
 		);
 	};
 
-	const getApiKeyStatusText = (apiKey: ApiKey) => {
+	const getApiKeyStatusText = (apiKey: (typeof apiKeys)[number]) => {
 		const isExpired =
 			apiKey.expiresAt && new Date(apiKey.expiresAt) < new Date();
 		if (isExpired) return "Expired";
