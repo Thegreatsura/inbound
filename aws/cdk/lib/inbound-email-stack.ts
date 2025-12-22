@@ -104,10 +104,10 @@ export class InboundEmailStack extends cdk.Stack {
       sourceAccount: this.account,
     });
 
-    // Grant SES bounce permissions
+    // Grant SES bounce permissions (scoped to account's SES identities)
     emailProcessor.addToRolePolicy(new iam.PolicyStatement({
       actions: ['ses:SendBounce', 'ses:SendEmail'],
-      resources: ['*'],
+      resources: [`arn:aws:ses:${this.region}:${this.account}:identity/*`],
     }));
 
     // Grant CloudWatch Logs permissions

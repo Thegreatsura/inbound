@@ -15,7 +15,7 @@ import { sendLimitReachedNotification } from '@/lib/email-management/email-notif
 import { isDsn } from '@/lib/email-management/dsn-parser'
 import { recordDeliveryEventFromDsn } from '@/lib/email-management/delivery-event-tracker'
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3'
-import { createHash } from 'crypto'
+import { createHash, timingSafeEqual } from 'crypto'
 
 interface ProcessedSESRecord extends SESRecord {
   emailContent?: string | null
@@ -324,7 +324,10 @@ export async function POST(request: NextRequest) {
     }
 
     const providedKey = authHeader.replace('Bearer ', '')
-    if (providedKey !== expectedApiKey) {
+    const isValidKey = providedKey.length === expectedApiKey.length &&
+      timingSafeEqual(Buffer.from(providedKey), Buffer.from(expectedApiKey))
+    
+    if (!isValidKey) {
       console.error('❌ Webhook - Invalid authentication');
       return NextResponse.json(
         { error: 'Invalid authentication' },

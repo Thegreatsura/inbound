@@ -7,6 +7,12 @@ import { Redis } from "@upstash/redis"
 let redis: Redis | null = null
 let ratelimit: Ratelimit | null = null
 
+// SECURITY: Controls fail-closed behavior when rate limiting is unavailable
+// Set to "true" ONLY in development environments
+// Production should ALWAYS fail closed (default behavior)
+const ALLOW_REQUESTS_WITHOUT_RATE_LIMIT =
+  process.env.ALLOW_REQUESTS_WITHOUT_RATE_LIMIT === "true"
+
 if (
   process.env.UPSTASH_REDIS_REST_URL &&
   process.env.UPSTASH_REDIS_REST_TOKEN
@@ -24,9 +30,15 @@ if (
     prefix: "e2:ratelimit",
   })
 } else {
-  console.warn(
-    "⚠️ Upstash Redis not configured. Rate limiting will be disabled."
-  )
+  if (ALLOW_REQUESTS_WITHOUT_RATE_LIMIT) {
+    console.warn(
+      "⚠️ [DEV MODE] Upstash Redis not configured. Rate limiting disabled via ALLOW_REQUESTS_WITHOUT_RATE_LIMIT=true"
+    )
+  } else {
+    console.error(
+      "🚨 CRITICAL: Upstash Redis not configured. API will reject requests to protected endpoints (fail-closed). Set ALLOW_REQUESTS_WITHOUT_RATE_LIMIT=true for development only."
+    )
+  }
 }
 
 /**
@@ -168,7 +180,26 @@ export async function validateAndRateLimit(
         )
       }
     } else {
-      console.log("⚠️ Rate limiting disabled (Upstash not configured)")
+      // SECURITY: Fail-closed pattern - block requests when rate limiting is unavailable
+      if (!ALLOW_REQUESTS_WITHOUT_RATE_LIMIT) {
+        console.error(
+          "🚨 SECURITY: Blocking request - rate limiting unavailable and ALLOW_REQUESTS_WITHOUT_RATE_LIMIT is not enabled"
+        )
+        set.status = 503
+        set.headers = {
+          "Content-Type": "application/json; charset=utf-8",
+          "Retry-After": "60",
+        }
+        throw new AuthError(
+          {
+            error: "Service Unavailable",
+            message: "Rate limiting service is temporarily unavailable. Please try again later.",
+            statusCode: 503,
+          },
+          set.headers
+        )
+      }
+      console.warn("⚠️ [DEV MODE] Rate limiting bypassed - ALLOW_REQUESTS_WITHOUT_RATE_LIMIT=true")
     }
 
     return userId

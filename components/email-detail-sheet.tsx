@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from 'react'
+import DOMPurify from 'dompurify'
 import {
   Sheet,
   SheetContent,
@@ -242,7 +243,7 @@ export function EmailDetailSheet({ emailId, isOpen, onClose }: EmailDetailSheetP
                   <ScrollArea className="h-96 w-full border rounded-md p-4">
                     {emailDetails.emailContent.htmlBody ? (
                       <div 
-                        dangerouslySetInnerHTML={{ __html: emailDetails.emailContent.htmlBody }}
+                        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(emailDetails.emailContent.htmlBody) }}
                         className="prose prose-sm max-w-none"
                       />
                     ) : (

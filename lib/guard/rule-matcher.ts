@@ -1,6 +1,6 @@
 import { db } from '@/lib/db';
 import { guardRules, structuredEmails } from '@/lib/db/schema';
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and, desc, sql } from 'drizzle-orm';
 import type { 
   CheckRuleMatchResponse, 
   ExplicitRuleConfig, 
@@ -442,16 +442,18 @@ export async function evaluateGuardRules(
           }
 
           // Update rule trigger stats (non-blocking, fire and forget to avoid race conditions)
-          // Use SQL increment to prevent race conditions
-          db.execute(`
-            UPDATE guard_rules 
-            SET trigger_count = COALESCE(trigger_count, 0) + 1,
-                last_triggered_at = NOW(),
-                updated_at = NOW()
-            WHERE id = '${rule.id}'
-          `).catch(error => {
-            console.error(`🛡️ Guard - Failed to update trigger stats for rule ${rule.id}:`, error);
-          });
+          // Use Drizzle ORM with parameterized query to prevent SQL injection
+          void db.update(guardRules)
+            .set({
+              triggerCount: sql`COALESCE(${guardRules.triggerCount}, 0) + 1`,
+              lastTriggeredAt: new Date(),
+              updatedAt: new Date()
+            })
+            .where(eq(guardRules.id, rule.id))
+            .then(() => {})
+            .catch(error => {
+              console.error(`🛡️ Guard - Failed to update trigger stats for rule ${rule.id}:`, error);
+            });
 
           const result: GuardEvaluationResult = {
             shouldBlock: actionConfig.action === 'block',
