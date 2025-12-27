@@ -39,8 +39,8 @@
     "neon:reset": "neon branches reset development --parent --project-id curly-king-52150024"
   },
   "dependencies": {
-    "@ai-sdk/openai": "1.0.2",
-    "@ai-sdk/react": "^2.0.106",
+    "@ai-sdk/openai": "^3.0.1",
+    "@ai-sdk/react": "^3.0.3",
     "@aws-sdk/client-cloudwatch": "^3.940.0",
     "@aws-sdk/client-cloudwatch-logs": "^3.840.0",
     "@aws-sdk/client-lambda": "^3.840.0",
@@ -106,7 +106,7 @@
     "@vercel/analytics": "^1.6.1",
     "@vercel/functions": "^3.1.4",
     "@vercel/speed-insights": "^1.2.0",
-    "ai": "^5.0.106",
+    "ai": "^6.0.3",
     "async_hooks": "^1.0.0",
     "atmn": "^0.0.22",
     "autumn-js": "0.1.48",

@@ -19,7 +19,6 @@ import { createOpenAI } from '@ai-sdk/openai'
 
 export const openai = createOpenAI({
   apiKey: process.env.OPENAI_API_KEY,
-  compatibility: 'strict',
 })
 
 // Model name mapping - strips 'openai/' prefix if present for backwards compatibility

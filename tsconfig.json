@@ -42,6 +42,7 @@
     "aws/**/*",
     ".next/**/*",
     "inbound-whop-app/**/*",
-    "@inboundemail/**/*"
+    "@inboundemail/**/*",
+    "packages/**/*"
   ]
 }

@@ -6,7 +6,7 @@ export const maxDuration = 30
 export async function POST(req: Request) {
   const { messages }: { messages: UIMessage[] } = await req.json()
 
-  const prompt = convertToModelMessages(messages)
+  const prompt = await convertToModelMessages(messages)
 
   const result = streamText({
     model: getModel('gpt-4o-mini'),
