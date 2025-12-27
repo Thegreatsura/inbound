@@ -4,13 +4,11 @@
  * Results are stored in database for fraud monitoring and analytics
  */
 
-import { generateText, Output, tool } from 'ai'
+import { generateObject } from 'ai'
 import { z } from 'zod'
 import { db } from '@/lib/db'
-import { emailSendingEvaluations, structuredEmails, sentEmails } from '@/lib/db/schema'
-import { eq, sql, or, ilike, desc, and } from 'drizzle-orm'
+import { emailSendingEvaluations } from '@/lib/db/schema'
 import { nanoid } from 'nanoid'
-import { Inbound } from '@inboundemail/sdk'
 import { getModel, getModelName } from '@/lib/ai/provider'
 
 // Zod schema for AI evaluation output
@@ -62,169 +60,6 @@ function extractTextFromHtml(html: string): string {
   text = text.replace(/\s+/g, ' ').trim()
   
   return text
-}
-
-/**
- * Search for related emails using fuzzy matching on subject and body
- * Searches both inbound (structuredEmails) and outbound (sentEmails) emails
- */
-async function searchRelatedEmails(
-  userId: string,
-  subjectQuery?: string,
-  bodyQuery?: string,
-  limit: number = 10
-): Promise<Array<{
-  id: string
-  type: 'inbound' | 'outbound'
-  subject: string | null
-  from: string | null
-  to: string | null
-  snippet: string | null
-  createdAt: Date | null
-}>> {
-  const results: Array<{
-    id: string
-    type: 'inbound' | 'outbound'
-    subject: string | null
-    from: string | null
-    to: string | null
-    snippet: string | null
-    createdAt: Date | null
-  }> = []
-
-  // Build conditions for fuzzy matching
-  const conditions = [eq(structuredEmails.userId, userId)]
-  
-  if (subjectQuery) {
-    conditions.push(ilike(structuredEmails.subject, `%${subjectQuery}%`))
-  }
-  
-  if (bodyQuery) {
-    conditions.push(
-      or(
-        ilike(structuredEmails.textBody, `%${bodyQuery}%`),
-        ilike(structuredEmails.htmlBody, `%${bodyQuery}%`)
-      )!
-    )
-  }
-
-  // Search inbound emails (structuredEmails)
-  if (subjectQuery || bodyQuery) {
-    const inboundResults = await db
-      .select({
-        id: structuredEmails.id,
-        subject: structuredEmails.subject,
-        fromData: structuredEmails.fromData,
-        toData: structuredEmails.toData,
-        textBody: structuredEmails.textBody,
-        createdAt: structuredEmails.createdAt,
-      })
-      .from(structuredEmails)
-      .where(and(...conditions))
-      .orderBy(desc(structuredEmails.createdAt))
-      .limit(limit)
-
-    for (const email of inboundResults) {
-      // Extract from/to addresses from JSON
-      let from = null
-      let to = null
-      try {
-        if (email.fromData) {
-          const fromParsed = JSON.parse(email.fromData)
-          from = fromParsed?.text || fromParsed?.addresses?.[0]?.address || null
-        }
-        if (email.toData) {
-          const toParsed = JSON.parse(email.toData)
-          to = toParsed?.text || toParsed?.addresses?.[0]?.address || null
-        }
-      } catch {
-        // Ignore parse errors
-      }
-
-      // Create snippet from body
-      const snippet = email.textBody 
-        ? email.textBody.substring(0, 200) + (email.textBody.length > 200 ? '...' : '')
-        : null
-
-      results.push({
-        id: email.id,
-        type: 'inbound',
-        subject: email.subject,
-        from,
-        to,
-        snippet,
-        createdAt: email.createdAt,
-      })
-    }
-  }
-
-  // Search outbound emails (sentEmails)
-  const sentConditions = [eq(sentEmails.userId, userId)]
-  
-  if (subjectQuery) {
-    sentConditions.push(ilike(sentEmails.subject, `%${subjectQuery}%`))
-  }
-  
-  if (bodyQuery) {
-    sentConditions.push(
-      or(
-        ilike(sentEmails.textBody, `%${bodyQuery}%`),
-        ilike(sentEmails.htmlBody, `%${bodyQuery}%`)
-      )!
-    )
-  }
-
-  if (subjectQuery || bodyQuery) {
-    const outboundResults = await db
-      .select({
-        id: sentEmails.id,
-        subject: sentEmails.subject,
-        from: sentEmails.from,
-        to: sentEmails.to,
-        textBody: sentEmails.textBody,
-        createdAt: sentEmails.createdAt,
-      })
-      .from(sentEmails)
-      .where(and(...sentConditions))
-      .orderBy(desc(sentEmails.createdAt))
-      .limit(limit)
-
-    for (const email of outboundResults) {
-      // Parse to addresses from JSON
-      let toAddresses = null
-      try {
-        if (email.to) {
-          const toParsed = JSON.parse(email.to)
-          toAddresses = Array.isArray(toParsed) ? toParsed.join(', ') : email.to
-        }
-      } catch {
-        toAddresses = email.to
-      }
-
-      // Create snippet from body
-      const snippet = email.textBody 
-        ? email.textBody.substring(0, 200) + (email.textBody.length > 200 ? '...' : '')
-        : null
-
-      results.push({
-        id: email.id,
-        type: 'outbound',
-        subject: email.subject,
-        from: email.from,
-        to: toAddresses,
-        snippet,
-        createdAt: email.createdAt,
-      })
-    }
-  }
-
-  // Sort by created date and limit
-  return results
-    .sort((a, b) => {
-      if (!a.createdAt || !b.createdAt) return 0
-      return b.createdAt.getTime() - a.createdAt.getTime()
-    })
-    .slice(0, limit)
 }
 
 /**
@@ -308,97 +143,12 @@ async function evaluateEmailContent(
     // Build evaluation prompt
     const prompt = buildEvaluationPrompt(emailData)
     
-    // Create tool for searching related emails
-    const searchRelatedEmailsTool = tool({
-      description: 'Search for related emails by userId, subject (fuzzy match), and body (fuzzy match). Use this to identify patterns, similar emails, or related communications that might indicate spam campaigns or coordinated attacks.',
-      inputSchema: z.object({
-        subjectQuery: z.string().optional().describe('Search term to fuzzy match in email subject lines'),
-        bodyQuery: z.string().optional().describe('Search term to fuzzy match in email body content'),
-        limit: z.number().int().min(1).max(20).default(10).describe('Maximum number of results to return (1-20)'),
-      }),
-      execute: async ({ subjectQuery, bodyQuery, limit }) => {
-        const results = await searchRelatedEmails(userId, subjectQuery, bodyQuery, limit)
-        return {
-          count: results.length,
-          emails: results,
-        }
-      },
-    })
-
-    // Create tool for sending high-risk alert emails
-    const sendAlertEmailTool = tool({
-      description: 'Send an alert email to compliance team when a very high-risk email is detected. Only use this for emails with risk scores above 70 or when there is clear evidence of malicious intent, phishing, or coordinated spam campaigns.',
-      inputSchema: z.object({
-        subject: z.string().describe('Subject line for the alert email'),
-        html: z.string().describe('Body html content for the alert email describing the threat and details, only use the HTML for formatting purposes, dont have any crazy styles and cards, just use for like tables, brs, and p tags. That way the information you present it clear. Also be generous with newlines via <br> tags.'),
-      }),
-      execute: async ({ subject, html }) => {
-        try {
-          // Initialize Inbound SDK with API key from environment
-          const apiKey = process.env.INBOUND_API_KEY
-          if (!apiKey) {
-            console.error('❌ INBOUND_API_KEY not configured, cannot send alert email')
-            return {
-              success: false,
-              error: 'Email service not configured',
-            }
-          }
-
-          const inbound = new Inbound(apiKey)
-          
-          // Send alert email using Inbound SDK
-          const { data: response, error: errorResponse } = await inbound.emails.send({
-            from: 'Inbound Compliance <compliance@inbound.new>',
-            to: 'ryan@inbound.new',
-            subject,
-            html,
-            tags: [
-              { name: 'type', value: 'email-evaluation' },
-              { name: 'emailId', value: emailId },
-              { name: 'userId', value: userId },
-              { name: 'riskScore', value: evaluation.riskScore.toString() },
-              { name: 'hasBadIntent', value: evaluation.hasBadIntent.toString() },
-              { name: 'flags', value: evaluation.flags.join(',') },
-            ],
-          })
-
-          if (errorResponse) {
-            console.error('❌ Failed to send alert email:', errorResponse)
-            return {
-              success: false,
-              error: typeof errorResponse === 'string' ? errorResponse : String(errorResponse),
-            }
-          }
-
-          console.log('✅ Alert email sent successfully:', response?.id)
-          return {
-            success: true,
-            emailId: response?.id,
-            message: 'Alert email sent successfully',
-          }
-        } catch (error) {
-          console.error('❌ Exception sending alert email:', error)
-          return {
-            success: false,
-            error: error instanceof Error ? error.message : 'Unknown error',
-          }
-        }
-      },
-    })
-
-    // Use AI SDK's generateText with structured output and tools
-    // This allows for tool calling while still getting structured output
-    const { output: evaluation, usage } = await generateText({
+    // Use generateObject for reliable structured output
+    const { object: evaluation, usage } = await generateObject({
       model: getModel(),
-      prompt, 
+      schema: emailEvaluationSchema,
+      prompt,
       temperature: 0.2, // Lower temperature for more consistent evaluations
-      tools: {
-        searchRelatedEmails: searchRelatedEmailsTool,
-        sendAlertEmail: sendAlertEmailTool,
-      },
-      output: Output.object({
-        schema: emailEvaluationSchema,
-      }),
     })
     
     const evaluationTime = Date.now() - startTime
