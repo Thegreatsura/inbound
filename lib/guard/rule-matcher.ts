@@ -10,6 +10,7 @@ import type {
 } from '@/features/guard/types';
 import { generateObject } from 'ai';
 import { z } from 'zod';
+import { getModel } from '@/lib/ai/provider';
 
 export interface GuardEvaluationResult {
   shouldBlock: boolean;
@@ -299,7 +300,7 @@ async function checkAiPromptRule(
     // ignore
   }
 
-  const model = process.env.GUARD_AI_MODEL || 'openai/gpt-5-mini';
+  const model = getModel();
 
   // Ask the LLM for a structured yes/no match with rationale
   try {

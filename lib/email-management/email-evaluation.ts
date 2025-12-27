@@ -11,9 +11,7 @@ import { emailSendingEvaluations, structuredEmails, sentEmails } from '@/lib/db/
 import { eq, sql, or, ilike, desc, and } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { Inbound } from '@inboundemail/sdk'
-
-// Configure the AI model - uses same model as Guard feature
-const MODEL = process.env.GUARD_AI_MODEL || 'openai/gpt-5-mini'
+import { getModel, getModelName } from '@/lib/ai/provider'
 
 // Zod schema for AI evaluation output
 const emailEvaluationSchema = z.object({
@@ -391,7 +389,7 @@ async function evaluateEmailContent(
     // Use AI SDK's generateText with structured output and tools
     // This allows for tool calling while still getting structured output
     const { experimental_output: evaluation, usage } = await generateText({
-      model: MODEL,
+      model: getModel(),
       prompt, 
       temperature: 0.2, // Lower temperature for more consistent evaluations
       tools: {
@@ -420,7 +418,7 @@ async function evaluateEmailContent(
       evaluationResult: JSON.stringify(evaluation),
       riskScore: evaluation.riskScore,
       flags: JSON.stringify(evaluation.flags),
-      aiModel: MODEL,
+      aiModel: getModelName(),
       evaluationTime,
       promptTokens: usage?.inputTokens ?? null,
       completionTokens: usage?.outputTokens ?? null,
@@ -444,7 +442,7 @@ async function evaluateEmailContent(
           error: error instanceof Error ? error.message : 'Unknown error',
           failed: true,
         }),
-        aiModel: MODEL,
+        aiModel: getModelName(),
         evaluationTime,
         createdAt: new Date(),
         updatedAt: new Date(),

@@ -1,4 +1,3 @@
-
 import { db } from '@/lib/db'
 import { sql } from 'drizzle-orm'
 import DailyUsageSummaryEmail from '@/emails/daily-usage-summary'
@@ -6,6 +5,7 @@ import { render } from '@react-email/render'
 import { Inbound } from '@inboundemail/sdk'
 import { generateObject } from 'ai'
 import { z } from 'zod'
+import { getModel } from '@/lib/ai/provider'
 
 // Vercel cron/webhook route. Secure by shared secret header if set.
 export async function GET() {
@@ -78,7 +78,7 @@ export async function GET() {
     if (process.env.OPENAI_API_KEY) {
       
       const result = await generateObject({
-        model: 'openai/gpt-5',
+        model: getModel('gpt-4o'),
         schema: z.object({ insights: z.array(z.string()).max(8) }),
         prompt: `You are an email analytics assistant. Given today's usage metrics, produce concise insights (max 8 bullet points).\n\nTotals: sent=${totalsRow.sent}, received=${totalsRow.received}, uniqueSenders=${totalsRow.unique_senders}, uniqueRecipients=${totalsRow.unique_recipients}.\nTop users (email: sent/received/total):\n${topUsers.map(u => `${u.userEmail}: ${u.sent}/${u.received}/${u.total}`).join('\n')}`
       })

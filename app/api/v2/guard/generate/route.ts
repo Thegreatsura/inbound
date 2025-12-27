@@ -3,17 +3,7 @@ import { validateRequest } from '../../helper/main';
 import { generateObject } from 'ai';
 import { z } from 'zod';
 import type { GenerateExplicitRulesRequest, GenerateExplicitRulesResponse } from '@/features/guard/types';
-
-// Configure the AI model - easy to swap providers by changing this string
-// Uses Vercel AI Gateway for unified provider access
-// Reference: https://ai-sdk.dev/docs/ai-sdk-core/provider-management
-const MODEL = process.env.GUARD_AI_MODEL || 'openai/gpt-5-mini';
-
-// To use different providers, just change the MODEL string:
-// - OpenAI: 'openai/gpt-5'
-// - Anthropic: 'anthropic/claude-3-5-sonnet-20241022'
-// - Groq: 'groq/llama-3.3-70b-versatile'
-// - Google: 'google/gemini-1.5-pro'
+import { getModel } from '@/lib/ai/provider';
 
 // Zod schema for the explicit rule config
 const explicitRuleConfigSchema = z.object({
@@ -52,7 +42,7 @@ export async function POST(request: NextRequest) {
     // Use AI SDK's generateObject for type-safe structured output
     // Reference: https://ai-sdk.dev/docs/ai-sdk-core/generating-structured-data
     const { object: config } = await generateObject({
-      model: MODEL,
+      model: getModel(),
       schema: explicitRuleConfigSchema,
       schemaName: 'ExplicitRuleConfig',
       schemaDescription: 'Email filtering rule configuration with criteria',

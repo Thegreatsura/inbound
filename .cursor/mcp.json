@@ -1,0 +1,12 @@
+{
+    "mcpServers": {
+      "inbound": {
+        "type": "http",
+        "url": "https://mcp.inbound.new/mcp",
+        "headers": {
+            "x-inbound-api-key": "bAaZrxFpHJulTFMwXGMJHxsADtnFzTGKStYgmTFAXtpRyWOBtOOnCmPQxMnXvcdi",
+            "x-inbound-domain": "inbound.new"
+        }
+      }
+    }
+  }
