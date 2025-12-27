@@ -388,7 +388,7 @@ async function evaluateEmailContent(
 
     // Use AI SDK's generateText with structured output and tools
     // This allows for tool calling while still getting structured output
-    const { experimental_output: evaluation, usage } = await generateText({
+    const { output: evaluation, usage } = await generateText({
       model: getModel(),
       prompt, 
       temperature: 0.2, // Lower temperature for more consistent evaluations
@@ -396,7 +396,7 @@ async function evaluateEmailContent(
         searchRelatedEmails: searchRelatedEmailsTool,
         sendAlertEmail: sendAlertEmailTool,
       },
-      experimental_output: Output.object({
+      output: Output.object({
         schema: emailEvaluationSchema,
       }),
     })
