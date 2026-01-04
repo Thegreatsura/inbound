@@ -1,9 +1,99 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-	isInboundWebhookPayload,
-	type InboundWebhookPayload,
-	type InboundEmail,
-} from "inboundemail";
+
+// Webhook types - these will be exported from inboundemail >= 0.20.0
+// For now, define them inline for the example
+
+interface InboundEmailAddress {
+	name: string | null;
+	address: string;
+}
+
+interface InboundEmailAddressField {
+	text: string;
+	addresses: InboundEmailAddress[];
+}
+
+interface InboundAttachment {
+	filename: string;
+	contentType: string;
+	size: number;
+	contentId?: string | null;
+	contentDisposition?: string;
+	downloadUrl: string;
+}
+
+interface InboundCleanedContent {
+	html?: string;
+	text?: string;
+	hasHtml: boolean;
+	hasText: boolean;
+	attachments: InboundAttachment[];
+	headers: Record<string, string | string[]>;
+}
+
+interface InboundParsedEmailData {
+	messageId: string;
+	date: Date | string;
+	subject: string;
+	from: InboundEmailAddressField;
+	to: InboundEmailAddressField;
+	cc: InboundEmailAddressField | null;
+	bcc: InboundEmailAddressField | null;
+	replyTo: InboundEmailAddressField | null;
+	inReplyTo?: string;
+	references?: string;
+	textBody?: string;
+	htmlBody?: string;
+	raw?: string;
+	attachments: InboundAttachment[];
+	headers: Record<string, string | string[]>;
+	priority?: string;
+}
+
+interface InboundEmail {
+	id: string;
+	messageId: string;
+	from: InboundEmailAddressField;
+	to: InboundEmailAddressField;
+	recipient: string;
+	subject: string;
+	receivedAt: string;
+	parsedData: InboundParsedEmailData;
+	cleanedContent: InboundCleanedContent;
+}
+
+interface InboundEndpointInfo {
+	id: string;
+	name: string;
+	type: string;
+}
+
+interface InboundWebhookPayload {
+	event: "email.received" | "webhook_test" | string;
+	timestamp: string;
+	email: InboundEmail;
+	endpoint: InboundEndpointInfo;
+}
+
+// Type guard for webhook payload validation
+function isInboundWebhookPayload(
+	payload: unknown,
+): payload is InboundWebhookPayload {
+	if (typeof payload !== "object" || payload === null) {
+		return false;
+	}
+
+	const obj = payload as Record<string, unknown>;
+
+	return (
+		typeof obj["event"] === "string" &&
+		typeof obj["timestamp"] === "string" &&
+		typeof obj["email"] === "object" &&
+		obj["email"] !== null &&
+		typeof obj["endpoint"] === "object" &&
+		obj["endpoint"] !== null
+	);
+}
 
 // Example: Process different types of emails
 async function processEmail(email: InboundEmail) {
