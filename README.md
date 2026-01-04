@@ -16,7 +16,7 @@ Inbound gives you programmable email addresses that automatically process incomi
 #### Sending Emails
 
 ```javascript
-import { Inbound } from '@inboundemail/sdk'
+import { Inbound } from 'inboundemail'
 
 const inbound = new Inbound(process.env.INBOUND_API_KEY!)
 
@@ -34,7 +34,7 @@ console.log(`Email sent: ${email.id}`)
 #### Receiving & Replying to Emails
 
 ```javascript
-import { Inbound, type InboundWebhookPayload, isInboundWebhook } from '@inboundemail/sdk'
+import { Inbound, type InboundWebhookPayload, isInboundWebhookPayload } from 'inboundemail'
 import { NextRequest, NextResponse } from 'next/server'
 
 const inbound = new Inbound(process.env.INBOUND_API_KEY!)
@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
     const payload: InboundWebhookPayload = await request.json()
     
     // Verify this is a valid Inbound webhook
-    if (!isInboundWebhook(payload)) {
+    if (!isInboundWebhookPayload(payload)) {
       return NextResponse.json({ error: 'Invalid webhook' }, { status: 400 })
     }
     
@@ -80,14 +80,14 @@ export async function POST(request: NextRequest) {
 
 ### 1. Install the SDK
 ```bash
-npm install @inboundemail/sdk
+npm install inboundemail
 # or
-bun add @inboundemail/sdk
+bun add inboundemail
 ```
 
 ### 2. Initialize with your API key
 ```javascript
-import { Inbound } from '@inboundemail/sdk'
+import { Inbound } from 'inboundemail'
 
 // Get your API key from inbound.new
 const inbound = new Inbound(process.env.INBOUND_API_KEY)
