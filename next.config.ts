@@ -112,6 +112,27 @@ const nextConfig: NextConfig = {
 				source: "/api/events",
 				destination: "https://datafa.st/api/events",
 			},
+			// Reroute all v2 API requests to e2
+			{
+				source: "/api/v2/:path*",
+				destination: "/api/e2/:path*",
+			},
+		];
+	},
+	async redirects() {
+		return [
+			// Disable v1 API - return 410 Gone
+			{
+				source: "/api/v1/:path*",
+				destination: "/api/deprecated",
+				permanent: true,
+			},
+			// Disable v1.1 API - return 410 Gone
+			{
+				source: "/api/v1.1/:path*",
+				destination: "/api/deprecated",
+				permanent: true,
+			},
 		];
 	},
 };
