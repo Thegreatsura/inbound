@@ -87,6 +87,13 @@ export async function validateAndRateLimit(
 	},
 ): Promise<string> {
 	try {
+		// Get client IP from various headers (Vercel/Cloudflare/etc)
+		const clientIp =
+			request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+			request.headers.get("x-real-ip") ||
+			request.headers.get("cf-connecting-ip") ||
+			"unknown";
+		console.log("🌐 [E2] Client IP:", clientIp);
 		console.log("🔐 Validating request authentication and rate limit");
 
 		// Get session from Better Auth using the request headers directly

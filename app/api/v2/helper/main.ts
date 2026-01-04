@@ -42,6 +42,14 @@ if (
 
 export async function validateRequest(request: NextRequest) {
 	try {
+		// Get client IP from various headers (Vercel/Cloudflare/etc)
+		const clientIp =
+			request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+			request.headers.get("x-real-ip") ||
+			request.headers.get("cf-connecting-ip") ||
+			"unknown";
+		console.log("🌐 [V2] Client IP:", clientIp);
+
 		let userId: string | undefined;
 
 		// Try session auth first
