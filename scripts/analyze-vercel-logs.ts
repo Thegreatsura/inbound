@@ -19,7 +19,7 @@ import { createInterface } from "readline";
 import { parseArgs } from "util";
 
 interface LogEntry {
-	timeUTC: string;
+	TimeUTC: string;
 	timestampInMs: number;
 	requestPath: string;
 	requestMethod: string;
@@ -67,8 +67,11 @@ interface AnalysisResult {
 	v2ApiActivity: {
 		totalRequests: number;
 		sendEmailRequests: number;
+		successfulSends: number;
+		failedSends: number;
 		byEndpoint: Record<string, number>;
 		byStatusCode: Record<string, number>;
+		byUserAgent: Record<string, number>;
 	};
 	suspiciousPatterns: {
 		highVolumeIPs: Array<{ requestId: string; count: number }>;
@@ -82,7 +85,16 @@ interface AnalysisResult {
 			errorCount: number;
 			errors: string[];
 		}>;
-		userMentions: Array<{ userId: string; count: number; contexts: string[] }>;
+		userMentions: Array<{
+			userId: string;
+			count: number;
+			contexts: string[];
+			userAgents: string[];
+			v2Requests: number;
+			successfulV2: number;
+			failedV2: number;
+		}>;
+		sesErrors: Array<{ timestamp: string; error: string; userId: string }>;
 	};
 	emailActivity: {
 		sentEmails: Array<{ timestamp: string; message: string; traceId: string }>;
@@ -100,6 +112,12 @@ interface AnalysisResult {
 		v2Requests: number;
 		sendRequests: number;
 		errors: number;
+	}>;
+	secondTimeline: Array<{
+		second: string;
+		v2Requests: number;
+		successful: number;
+		failed: number;
 	}>;
 }
 
@@ -145,14 +163,18 @@ async function analyzeLogFile(
 		v2ApiActivity: {
 			totalRequests: 0,
 			sendEmailRequests: 0,
+			successfulSends: 0,
+			failedSends: 0,
 			byEndpoint: {},
 			byStatusCode: {},
+			byUserAgent: {},
 		},
 		suspiciousPatterns: {
 			highVolumeIPs: [],
 			rapidFireRequests: [],
 			errorSpikes: [],
 			userMentions: [],
+			sesErrors: [],
 		},
 		emailActivity: {
 			sentEmails: [],
@@ -161,17 +183,29 @@ async function analyzeLogFile(
 			subjects: {},
 		},
 		timeline: [],
+		secondTimeline: [],
 	};
 
 	const requestIds = new Set<string>();
 	const traceIds = new Set<string>();
 	const userMentionMap = new Map<
 		string,
-		{ count: number; contexts: string[] }
+		{
+			count: number;
+			contexts: string[];
+			userAgents: Set<string>;
+			v2Requests: number;
+			successfulV2: number;
+			failedV2: number;
+		}
 	>();
 	const minuteStats = new Map<
 		string,
 		{ requests: number; v2: number; send: number; errors: number }
+	>();
+	const secondStats = new Map<
+		string,
+		{ v2: number; successful: number; failed: number }
 	>();
 
 	const fileStream = createReadStream(filePath);
@@ -217,11 +251,11 @@ async function analyzeLogFile(
 		result.summary.totalEntries++;
 
 		// Track time range
-		if (entry.timeUTC) {
-			if (!firstTimestamp || entry.timeUTC < firstTimestamp)
-				firstTimestamp = entry.timeUTC;
-			if (!lastTimestamp || entry.timeUTC > lastTimestamp)
-				lastTimestamp = entry.timeUTC;
+		if (entry.TimeUTC) {
+			if (!firstTimestamp || entry.TimeUTC < firstTimestamp)
+				firstTimestamp = entry.TimeUTC;
+			if (!lastTimestamp || entry.TimeUTC > lastTimestamp)
+				lastTimestamp = entry.TimeUTC;
 		}
 
 		// Track unique IDs
@@ -258,8 +292,40 @@ async function analyzeLogFile(
 				result.v2ApiActivity.byStatusCode[status] =
 					(result.v2ApiActivity.byStatusCode[status] || 0) + 1;
 
-				if (path.includes("send") || path.includes("mail")) {
+				// Track user agent
+				const ua = entry.requestUserAgent || "unknown";
+				result.v2ApiActivity.byUserAgent[ua] =
+					(result.v2ApiActivity.byUserAgent[ua] || 0) + 1;
+
+				// Track success/failure
+				const statusCode = entry.responseStatusCode || 0;
+				if (statusCode >= 200 && statusCode < 300) {
+					result.v2ApiActivity.successfulSends++;
+				} else if (statusCode >= 400) {
+					result.v2ApiActivity.failedSends++;
+				}
+
+				if (
+					path.includes("send") ||
+					path.includes("mail") ||
+					path.includes("emails")
+				) {
 					result.v2ApiActivity.sendEmailRequests++;
+				}
+
+				// Track per-second for v2 API (for attack analysis)
+				if (entry.TimeUTC) {
+					const second = entry.TimeUTC.substring(0, 19); // YYYY-MM-DD HH:MM:SS
+					if (!secondStats.has(second)) {
+						secondStats.set(second, { v2: 0, successful: 0, failed: 0 });
+					}
+					const secStats = secondStats.get(second)!;
+					secStats.v2++;
+					if (statusCode >= 200 && statusCode < 300) {
+						secStats.successful++;
+					} else if (statusCode >= 400) {
+						secStats.failed++;
+					}
 				}
 			}
 		}
@@ -275,7 +341,7 @@ async function analyzeLogFile(
 			message.includes("mail")
 		) {
 			result.emailActivity.sentEmails.push({
-				timestamp: entry.timeUTC || "",
+				timestamp: entry.TimeUTC || "",
 				message: message.substring(0, 500),
 				traceId: entry.traceId || "",
 			});
@@ -284,7 +350,7 @@ async function analyzeLogFile(
 		// Look for webhook activity
 		if (message.includes("Webhook") || path.includes("webhook")) {
 			result.emailActivity.webhookActivity.push({
-				timestamp: entry.timeUTC || "",
+				timestamp: entry.TimeUTC || "",
 				message: message.substring(0, 500),
 				traceId: entry.traceId || "",
 			});
@@ -310,23 +376,61 @@ async function analyzeLogFile(
 		const userMatches = message.match(userIdRegex) || [];
 		for (const userId of userMatches) {
 			if (!userMentionMap.has(userId)) {
-				userMentionMap.set(userId, { count: 0, contexts: [] });
+				userMentionMap.set(userId, {
+					count: 0,
+					contexts: [],
+					userAgents: new Set(),
+					v2Requests: 0,
+					successfulV2: 0,
+					failedV2: 0,
+				});
 			}
 			const data = userMentionMap.get(userId)!;
 			data.count++;
 			if (data.contexts.length < 5) {
 				data.contexts.push(message.substring(0, 200));
 			}
+			// Track user agent for this user
+			if (entry.requestUserAgent) {
+				data.userAgents.add(entry.requestUserAgent);
+			}
+			// Track v2 activity for this user
+			if (path.includes("/v2/")) {
+				data.v2Requests++;
+				const statusCode = entry.responseStatusCode || 0;
+				if (statusCode >= 200 && statusCode < 300) {
+					data.successfulV2++;
+				} else if (statusCode >= 400) {
+					data.failedV2++;
+				}
+			}
+		}
+
+		// Track SES errors
+		if (
+			message.includes("SES") &&
+			(message.includes("error") ||
+				message.includes("Error") ||
+				message.includes("rejected") ||
+				message.includes("Rejected") ||
+				message.includes("disabled"))
+		) {
+			const userIdMatch = message.match(/user-([a-zA-Z0-9]{32})/);
+			result.suspiciousPatterns.sesErrors.push({
+				timestamp: entry.TimeUTC || "",
+				error: message.substring(0, 300),
+				userId: userIdMatch ? userIdMatch[1] : "unknown",
+			});
 		}
 
 		// If target user specified, look for their activity
 		if (targetUserId && message.includes(targetUserId)) {
-			console.log(`[${entry.timeUTC}] ${message.substring(0, 200)}`);
+			console.log(`[${entry.TimeUTC}] ${message.substring(0, 200)}`);
 		}
 
 		// Timeline stats by minute
-		if (entry.timeUTC) {
-			const minute = entry.timeUTC.substring(0, 16); // YYYY-MM-DD HH:MM
+		if (entry.TimeUTC) {
+			const minute = entry.TimeUTC.substring(0, 16); // YYYY-MM-DD HH:MM
 			if (!minuteStats.has(minute)) {
 				minuteStats.set(minute, { requests: 0, v2: 0, send: 0, errors: 0 });
 			}
@@ -349,6 +453,10 @@ async function analyzeLogFile(
 			userId,
 			count: data.count,
 			contexts: data.contexts,
+			userAgents: Array.from(data.userAgents),
+			v2Requests: data.v2Requests,
+			successfulV2: data.successfulV2,
+			failedV2: data.failedV2,
 		}))
 		.sort((a, b) => b.count - a.count)
 		.slice(0, 20);
@@ -374,6 +482,17 @@ async function analyzeLogFile(
 			});
 		}
 	}
+
+	// Build second-level timeline (only for high-activity seconds)
+	result.secondTimeline = Array.from(secondStats.entries())
+		.filter(([_, stats]) => stats.v2 >= 1) // Show all seconds with v2 activity
+		.map(([second, stats]) => ({
+			second,
+			v2Requests: stats.v2,
+			successful: stats.successful,
+			failed: stats.failed,
+		}))
+		.sort((a, b) => a.second.localeCompare(b.second));
 
 	return result;
 }
@@ -409,6 +528,12 @@ function printReport(result: AnalysisResult, jsonOutput: boolean) {
 	console.log(
 		`Send email requests: ${result.v2ApiActivity.sendEmailRequests.toLocaleString()}`,
 	);
+	console.log(
+		`Successful sends: ${result.v2ApiActivity.successfulSends.toLocaleString()}`,
+	);
+	console.log(
+		`Failed sends: ${result.v2ApiActivity.failedSends.toLocaleString()}`,
+	);
 
 	if (Object.keys(result.v2ApiActivity.byEndpoint).length > 0) {
 		console.log("\nV2 Endpoints accessed:");
@@ -426,6 +551,17 @@ function printReport(result: AnalysisResult, jsonOutput: boolean) {
 			result.v2ApiActivity.byStatusCode,
 		)) {
 			console.log(`  ${code}: ${count.toLocaleString()}`);
+		}
+	}
+
+	if (Object.keys(result.v2ApiActivity.byUserAgent).length > 0) {
+		console.log("\nV2 User Agents (potential attack indicators):");
+		const sortedUAs = Object.entries(result.v2ApiActivity.byUserAgent)
+			.sort((a, b) => b[1] - a[1])
+			.slice(0, 10);
+		for (const [ua, count] of sortedUAs) {
+			const warning = ua.includes("python-requests") ? " [SUSPICIOUS]" : "";
+			console.log(`  ${ua}: ${count.toLocaleString()}${warning}`);
 		}
 	}
 
@@ -483,9 +619,35 @@ function printReport(result: AnalysisResult, jsonOutput: boolean) {
 	if (result.suspiciousPatterns.userMentions.length > 0) {
 		console.log("\n👤 User IDs mentioned in logs:");
 		for (const mention of result.suspiciousPatterns.userMentions.slice(0, 10)) {
+			const v2Info =
+				mention.v2Requests > 0
+					? ` | v2: ${mention.v2Requests} (${mention.successfulV2} ok, ${mention.failedV2} fail)`
+					: "";
 			console.log(
-				`  ${mention.userId}: ${mention.count.toLocaleString()} mentions`,
+				`  ${mention.userId}: ${mention.count.toLocaleString()} mentions${v2Info}`,
 			);
+			if (mention.userAgents.length > 0) {
+				for (const ua of mention.userAgents.slice(0, 3)) {
+					const warning = ua.includes("python-requests") ? " [SUSPICIOUS]" : "";
+					console.log(`    UA: ${ua}${warning}`);
+				}
+			}
+		}
+	}
+
+	if (result.suspiciousPatterns.sesErrors.length > 0) {
+		console.log("\n🚨 SES Errors (sending blocked/rejected):");
+		const uniqueErrors = new Map<string, { count: number; example: string }>();
+		for (const err of result.suspiciousPatterns.sesErrors) {
+			const key = err.userId;
+			if (!uniqueErrors.has(key)) {
+				uniqueErrors.set(key, { count: 0, example: err.error });
+			}
+			uniqueErrors.get(key)!.count++;
+		}
+		for (const [userId, data] of uniqueErrors) {
+			console.log(`  User ${userId}: ${data.count} SES errors`);
+			console.log(`    Example: ${data.example.substring(0, 150)}...`);
 		}
 	}
 
@@ -503,6 +665,43 @@ function printReport(result: AnalysisResult, jsonOutput: boolean) {
 		}
 	} else {
 		console.log("No significant activity detected in timeline.");
+	}
+
+	// Per-second timeline for attack analysis
+	if (result.secondTimeline.length > 0) {
+		console.log("\n## Per-Second V2 Activity (Attack Window Analysis)");
+		console.log("Second               | V2 Reqs | Success | Failed");
+		console.log("-".repeat(55));
+		// Show first 20 and last 20 seconds of activity
+		const timeline = result.secondTimeline;
+		const showCount = Math.min(20, timeline.length);
+		for (const t of timeline.slice(0, showCount)) {
+			console.log(
+				`${t.second} | ${t.v2Requests.toString().padStart(7)} | ${t.successful.toString().padStart(7)} | ${t.failed.toString().padStart(6)}`,
+			);
+		}
+		if (timeline.length > 40) {
+			console.log(`  ... ${timeline.length - 40} more seconds ...`);
+			for (const t of timeline.slice(-20)) {
+				console.log(
+					`${t.second} | ${t.v2Requests.toString().padStart(7)} | ${t.successful.toString().padStart(7)} | ${t.failed.toString().padStart(6)}`,
+				);
+			}
+		} else if (timeline.length > showCount) {
+			for (const t of timeline.slice(showCount)) {
+				console.log(
+					`${t.second} | ${t.v2Requests.toString().padStart(7)} | ${t.successful.toString().padStart(7)} | ${t.failed.toString().padStart(6)}`,
+				);
+			}
+		}
+
+		// Calculate peak rate
+		const peakSecond = timeline.reduce((max, t) =>
+			t.v2Requests > max.v2Requests ? t : max,
+		);
+		console.log(
+			`\nPeak rate: ${peakSecond.v2Requests} requests/second at ${peakSecond.second}`,
+		);
 	}
 
 	console.log("\n" + "=".repeat(60));

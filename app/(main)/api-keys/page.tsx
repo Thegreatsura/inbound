@@ -29,6 +29,7 @@ import {
 	useCreateApiKeyMutation,
 	useUpdateApiKeyMutation,
 	useDeleteApiKeyMutation,
+	useRevokeAllApiKeysMutation,
 } from "@/features/settings/hooks";
 import { CreateApiKeyForm } from "@/features/settings/types";
 import Key2 from "@/components/icons/key-2";
@@ -83,6 +84,7 @@ export default function ApiKeysPage() {
 	const createApiKeyMutation = useCreateApiKeyMutation();
 	const updateApiKeyMutation = useUpdateApiKeyMutation();
 	const deleteApiKeyMutation = useDeleteApiKeyMutation();
+	const revokeAllApiKeysMutation = useRevokeAllApiKeysMutation();
 
 	// API Key state
 	const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -90,6 +92,7 @@ export default function ApiKeysPage() {
 	const [showNewApiKey, setShowNewApiKey] = useState(false);
 	const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 	const [keyToDelete, setKeyToDelete] = useState<string | null>(null);
+	const [revokeAllConfirmOpen, setRevokeAllConfirmOpen] = useState(false);
 	const [createForm, setCreateForm] = useState<CreateApiKeyForm>({
 		name: "",
 		prefix: "",
@@ -164,6 +167,30 @@ export default function ApiKeysPage() {
 			toast.error("Failed to copy to clipboard");
 		}
 	};
+
+	const handleRevokeAllApiKeys = async () => {
+		try {
+			const result = await revokeAllApiKeysMutation.mutateAsync();
+			if (result.count === 0) {
+				toast.info("No active API keys to revoke");
+			} else {
+				toast.success(
+					`Successfully revoked ${result.count} API key${result.count === 1 ? "" : "s"}`,
+				);
+			}
+			setRevokeAllConfirmOpen(false);
+		} catch (error) {
+			console.error("Error revoking all API keys:", error);
+			toast.error(
+				error instanceof Error ? error.message : "Failed to revoke API keys",
+			);
+		}
+	};
+
+	// Count active API keys
+	const activeApiKeysCount = apiKeys.filter((key) =>
+		Boolean(key.enabled),
+	).length;
 
 	// Filter API keys based on search query and status
 	const q = debouncedSearch.trim().toLowerCase();
@@ -253,6 +280,17 @@ export default function ApiKeysPage() {
 									<Refresh2 width="14" height="14" className="mr-2" />
 									Refresh
 								</Button>
+								{activeApiKeysCount > 0 && (
+									<Button
+										variant="destructive"
+										size="default"
+										onClick={() => setRevokeAllConfirmOpen(true)}
+										disabled={revokeAllApiKeysMutation.isPending}
+									>
+										<CircleXmark width="14" height="14" className="mr-2" />
+										Revoke All
+									</Button>
+								)}
 							</div>
 						</div>
 					</div>
@@ -617,6 +655,50 @@ export default function ApiKeysPage() {
 							className="w-full"
 						>
 							I've Saved My API Key
+						</Button>
+					</div>
+				</DialogContent>
+			</Dialog>
+
+			{/* Revoke All Confirmation Dialog */}
+			<Dialog
+				open={revokeAllConfirmOpen}
+				onOpenChange={setRevokeAllConfirmOpen}
+			>
+				<DialogContent className="sm:max-w-md">
+					<DialogHeader>
+						<DialogTitle>Revoke All API Keys</DialogTitle>
+						<DialogDescription>
+							Are you sure you want to revoke all {activeApiKeysCount} active
+							API key{activeApiKeysCount === 1 ? "" : "s"}? This will
+							immediately disable access for any applications using these keys.
+							This action can be undone by re-enabling individual keys.
+						</DialogDescription>
+					</DialogHeader>
+					<div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-lg p-3 mt-2">
+						<div className="flex items-start gap-2">
+							<div className="w-4 h-4 rounded-full bg-red-500 mt-0.5 flex-shrink-0"></div>
+							<div className="text-sm text-red-800 dark:text-red-200">
+								<strong>Warning:</strong> All API integrations using these keys
+								will stop working immediately.
+							</div>
+						</div>
+					</div>
+					<div className="flex justify-end gap-2 mt-4">
+						<Button
+							variant="secondary"
+							onClick={() => setRevokeAllConfirmOpen(false)}
+						>
+							Cancel
+						</Button>
+						<Button
+							variant="destructive"
+							onClick={handleRevokeAllApiKeys}
+							disabled={revokeAllApiKeysMutation.isPending}
+						>
+							{revokeAllApiKeysMutation.isPending
+								? "Revoking..."
+								: `Revoke All ${activeApiKeysCount} Key${activeApiKeysCount === 1 ? "" : "s"}`}
 						</Button>
 					</div>
 				</DialogContent>
