@@ -400,7 +400,7 @@ async function handleWebhookEndpoint(emailId: string, endpoint: any, emailData: 
     // Add download URLs to attachments
     const attachmentsWithUrls = parsedEmailData.attachments?.map(att => ({
       ...att,
-      downloadUrl: `${baseUrl}/api/v2/attachments/${emailData.structuredId}/${encodeURIComponent(att.filename || 'attachment')}`
+      downloadUrl: `${baseUrl}/api/e2/attachments/${emailData.structuredId}/${encodeURIComponent(att.filename || 'attachment')}`
     })) || []
 
     // Create enhanced parsedData with download URLs
