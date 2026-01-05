@@ -317,10 +317,10 @@ export function ResendEmailDialog({
 										/>
 									</Button>
 								</PopoverTrigger>
-								<PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-									<Command>
+								<PopoverContent className="w-[--radix-popover-trigger-width] p-0 overflow-hidden">
+									<Command className="rounded-lg">
 										<CommandInput placeholder="Search endpoints..." />
-										<CommandList>
+										<CommandList className="max-h-[280px] overflow-y-auto">
 											<CommandEmpty>No endpoints found.</CommandEmpty>
 											<CommandGroup>
 												{activeEndpoints.map((endpoint) => {
