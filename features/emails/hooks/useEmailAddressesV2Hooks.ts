@@ -1,5 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { safeResponseJson } from "@/lib/api/client";
+import {
+	client,
+	getEdenErrorMessage,
+	safeResponseJson,
+} from "@/lib/api/client";
 import type {
 	GetEmailAddressesResponse,
 	GetEmailAddressesRequest,
@@ -144,23 +148,23 @@ export const useUpdateEmailAddressV2Mutation = () => {
 	});
 };
 
-// Hook for deleting email address
+// Hook for deleting email address - uses Elysia e2 API via Eden
 export const useDeleteEmailAddressV2Mutation = () => {
 	const queryClient = useQueryClient();
 
 	return useMutation<DeleteEmailAddressByIdResponse, Error, string>({
 		mutationFn: async (emailAddressId) => {
-			const response = await fetch(
-				`/api/v2/email-addresses/${emailAddressId}`,
-				{
-					method: "DELETE",
-				},
-			);
-			if (!response.ok) {
-				const error = await safeResponseJson(response);
-				throw new Error(error.error || "Failed to delete email address");
+			const { data, error } = await client.api.e2["email-addresses"]({
+				id: emailAddressId,
+			}).delete();
+
+			if (error) {
+				throw new Error(
+					getEdenErrorMessage(error, "Failed to delete email address"),
+				);
 			}
-			return response.json();
+
+			return data as DeleteEmailAddressByIdResponse;
 		},
 		onSuccess: (_, emailAddressId) => {
 			// Remove from cache and invalidate lists
