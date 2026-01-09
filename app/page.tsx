@@ -396,6 +396,11 @@ data.emails.forEach(email => {
 							alt="TeslaNav"
 							className="h-5 object-contain opacity-70 grayscale hover:opacity-100 hover:grayscale-0 transition-all"
 						/>
+						<img
+							src="/images/linkdr.svg"
+							alt="LinkDR"
+							className="h-5 object-contain opacity-70 grayscale hover:opacity-100 hover:grayscale-0 transition-all invert"
+						/>
 						<svg
 							xmlns="http://www.w3.org/2000/svg"
 							width="133"
