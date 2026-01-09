@@ -421,7 +421,14 @@ data.emails.forEach(email => {
 								/>
 							</div>
 							<div>
-								<span className="font-medium text-[#18181b]">LinkDR</span>
+								<a
+									href="https://linkdr.com"
+									target="_blank"
+									rel="noopener noreferrer"
+									className="font-medium text-[#18181b] hover:underline"
+								>
+									LinkDR
+								</a>
 								<p className="text-sm text-[#52525b] leading-relaxed">
 									LinkDR uses Inbound to power their internal order management
 									system for backlink management, processing thousands of
