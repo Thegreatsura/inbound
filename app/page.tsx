@@ -410,6 +410,33 @@ data.emails.forEach(email => {
 							/>
 						</svg>
 					</div>
+
+					<div className="mt-8 bg-[#fafaf9] rounded-lg">
+						<div className="flex items-start gap-3">
+							<div className="flex-shrink-0 w-10 h-10 bg-[#18181b] rounded-lg flex items-center justify-center">
+								<img
+									src="/images/linkdr.svg"
+									alt="LinkDR"
+									className="h-5 w-5"
+								/>
+							</div>
+							<div>
+								<a
+									href="https://linkdr.com"
+									target="_blank"
+									rel="noopener noreferrer"
+									className="font-medium text-[#18181b] hover:underline"
+								>
+									LinkDR
+								</a>
+								<p className="text-sm text-[#52525b] leading-relaxed">
+									LinkDR uses Inbound to power their internal order management
+									system for backlink management, processing thousands of
+									automated emails daily.
+								</p>
+							</div>
+						</div>
+					</div>
 				</section>
 
 				{/* What it does */}
