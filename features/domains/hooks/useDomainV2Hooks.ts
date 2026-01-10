@@ -8,20 +8,14 @@ import {
 import type {
 	GetDomainsRequest,
 	DomainWithStats,
-} from "@/app/api/v2/domains/route";
-import type {
 	GetDomainByIdResponse,
 	PutDomainByIdRequest,
-} from "@/app/api/v2/domains/[id]/route";
-import type {
 	PostEmailAddressesRequest,
 	PostEmailAddressesResponse,
-} from "@/app/api/v2/email-addresses/route";
-import type {
 	PutEmailAddressByIdRequest,
 	PutEmailAddressByIdResponse,
 	DeleteEmailAddressByIdResponse,
-} from "@/app/api/v2/email-addresses/[id]/route";
+} from "@/lib/api-types";
 
 // E2 API Domain type (uses string dates instead of Date objects)
 export interface E2DomainWithStats {

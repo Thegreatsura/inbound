@@ -9,13 +9,11 @@ import type {
 	GetEmailAddressesRequest,
 	PostEmailAddressesRequest,
 	PostEmailAddressesResponse,
-} from "@/app/api/v2/email-addresses/route";
-import type {
 	GetEmailAddressByIdResponse,
 	PutEmailAddressByIdRequest,
 	PutEmailAddressByIdResponse,
 	DeleteEmailAddressByIdResponse,
-} from "@/app/api/v2/email-addresses/[id]/route";
+} from "@/lib/api-types";
 
 // Query keys for v2 email addresses API
 export const emailAddressesV2Keys = {
