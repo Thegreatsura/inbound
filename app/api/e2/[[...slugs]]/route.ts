@@ -166,6 +166,12 @@ const app = new Elysia({ prefix: "/api/e2" })
 		openapi({
 			documentation: {
 				openapi: "3.1.0",
+				servers: [
+					{
+						url: "https://inbound.new/api/e2",
+						description: "Production API server",
+					},
+				],
 				info: {
 					title: "Inbound Email API",
 					version: "2.0.0",
