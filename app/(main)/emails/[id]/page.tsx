@@ -95,7 +95,7 @@ export default function DomainDetailPage() {
 		refetch: refetchDomainDetails,
 	} = useDomainDetailsV2Query(domainId);
 
-	// Get email addresses for this domain
+	// Get email addresses for this domain - uses Elysia e2 API via Eden
 	const {
 		data: emailAddressesData,
 		isLoading: isEmailAddressesLoading,
@@ -103,21 +103,25 @@ export default function DomainDetailPage() {
 	} = useQuery<GetEmailAddressesResponse>({
 		queryKey: [...domainV2Keys.emailAddresses(domainId)],
 		queryFn: async () => {
-			const response = await fetch(
-				`/api/v2/email-addresses?domainId=${domainId}`,
-			);
-			if (!response.ok) {
-				const error = await response.json();
-				throw new Error(error.error || "Failed to fetch email addresses");
+			const { data, error } = await client.api.e2["email-addresses"].get({
+				query: { domainId },
+			});
+			if (error) {
+				throw new Error(
+					typeof error === "object" && error !== null && "error" in error
+						? String((error as { error: unknown }).error)
+						: "Failed to fetch email addresses",
+				);
 			}
-			return response.json();
+			// Cast the response to match the expected type
+			return data as unknown as GetEmailAddressesResponse;
 		},
 		enabled: !!domainId && domainDetailsData?.status === "verified",
 		staleTime: 2 * 60 * 1000, // 2 minutes
 		gcTime: 10 * 60 * 1000, // 10 minutes
 	});
 
-	// Get DNS records for pending domains
+	// Get DNS records for pending domains - uses Elysia e2 API via Eden
 	const { data: dnsRecordsData, isLoading: isDnsRecordsLoading } = useQuery<{
 		records: Array<{
 			recordType: string;
@@ -128,12 +132,30 @@ export default function DomainDetailPage() {
 	}>({
 		queryKey: ["dnsRecords", domainId],
 		queryFn: async () => {
-			const response = await fetch(`/api/v2/domains/${domainId}/dns-records`);
-			if (!response.ok) {
-				const error = await response.json();
-				throw new Error(error.error || "Failed to fetch DNS records");
+			// Fetch domain details with check=true to get DNS verification status
+			const { data, error } = await client.api.e2
+				.domains({ id: domainId })
+				.get({
+					query: { check: "true" },
+				});
+			if (error) {
+				throw new Error(
+					typeof error === "object" && error !== null && "error" in error
+						? String((error as { error: unknown }).error)
+						: "Failed to fetch DNS records",
+				);
 			}
-			return response.json();
+			// Extract DNS records from verification check
+			const verificationRecords =
+				(data as any)?.verificationCheck?.dnsRecords || [];
+			return {
+				records: verificationRecords.map((r: any) => ({
+					recordType: r.type,
+					name: r.name,
+					value: r.value,
+					isVerified: r.isVerified,
+				})),
+			};
 		},
 		enabled: !!domainId && domainDetailsData?.status === "pending",
 		staleTime: 2 * 60 * 1000, // 2 minutes

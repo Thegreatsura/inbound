@@ -1,9 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-	client,
-	getEdenErrorMessage,
-	safeResponseJson,
-} from "@/lib/api/client";
+import { client, getEdenErrorMessage } from "@/lib/api/client";
 import type {
 	GetEmailAddressesResponse,
 	GetEmailAddressesRequest,
@@ -26,49 +22,50 @@ export const emailAddressesV2Keys = {
 		[...emailAddressesV2Keys.details(), emailAddressId] as const,
 };
 
-// Hook for listing email addresses
+// Hook for listing email addresses - uses Elysia e2 API via Eden
 export const useEmailAddressesV2Query = (params?: GetEmailAddressesRequest) => {
 	return useQuery<GetEmailAddressesResponse>({
 		queryKey: emailAddressesV2Keys.list(params),
 		queryFn: async () => {
-			const searchParams = new URLSearchParams();
-			if (params?.limit) searchParams.set("limit", params.limit.toString());
-			if (params?.offset) searchParams.set("offset", params.offset.toString());
-			if (params?.domainId) searchParams.set("domainId", params.domainId);
-			if (params?.isActive) searchParams.set("isActive", params.isActive);
-			if (params?.isReceiptRuleConfigured)
-				searchParams.set(
-					"isReceiptRuleConfigured",
-					params.isReceiptRuleConfigured,
-				);
+			const { data, error } = await client.api.e2["email-addresses"].get({
+				query: {
+					limit: params?.limit,
+					offset: params?.offset,
+					domainId: params?.domainId,
+					isActive: params?.isActive,
+					isReceiptRuleConfigured: params?.isReceiptRuleConfigured,
+				},
+			});
 
-			const response = await fetch(`/api/v2/email-addresses?${searchParams}`);
-			if (!response.ok) {
-				const error = await safeResponseJson(response);
+			if (error) {
 				throw new Error(
-					error.error || `HTTP error! status: ${response.status}`,
+					getEdenErrorMessage(error, "Failed to fetch email addresses"),
 				);
 			}
-			return response.json();
+
+			return data as unknown as GetEmailAddressesResponse;
 		},
 		staleTime: 2 * 60 * 1000, // 2 minutes
 		gcTime: 5 * 60 * 1000, // 5 minutes
 	});
 };
 
-// Hook for getting email address details
+// Hook for getting email address details - uses Elysia e2 API via Eden
 export const useEmailAddressV2Query = (emailAddressId: string) => {
 	return useQuery<GetEmailAddressByIdResponse>({
 		queryKey: emailAddressesV2Keys.detail(emailAddressId),
 		queryFn: async () => {
-			const response = await fetch(`/api/v2/email-addresses/${emailAddressId}`);
-			if (!response.ok) {
-				const error = await safeResponseJson(response);
+			const { data, error } = await client.api.e2["email-addresses"]({
+				id: emailAddressId,
+			}).get();
+
+			if (error) {
 				throw new Error(
-					error.error || `HTTP error! status: ${response.status}`,
+					getEdenErrorMessage(error, "Failed to fetch email address"),
 				);
 			}
-			return response.json();
+
+			return data as unknown as GetEmailAddressByIdResponse;
 		},
 		enabled: !!emailAddressId,
 		staleTime: 2 * 60 * 1000, // 2 minutes
@@ -76,7 +73,7 @@ export const useEmailAddressV2Query = (emailAddressId: string) => {
 	});
 };
 
-// Hook for creating email address
+// Hook for creating email address - uses Elysia e2 API via Eden
 export const useCreateEmailAddressV2Mutation = () => {
 	const queryClient = useQueryClient();
 
@@ -86,18 +83,22 @@ export const useCreateEmailAddressV2Mutation = () => {
 		PostEmailAddressesRequest
 	>({
 		mutationFn: async (data) => {
-			const response = await fetch("/api/v2/email-addresses", {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-				},
-				body: JSON.stringify(data),
-			});
-			if (!response.ok) {
-				const error = await safeResponseJson(response);
-				throw new Error(error.error || "Failed to create email address");
+			const { data: responseData, error } =
+				await client.api.e2["email-addresses"].post({
+					address: data.address,
+					domainId: data.domainId,
+					endpointId: data.endpointId,
+					webhookId: data.webhookId,
+					isActive: data.isActive,
+				});
+
+			if (error) {
+				throw new Error(
+					getEdenErrorMessage(error, "Failed to create email address"),
+				);
 			}
-			return response.json();
+
+			return responseData as unknown as PostEmailAddressesResponse;
 		},
 		onSuccess: () => {
 			// Invalidate email addresses lists
@@ -108,7 +109,7 @@ export const useCreateEmailAddressV2Mutation = () => {
 	});
 };
 
-// Hook for updating email address
+// Hook for updating email address - uses Elysia e2 API via Eden
 export const useUpdateEmailAddressV2Mutation = () => {
 	const queryClient = useQueryClient();
 
@@ -118,21 +119,21 @@ export const useUpdateEmailAddressV2Mutation = () => {
 		PutEmailAddressByIdRequest & { emailAddressId: string }
 	>({
 		mutationFn: async ({ emailAddressId, ...data }) => {
-			const response = await fetch(
-				`/api/v2/email-addresses/${emailAddressId}`,
-				{
-					method: "PUT",
-					headers: {
-						"Content-Type": "application/json",
-					},
-					body: JSON.stringify(data),
-				},
-			);
-			if (!response.ok) {
-				const error = await safeResponseJson(response);
-				throw new Error(error.error || "Failed to update email address");
+			const { data: responseData, error } = await client.api.e2[
+				"email-addresses"
+			]({ id: emailAddressId }).put({
+				endpointId: data.endpointId,
+				webhookId: data.webhookId,
+				isActive: data.isActive,
+			});
+
+			if (error) {
+				throw new Error(
+					getEdenErrorMessage(error, "Failed to update email address"),
+				);
 			}
-			return response.json();
+
+			return responseData as unknown as PutEmailAddressByIdResponse;
 		},
 		onSuccess: (_, { emailAddressId }) => {
 			// Invalidate specific email address and lists
