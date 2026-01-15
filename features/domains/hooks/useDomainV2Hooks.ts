@@ -259,18 +259,23 @@ export const useDomainDetailsV2Query = (
 	});
 };
 
-// Hook for domain verification check (using GET with check=true)
+// Hook for domain verification check (using GET with check=true) - uses Elysia e2 API via Eden
 export const useDomainVerificationCheckV2 = (domainId: string) => {
 	const queryClient = useQueryClient();
 
 	return useMutation({
 		mutationFn: async () => {
-			const response = await fetch(`/api/v2/domains?status=pending&check=true`);
-			if (!response.ok) {
-				const error = await response.json();
-				throw new Error(error.error || "Failed to check verification");
+			const { data, error } = await client.api.e2.domains.get({
+				query: { status: "pending", check: "true" },
+			});
+
+			if (error) {
+				throw new Error(
+					getEdenErrorMessage(error, "Failed to check verification"),
+				);
 			}
-			return response.json();
+
+			return data;
 		},
 		onSuccess: () => {
 			// Invalidate domain details to refresh the data
@@ -281,22 +286,27 @@ export const useDomainVerificationCheckV2 = (domainId: string) => {
 	});
 };
 
-// Hook for domain auth verification (PATCH /api/v2/domains/{id}/auth)
+// Hook for domain auth verification - uses Elysia e2 API via Eden
+// Auth verification is now done via GET with check=true in the e2 API
 export const useDomainAuthVerifyV2Mutation = () => {
 	const queryClient = useQueryClient();
 
 	return useMutation({
 		mutationFn: async (domainId: string) => {
-			const response = await fetch(`/api/v2/domains/${domainId}/auth`, {
-				method: "PATCH",
-			});
-			if (!response.ok) {
-				const error = await response.json();
+			// The e2 API uses GET with check=true to verify domain authentication
+			const { data, error } = await client.api.e2
+				.domains({ id: domainId })
+				.get({
+					query: { check: "true" },
+				});
+
+			if (error) {
 				throw new Error(
-					error.error || "Failed to verify domain authentication",
+					getEdenErrorMessage(error, "Failed to verify domain authentication"),
 				);
 			}
-			return response.json();
+
+			return data;
 		},
 		onSuccess: (_, domainId) => {
 			// Invalidate domain details to refresh auth status
@@ -435,7 +445,7 @@ export const useDeleteDomainV2Mutation = () => {
 	});
 };
 
-// Hook for adding email address
+// Hook for adding email address - uses Elysia e2 API via Eden
 export const useAddEmailAddressV2Mutation = () => {
 	const queryClient = useQueryClient();
 
@@ -445,18 +455,22 @@ export const useAddEmailAddressV2Mutation = () => {
 		PostEmailAddressesRequest
 	>({
 		mutationFn: async (data) => {
-			const response = await fetch("/api/v2/email-addresses", {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-				},
-				body: JSON.stringify(data),
-			});
-			if (!response.ok) {
-				const error = await response.json();
-				throw new Error(error.error || "Failed to add email address");
+			const { data: responseData, error } =
+				await client.api.e2["email-addresses"].post({
+					address: data.address,
+					domainId: data.domainId,
+					endpointId: data.endpointId,
+					webhookId: data.webhookId,
+					isActive: data.isActive,
+				});
+
+			if (error) {
+				throw new Error(
+					getEdenErrorMessage(error, "Failed to add email address"),
+				);
 			}
-			return response.json();
+
+			return responseData as unknown as PostEmailAddressesResponse;
 		},
 		onSuccess: (data) => {
 			// Track email address addition
@@ -511,7 +525,7 @@ export const useDeleteEmailAddressV2Mutation = () => {
 	});
 };
 
-// Hook for updating email endpoint/webhook
+// Hook for updating email endpoint/webhook - uses Elysia e2 API via Eden
 export const useUpdateEmailEndpointV2Mutation = () => {
 	const queryClient = useQueryClient();
 
@@ -521,28 +535,25 @@ export const useUpdateEmailEndpointV2Mutation = () => {
 		PutEmailAddressByIdRequest & { emailAddressId: string; domainId: string }
 	>({
 		mutationFn: async ({ emailAddressId, domainId, ...data }) => {
-			console.log("🚀 Sending update request:", {
-				url: `/api/v2/email-addresses/${emailAddressId}`,
+			console.log("🚀 Sending update request via Eden:", {
+				emailAddressId,
 				body: data,
 			});
 
-			const response = await fetch(
-				`/api/v2/email-addresses/${emailAddressId}`,
-				{
-					method: "PUT",
-					headers: {
-						"Content-Type": "application/json",
-					},
-					body: JSON.stringify(data),
-				},
-			);
-			if (!response.ok) {
-				const error = await response.json();
-				throw new Error(error.error || "Failed to update endpoint");
+			const { data: responseData, error } = await client.api.e2[
+				"email-addresses"
+			]({ id: emailAddressId }).put({
+				endpointId: data.endpointId,
+				webhookId: data.webhookId,
+				isActive: data.isActive,
+			});
+
+			if (error) {
+				throw new Error(getEdenErrorMessage(error, "Failed to update endpoint"));
 			}
-			const result = await response.json();
-			console.log("📥 Update response:", result);
-			return result;
+
+			console.log("📥 Update response:", responseData);
+			return responseData as unknown as PutEmailAddressByIdResponse;
 		},
 		onSuccess: (_, { domainId }) => {
 			// Invalidate domain details to refresh email addresses
@@ -592,26 +603,27 @@ export const useUpdateDomainCatchAllV2Mutation = () => {
 	});
 };
 
-// Hook for upgrading domain with MAIL FROM configuration
+// Hook for upgrading domain with MAIL FROM configuration - uses Elysia e2 API via Eden
 export const useUpgradeDomainMailFromV2Mutation = () => {
 	const queryClient = useQueryClient();
 
 	return useMutation<any, Error, { domainId: string }>({
 		mutationFn: async ({ domainId }) => {
-			const response = await fetch(`/api/v2/domains/${domainId}`, {
-				method: "PATCH",
-				headers: {
-					"Content-Type": "application/json",
-				},
-			});
-			if (!response.ok) {
-				const error = await response.json();
+			// The e2 API PATCH endpoint handles MAIL FROM configuration
+			const { data, error } = await client.api.e2
+				.domains({ id: domainId })
+				.patch({});
+
+			if (error) {
 				throw new Error(
-					error.error ||
+					getEdenErrorMessage(
+						error,
 						"Failed to upgrade domain with MAIL FROM configuration",
+					),
 				);
 			}
-			return response.json();
+
+			return data;
 		},
 		onSuccess: (data, { domainId }) => {
 			// Track MAIL FROM upgrade
