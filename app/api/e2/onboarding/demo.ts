@@ -1,5 +1,5 @@
-import { Inbound } from "@inboundemail/sdk";
 import { Elysia, t } from "elysia";
+import Inbound from "inboundemail";
 import { nanoid } from "nanoid";
 import { auth } from "@/lib/auth/auth";
 import { db } from "@/lib/db";
@@ -49,10 +49,18 @@ export const sendOnboardingDemo = new Elysia().post(
 
 		try {
 			// Use the Inbound SDK to send the demo email
-			const inbound = new Inbound(apiKey);
+			// Use localhost in development, production URL otherwise
+			const inbound = new Inbound({
+				apiKey,
+				baseURL:
+					process.env.NODE_ENV === "development"
+						? "http://localhost:3000"
+						: undefined,
+			});
 
 			console.log("📤 Sending demo email to:", to);
 
+			// The SDK throws on error, returns response directly on success
 			const result = await inbound.emails.send({
 				from: `demo@inbound.new`,
 				to: to,
@@ -75,18 +83,7 @@ export const sendOnboardingDemo = new Elysia().post(
 				text: `Welcome to Inbound!\n\nThis is a test email from your Inbound setup. Reply to this email to complete your onboarding.\n\nOnce you reply, we'll detect it automatically and you'll be ready to start receiving emails!`,
 			});
 
-			if (result.error) {
-				console.error("❌ SDK error sending demo email:", result.error);
-				set.status = 500;
-				return {
-					error:
-						typeof result.error === "string"
-							? result.error
-							: "Failed to send demo email",
-				};
-			}
-
-			const emailId = result.data?.id || nanoid();
+			const emailId = result.id;
 			console.log("✅ Demo email sent, ID:", emailId);
 
 			// Store the demo email record for reply tracking
