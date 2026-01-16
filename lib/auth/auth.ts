@@ -1,23 +1,22 @@
-import { betterAuth } from "better-auth";
-import { db } from "../db/index";
-import { Dub } from "dub";
-import { dubAnalytics } from "@dub/better-auth";
-import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { stripe } from "@better-auth/stripe";
 import { passkey } from "@better-auth/passkey";
-import { admin, apiKey, oAuthProxy } from "better-auth/plugins";
-import { magicLink } from "better-auth/plugins";
-import { createAuthMiddleware } from "better-auth/api";
-import { eq, and } from "drizzle-orm";
-import Stripe from "stripe";
-import * as schema from "../db/schema";
-import { nanoid } from "nanoid";
-import { Resend } from "resend";
-import { Inbound } from "@inboundemail/sdk";
-import path from "path";
-import fs from "fs";
+import { stripe } from "@better-auth/stripe";
+import { dubAnalytics } from "@dub/better-auth";
 import { render } from "@react-email/components";
+import { betterAuth } from "better-auth";
+import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { createAuthMiddleware } from "better-auth/api";
+import { admin, apiKey, magicLink, oAuthProxy } from "better-auth/plugins";
+import { and, eq } from "drizzle-orm";
+import { Dub } from "dub";
+import fs from "fs";
+import Inbound from "inboundemail";
+import { nanoid } from "nanoid";
+import path from "path";
+import { Resend } from "resend";
+import Stripe from "stripe";
 import MagicLinkEmail from "@/emails/magic-link-email";
+import { db } from "../db/index";
+import * as schema from "../db/schema";
 
 const dub = new Dub({
 	token: process.env.DUB_API_KEY,
@@ -76,7 +75,14 @@ const BLOCKED_SIGNUP_DOMAINS = [
 
 const stripeClient = new Stripe(process.env.STRIPE_SECRET_KEY as string);
 const resend = new Resend(process.env.RESEND_API_KEY);
-const inbound = new Inbound(process.env.INBOUND_API_KEY!);
+const inbound = new Inbound({
+	apiKey: process.env.INBOUND_API_KEY!,
+	// Use localhost in development, production URL otherwise
+	baseURL:
+		process.env.NODE_ENV === "development"
+			? "http://localhost:3000"
+			: undefined,
+});
 
 const SLACK_ADMIN_WEBHOOK_URL = process.env.SLACK_ADMIN_WEBHOOK_URL;
 
@@ -176,7 +182,7 @@ export const auth = betterAuth({
 				: "https://inbound.new",
 	trustedOrigins:
 		process.env.NODE_ENV === "development"
-			? ["https://dev.inbound.new"]
+			? ["https://dev.inbound.new", "http://localhost:3000"]
 			: ([
 					process.env.VERCEL_URL
 						? `https://${process.env.VERCEL_URL}`
@@ -257,21 +263,17 @@ export const auth = betterAuth({
 				console.log(`📧 Sending magic link to ${email}`);
 
 				try {
-					const { data, error } = await inbound.emails.send({
+					// Use Inbound SDK (throws on error)
+					const response = await inbound.emails.send({
 						from: "Inbound <noreply@notifications.inbound.new>",
 						to: email,
 						subject: "Sign in to inbound",
 						html: await render(MagicLinkEmail(url)),
 						text: `Sign in to inbound\n\nClick this link to sign in: ${url}\n\nThis link will expire in 5 minutes.`,
-						replyTo: "support@inbound.new",
+						reply_to: "support@inbound.new",
 					});
 
-					if (error) {
-						console.error("❌ Failed to send magic link email:", error);
-						throw new Error(`Failed to send email: ${error}`);
-					}
-
-					console.log("✅ Magic link email sent successfully:", data?.id);
+					console.log("✅ Magic link email sent successfully:", response.id);
 				} catch (error) {
 					console.error("❌ Error sending magic link:", error);
 					throw error;

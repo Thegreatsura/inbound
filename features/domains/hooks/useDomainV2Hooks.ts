@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { track } from "@vercel/analytics";
 import {
 	client,
@@ -6,15 +6,15 @@ import {
 	safeResponseJson,
 } from "@/lib/api/client";
 import type {
-	GetDomainsRequest,
+	DeleteEmailAddressByIdResponse,
 	DomainWithStats,
 	GetDomainByIdResponse,
-	PutDomainByIdRequest,
+	GetDomainsRequest,
 	PostEmailAddressesRequest,
 	PostEmailAddressesResponse,
+	PutDomainByIdRequest,
 	PutEmailAddressByIdRequest,
 	PutEmailAddressByIdResponse,
-	DeleteEmailAddressByIdResponse,
 } from "@/lib/api-types";
 
 // E2 API Domain type (uses string dates instead of Date objects)
@@ -455,14 +455,15 @@ export const useAddEmailAddressV2Mutation = () => {
 		PostEmailAddressesRequest
 	>({
 		mutationFn: async (data) => {
-			const { data: responseData, error } =
-				await client.api.e2["email-addresses"].post({
-					address: data.address,
-					domainId: data.domainId,
-					endpointId: data.endpointId,
-					webhookId: data.webhookId,
-					isActive: data.isActive,
-				});
+			const { data: responseData, error } = await client.api.e2[
+				"email-addresses"
+			].post({
+				address: data.address,
+				domainId: data.domainId,
+				endpointId: data.endpointId,
+				webhookId: data.webhookId,
+				isActive: data.isActive,
+			});
 
 			if (error) {
 				throw new Error(
@@ -549,7 +550,9 @@ export const useUpdateEmailEndpointV2Mutation = () => {
 			});
 
 			if (error) {
-				throw new Error(getEdenErrorMessage(error, "Failed to update endpoint"));
+				throw new Error(
+					getEdenErrorMessage(error, "Failed to update endpoint"),
+				);
 			}
 
 			console.log("📥 Update response:", responseData);
@@ -604,15 +607,19 @@ export const useUpdateDomainCatchAllV2Mutation = () => {
 };
 
 // Hook for upgrading domain with MAIL FROM configuration - uses Elysia e2 API via Eden
+// MAIL FROM verification is handled by the GET endpoint with check=true parameter
 export const useUpgradeDomainMailFromV2Mutation = () => {
 	const queryClient = useQueryClient();
 
 	return useMutation<any, Error, { domainId: string }>({
 		mutationFn: async ({ domainId }) => {
-			// The e2 API PATCH endpoint handles MAIL FROM configuration
+			// The e2 API GET endpoint with check=true handles MAIL FROM verification
+			// It will retry MAIL FROM setup if still pending, failed, or not set
 			const { data, error } = await client.api.e2
 				.domains({ id: domainId })
-				.patch({});
+				.get({
+					query: { check: "true" },
+				});
 
 			if (error) {
 				throw new Error(
@@ -629,8 +636,8 @@ export const useUpgradeDomainMailFromV2Mutation = () => {
 			// Track MAIL FROM upgrade
 			track("Domain MAIL FROM Upgraded", {
 				domainId: domainId,
-				mailFromDomain: data.mailFromDomain,
-				mailFromDomainStatus: data.mailFromDomainStatus,
+				mailFromDomain: data?.mailFromDomain,
+				mailFromDomainStatus: data?.mailFromDomainStatus,
 			});
 
 			// Invalidate domain details and list to refresh MAIL FROM status

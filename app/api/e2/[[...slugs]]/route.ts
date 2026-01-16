@@ -1,33 +1,44 @@
-import { Elysia } from "elysia";
 import { openapi } from "@elysiajs/openapi";
-import { listDomains } from "../domains/list";
-import { createDomain } from "../domains/create";
-import { getDomain } from "../domains/get";
-import { updateDomain } from "../domains/update";
-import { deleteDomain } from "../domains/delete";
-import { listEndpoints } from "../endpoints/list";
-import { createEndpoint } from "../endpoints/create";
-import { getEndpoint } from "../endpoints/get";
-import { updateEndpoint } from "../endpoints/update";
-import { deleteEndpoint } from "../endpoints/delete";
-import { testEndpoint } from "../endpoints/test";
-import { listEmailAddresses } from "../email-addresses/list";
-import { getEmailAddress } from "../email-addresses/get";
-import { createEmailAddress } from "../email-addresses/create";
-import { updateEmailAddress } from "../email-addresses/update";
-import { deleteEmailAddress } from "../email-addresses/delete";
+import { Elysia } from "elysia";
 import { getAttachment } from "../attachments/get";
-import { AuthError } from "../lib/auth";
-// Email routes
-import { sendEmail } from "../emails/send";
-import { listEmails } from "../emails/list";
-import { getEmail } from "../emails/get";
+import { createDomain } from "../domains/create";
+import { deleteDomain } from "../domains/delete";
+import { getDomain } from "../domains/get";
+import { listDomains } from "../domains/list";
+import { updateDomain } from "../domains/update";
+import { createEmailAddress } from "../email-addresses/create";
+import { deleteEmailAddress } from "../email-addresses/delete";
+import { getEmailAddress } from "../email-addresses/get";
+import { listEmailAddresses } from "../email-addresses/list";
+import { updateEmailAddress } from "../email-addresses/update";
 import { cancelEmail } from "../emails/cancel";
+import { getEmail } from "../emails/get";
+import { listEmails } from "../emails/list";
 import { replyToEmail } from "../emails/reply";
 import { retryEmail } from "../emails/retry";
+// Email routes
+import { sendEmail } from "../emails/send";
+import { createEndpoint } from "../endpoints/create";
+import { deleteEndpoint } from "../endpoints/delete";
+import { getEndpoint } from "../endpoints/get";
+import { listEndpoints } from "../endpoints/list";
+import { testEndpoint } from "../endpoints/test";
+import { updateEndpoint } from "../endpoints/update";
+import { checkGuardRule } from "../guard/check";
+import { createGuardRule } from "../guard/create";
+import { deleteGuardRule } from "../guard/delete";
+import { generateGuardRules } from "../guard/generate";
+import { getGuardRule } from "../guard/get";
+// Guard routes
+import { listGuardRules } from "../guard/list";
+import { updateGuardRule } from "../guard/update";
+import { AuthError } from "../lib/auth";
+import { getThread } from "../mail/threads-get";
 // Inbox routes (threaded conversations)
 import { listThreads } from "../mail/threads-list";
-import { getThread } from "../mail/threads-get";
+import { checkOnboardingReply } from "../onboarding/check-reply";
+// Onboarding routes
+import { sendOnboardingDemo } from "../onboarding/demo";
 
 // Webhook documentation content (rendered as a documentation page)
 const webhookStructureDoc = `
@@ -410,6 +421,8 @@ https://inbound.new/api/e2
 				error: "Not Found",
 				message: "The requested resource was not found.",
 				statusCode: 404,
+				deprecation_notice:
+					"The /api/v2 routes and @inboundemail/sdk package are deprecated due to security concerns. Please migrate to the official 'inboundemail' package and use /api/e2 routes. See https://inbound.new/docs for documentation.",
 			};
 		}
 
@@ -451,7 +464,18 @@ https://inbound.new/api/e2
 	.use(retryEmail)
 	// Inbox routes (threaded conversations)
 	.use(listThreads)
-	.use(getThread);
+	.use(getThread)
+	// Onboarding routes
+	.use(sendOnboardingDemo)
+	.use(checkOnboardingReply)
+	// Guard routes
+	.use(listGuardRules)
+	.use(createGuardRule)
+	.use(getGuardRule)
+	.use(updateGuardRule)
+	.use(deleteGuardRule)
+	.use(checkGuardRule)
+	.use(generateGuardRules);
 
 export const GET = app.fetch;
 export const POST = app.fetch;

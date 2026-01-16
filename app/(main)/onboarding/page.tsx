@@ -1,8 +1,24 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useSession } from "@/lib/auth/auth-client";
+import { useQueryClient } from "@tanstack/react-query";
+import { useCustomer } from "autumn-js/react";
 import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { completeOnboarding, skipOnboarding } from "@/app/actions/onboarding";
+import ArrowBoldRight from "@/components/icons/arrow-bold-right";
+import ChevronDown from "@/components/icons/chevron-down";
+import CircleCheck from "@/components/icons/circle-check";
+import CirclePlay from "@/components/icons/circle-play";
+import Code2 from "@/components/icons/code-2";
+import Copy2 from "@/components/icons/copy-2";
+import Envelope2 from "@/components/icons/envelope-2";
+import Hide from "@/components/icons/hide";
+import Key2 from "@/components/icons/key-2";
+import Loader from "@/components/icons/loader";
+import View from "@/components/icons/view";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
 	Card,
 	CardContent,
@@ -10,27 +26,12 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import ArrowBoldRight from "@/components/icons/arrow-bold-right";
-import CircleCheck from "@/components/icons/circle-check";
-import Key2 from "@/components/icons/key-2";
-import View from "@/components/icons/view";
-import Hide from "@/components/icons/hide";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useCreateApiKeyMutation } from "@/features/settings/hooks";
-import { useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
-import { completeOnboarding, skipOnboarding } from "@/app/actions/onboarding";
+import { client, getEdenErrorMessage } from "@/lib/api/client";
+import { useSession } from "@/lib/auth/auth-client";
 import { trackSignupConversion } from "@/lib/utils/twitter-tracking";
-import Copy2 from "@/components/icons/copy-2";
-import Code2 from "@/components/icons/code-2";
-import CirclePlay from "@/components/icons/circle-play";
-import ChevronDown from "@/components/icons/chevron-down";
-import Envelope2 from "@/components/icons/envelope-2";
-import { useCustomer } from "autumn-js/react";
-import Loader from "@/components/icons/loader";
 
 const UPGRADE_PRODUCT_ID = "inbound_default_test";
 const FREE_TIER_PRODUCT_ID = "free_tier";
@@ -127,34 +128,30 @@ export default function OnboardingPage() {
 		setDemoOutput("Running demo...");
 
 		try {
-			const response = await fetch("/api/v2/onboarding/demo", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					apiKey: apiKeyPlain,
-					to: demoEmail,
-				}),
+			const { data, error } = await client.api.e2.onboarding.demo.post({
+				apiKey: apiKeyPlain,
+				to: demoEmail,
 			});
 
-			const result = await response.json();
-
-			if (response.ok) {
+			if (data && !error) {
 				console.log("✅ [DEMO] Email sent successfully:", {
-					emailId: result.id,
+					emailId: data.id,
 					sentTo: demoEmail,
 					userEmail: session?.user?.email,
 				});
 
 				setDemoOutput(
-					`✅ Success!\nEmail sent to ${demoEmail} with ID: ${result.id}, check your inbox!\n\n🎯 Waiting for your reply...\n\n$ inbound.emails.awaitReply( {demoEmail} )`,
+					`✅ Success!\nEmail sent to ${demoEmail} with ID: ${data.id}, check your inbox!\n\n🎯 Waiting for your reply...\n\n$ inbound.emails.awaitReply( {demoEmail} )`,
 				);
 				setIsListeningForReply(true);
 
 				console.log("🎯 [DEMO] Starting reply polling system...");
 				startListeningForReply();
 			} else {
-				console.error("❌ [DEMO] Failed to send email:", result);
-				setDemoOutput(`❌ Error: ${result.error || "Unknown error"}`);
+				console.error("❌ [DEMO] Failed to send email:", error);
+				setDemoOutput(
+					`❌ Error: ${getEdenErrorMessage(error, "Unknown error")}`,
+				);
 			}
 		} catch (error) {
 			setDemoOutput(
@@ -233,15 +230,11 @@ export default function OnboardingPage() {
 			console.log("🔄 [POLLING] Should still poll:", shouldStillPoll());
 
 			try {
-				const response = await fetch("/api/v2/onboarding/check-reply");
-				console.log(
-					"📡 [POLLING] Response status:",
-					response.status,
-					response.statusText,
-				);
+				const { data, error } =
+					await client.api.e2.onboarding["check-reply"].get();
+				console.log("📡 [POLLING] Response:", error ? "error" : "success");
 
-				if (response.ok) {
-					const data = await response.json();
+				if (data && !error) {
 					console.log(
 						"📋 [POLLING] Response data:",
 						JSON.stringify(data, null, 2),
@@ -262,7 +255,7 @@ export default function OnboardingPage() {
 						setPollTimeLeft(0);
 						setDemoOutput(
 							(prev) =>
-								`${prev}\n\n🎉 Reply received!\n\nIt looks like you like the ${data.reply.body} mail client! \n\n`,
+								`${prev}\n\n🎉 Reply received!\n\nIt looks like you like the ${data.reply?.body} mail client! \n\n`,
 						);
 						console.log(
 							"✅ [POLLING] Stopping polling - reply received and processed",
@@ -272,11 +265,7 @@ export default function OnboardingPage() {
 						console.log("📭 [POLLING] No reply yet, will continue polling...");
 					}
 				} else {
-					console.error(
-						"❌ [POLLING] API error:",
-						response.status,
-						response.statusText,
-					);
+					console.error("❌ [POLLING] API error:", getEdenErrorMessage(error));
 				}
 			} catch (error) {
 				console.error("❌ [POLLING] Network error checking for reply:", error);
@@ -308,15 +297,11 @@ export default function OnboardingPage() {
 		setIsManualChecking(true);
 
 		try {
-			const response = await fetch("/api/v2/onboarding/check-reply");
-			console.log(
-				"📡 [MANUAL] Response status:",
-				response.status,
-				response.statusText,
-			);
+			const { data, error } =
+				await client.api.e2.onboarding["check-reply"].get();
+			console.log("📡 [MANUAL] Response:", error ? "error" : "success");
 
-			if (response.ok) {
-				const data = await response.json();
+			if (data && !error) {
 				console.log(
 					"📋 [MANUAL] Response data:",
 					JSON.stringify(data, null, 2),
@@ -328,7 +313,7 @@ export default function OnboardingPage() {
 					setShowManualCheck(false);
 					setDemoOutput(
 						(prev) =>
-							`${prev}\n\n🎉 Reply received!\nFrom: ${data.reply.from}\nSubject: ${data.reply.subject}`,
+							`${prev}\n\n🎉 Reply received!\nFrom: ${data.reply?.from}\nSubject: ${data.reply?.subject}`,
 					);
 				} else {
 					console.log("📭 [MANUAL] No reply found yet");
@@ -338,11 +323,7 @@ export default function OnboardingPage() {
 					);
 				}
 			} else {
-				console.error(
-					"❌ [MANUAL] API error:",
-					response.status,
-					response.statusText,
-				);
+				console.error("❌ [MANUAL] API error:", getEdenErrorMessage(error));
 			}
 		} catch (error) {
 			console.error("❌ [MANUAL] Error checking for reply:", error);
