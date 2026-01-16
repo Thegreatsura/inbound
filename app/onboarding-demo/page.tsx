@@ -1,16 +1,17 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
-import Check2 from "@/components/icons/check-2";
-import Copy2 from "@/components/icons/copy-2";
-import CirclePlay from "@/components/icons/circle-play";
-import ArrowBoldRight from "@/components/icons/arrow-bold-right";
-import { useState, useEffect } from "react";
-import { useSession } from "@/lib/auth/auth-client";
 import { useRouter } from "next/navigation";
-import { useCreateApiKeyMutation } from "@/features/settings/hooks";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import ArrowBoldRight from "@/components/icons/arrow-bold-right";
+import Check2 from "@/components/icons/check-2";
+import CirclePlay from "@/components/icons/circle-play";
+import Copy2 from "@/components/icons/copy-2";
+import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
+import { useCreateApiKeyMutation } from "@/features/settings/hooks";
+import { client, getEdenErrorMessage } from "@/lib/api/client";
+import { useSession } from "@/lib/auth/auth-client";
 
 export default function OnboardingDemoPage() {
 	const { data: session, isPending } = useSession();
@@ -203,15 +204,11 @@ export default function OnboardingDemoPage() {
 			console.log("🔄 [POLLING] Should still poll:", shouldStillPoll());
 
 			try {
-				const response = await fetch("/api/v2/onboarding/check-reply");
-				console.log(
-					"📡 [POLLING] Response status:",
-					response.status,
-					response.statusText,
-				);
+				const { data, error } =
+					await client.api.e2.onboarding["check-reply"].get();
+				console.log("📡 [POLLING] Response:", error ? "error" : "success");
 
-				if (response.ok) {
-					const data = await response.json();
+				if (data && !error) {
 					console.log(
 						"📋 [POLLING] Response data:",
 						JSON.stringify(data, null, 2),
@@ -234,7 +231,7 @@ export default function OnboardingDemoPage() {
 						setCurrentStep(4);
 						setDemoOutput(
 							(prev) =>
-								`${prev}\n\n🎉 Reply received!\nFrom: ${data.reply.from}\nSubject: ${data.reply.subject}\nIt looks like you like the ${data.reply.body} mail client!`,
+								`${prev}\n\n🎉 Reply received!\nFrom: ${data.reply?.from}\nSubject: ${data.reply?.subject}\nIt looks like you like the ${data.reply?.body} mail client!`,
 						);
 						console.log(
 							"✅ [POLLING] Stopping polling - reply received and processed",
@@ -244,11 +241,7 @@ export default function OnboardingDemoPage() {
 						console.log("📭 [POLLING] No reply yet, will continue polling...");
 					}
 				} else {
-					console.error(
-						"❌ [POLLING] API error:",
-						response.status,
-						response.statusText,
-					);
+					console.error("❌ [POLLING] API error:", getEdenErrorMessage(error));
 				}
 			} catch (error) {
 				console.error("❌ [POLLING] Network error checking for reply:", error);
@@ -280,15 +273,11 @@ export default function OnboardingDemoPage() {
 		setIsManualChecking(true);
 
 		try {
-			const response = await fetch("/api/v2/onboarding/check-reply");
-			console.log(
-				"📡 [MANUAL] Response status:",
-				response.status,
-				response.statusText,
-			);
+			const { data, error } =
+				await client.api.e2.onboarding["check-reply"].get();
+			console.log("📡 [MANUAL] Response:", error ? "error" : "success");
 
-			if (response.ok) {
-				const data = await response.json();
+			if (data && !error) {
 				console.log(
 					"📋 [MANUAL] Response data:",
 					JSON.stringify(data, null, 2),
@@ -302,7 +291,7 @@ export default function OnboardingDemoPage() {
 					setCurrentStep(4);
 					setDemoOutput(
 						(prev) =>
-							`${prev}\n\n🎉 Reply received!\nFrom: ${data.reply.from}\nSubject: ${data.reply.subject}`,
+							`${prev}\n\n🎉 Reply received!\nFrom: ${data.reply?.from}\nSubject: ${data.reply?.subject}`,
 					);
 				} else {
 					console.log("📭 [MANUAL] No reply found yet");
@@ -312,11 +301,7 @@ export default function OnboardingDemoPage() {
 					);
 				}
 			} else {
-				console.error(
-					"❌ [MANUAL] API error:",
-					response.status,
-					response.statusText,
-				);
+				console.error("❌ [MANUAL] API error:", getEdenErrorMessage(error));
 			}
 		} catch (error) {
 			console.error("❌ [MANUAL] Error checking for reply:", error);
@@ -333,35 +318,31 @@ export default function OnboardingDemoPage() {
 		setCurrentStep(3);
 
 		try {
-			const response = await fetch("/api/v2/onboarding/demo", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					apiKey: createdApiKey,
-					to: demoEmail,
-				}),
+			const { data, error } = await client.api.e2.onboarding.demo.post({
+				apiKey: createdApiKey,
+				to: demoEmail,
 			});
 
-			const result = await response.json();
-
-			if (response.ok) {
+			if (data && !error) {
 				console.log("✅ [DEMO] Email sent successfully:", {
-					emailId: result.id,
+					emailId: data.id,
 					sentTo: demoEmail,
 					userEmail: session?.user?.email,
 				});
 
 				setEmailSent(true);
 				setDemoOutput(
-					`✅ Success!\nEmail sent to ${demoEmail} with ID: ${result.id}, check your inbox!\n\n🎯 Waiting for your reply...\n\n$ inbound.emails.awaitReply( ${demoEmail} )`,
+					`✅ Success!\nEmail sent to ${demoEmail} with ID: ${data.id}, check your inbox!\n\n🎯 Waiting for your reply...\n\n$ inbound.emails.awaitReply( ${demoEmail} )`,
 				);
 				setIsListeningForReply(true);
 
 				console.log("🎯 [DEMO] Starting reply polling system...");
 				startListeningForReply();
 			} else {
-				console.error("❌ [DEMO] Failed to send email:", result);
-				setDemoOutput(`❌ Error: ${result.error || "Unknown error"}`);
+				console.error("❌ [DEMO] Failed to send email:", error);
+				setDemoOutput(
+					`❌ Error: ${getEdenErrorMessage(error, "Unknown error")}`,
+				);
 			}
 		} catch (error) {
 			setDemoOutput(
