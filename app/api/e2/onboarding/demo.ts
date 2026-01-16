@@ -61,8 +61,9 @@ export const sendOnboardingDemo = new Elysia().post(
 			console.log("📤 Sending demo email to:", to);
 
 			// The SDK throws on error, returns response directly on success
+			// Use agent@inbnd.dev which is allowed for all users (no domain ownership required)
 			const result = await inbound.emails.send({
-				from: `demo@inbound.new`,
+				from: "Inbound Demo <agent@inbnd.dev>",
 				to: to,
 				subject: "Welcome to Inbound! Reply to complete setup",
 				html: `
