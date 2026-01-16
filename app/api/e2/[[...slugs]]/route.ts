@@ -421,6 +421,8 @@ https://inbound.new/api/e2
 				error: "Not Found",
 				message: "The requested resource was not found.",
 				statusCode: 404,
+				deprecation_notice:
+					"The /api/v2 routes and @inboundemail/sdk package are deprecated due to security concerns. Please migrate to the official 'inboundemail' package and use /api/e2 routes. See https://inbound.new/docs for documentation.",
 			};
 		}
 

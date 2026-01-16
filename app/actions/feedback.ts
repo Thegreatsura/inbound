@@ -1,160 +1,169 @@
-'use server'
+"use server";
 
-import { auth } from '@/lib/auth/auth'
-import { headers } from 'next/headers'
-import { Resend } from 'resend'
-import { render } from '@react-email/render'
-import { Inbound } from '@inboundemail/sdk'
-import FeedbackEmail from '@/emails/feedback'
-import { LinearClient } from '@linear/sdk'
-
+import { LinearClient } from "@linear/sdk";
+import { render } from "@react-email/render";
+import Inbound from "inboundemail";
+import { headers } from "next/headers";
+import { Resend } from "resend";
+import FeedbackEmail from "@/emails/feedback";
+import { auth } from "@/lib/auth/auth";
 
 // Initialize clients
-const inbound = new Inbound(process.env.INBOUND_API_KEY!)
-const linear = process.env.LINEAR_API_KEY ? new LinearClient({
-  apiKey: process.env.LINEAR_API_KEY
-}) : null
+const inbound = new Inbound({
+	apiKey: process.env.INBOUND_API_KEY!,
+});
+const linear = process.env.LINEAR_API_KEY
+	? new LinearClient({
+			apiKey: process.env.LINEAR_API_KEY,
+		})
+	: null;
 
 export interface FeedbackData {
-  feedback: string
-  browserLogs?: string
+	feedback: string;
+	browserLogs?: string;
 }
 
 /**
  * Server action to send feedback email to ryan@inbound.new
  */
 export async function sendFeedbackAction(
-  data: FeedbackData
+	data: FeedbackData,
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
-  try {
-    const session = await auth.api.getSession({
-      headers: await headers()
-    })
-    
-    if (!session?.user?.id) {
-      return {
-        success: false,
-        error: 'Authentication required'
-      }
-    }
+	try {
+		const session = await auth.api.getSession({
+			headers: await headers(),
+		});
 
-    // Validate required environment variable
-    if (!process.env.INBOUND_API_KEY) {
-      console.error('❌ sendFeedbackAction - INBOUND_API_KEY not configured')
-      return {
-        success: false,
-        error: 'Email service not configured'
-      }
-    }
+		if (!session?.user?.id) {
+			return {
+				success: false,
+				error: "Authentication required",
+			};
+		}
 
-    // Validate feedback content
-    if (!data.feedback?.trim()) {
-      return {
-        success: false,
-        error: 'Feedback content is required'
-      }
-    }
+		// Validate required environment variable
+		if (!process.env.INBOUND_API_KEY) {
+			console.error("❌ sendFeedbackAction - INBOUND_API_KEY not configured");
+			return {
+				success: false,
+				error: "Email service not configured",
+			};
+		}
 
-    if (data.feedback.length > 5000) {
-      return {
-        success: false,
-        error: 'Feedback is too long (max 5000 characters)'
-      }
-    }
+		// Validate feedback content
+		if (!data.feedback?.trim()) {
+			return {
+				success: false,
+				error: "Feedback content is required",
+			};
+		}
 
-    console.log(`📧 sendFeedbackAction - Sending feedback from user: ${session.user.email}`)
+		if (data.feedback.length > 5000) {
+			return {
+				success: false,
+				error: "Feedback is too long (max 5000 characters)",
+			};
+		}
 
-    // Prepare email template props
-    const templateProps = {
-      userFirstname: session.user.name?.split(' ')[0] || 'User',
-      userEmail: session.user.email,
-      feedback: data.feedback.trim(),
-      submittedAt: new Date().toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        timeZoneName: 'short'
-      })
-    }
+		console.log(
+			`📧 sendFeedbackAction - Sending feedback from user: ${session.user.email}`,
+		);
 
-    // Render the email template
-    const html = await render(FeedbackEmail(templateProps))
+		// Prepare email template props
+		const templateProps = {
+			userFirstname: session.user.name?.split(" ")[0] || "User",
+			userEmail: session.user.email,
+			feedback: data.feedback.trim(),
+			submittedAt: new Date().toLocaleDateString("en-US", {
+				year: "numeric",
+				month: "long",
+				day: "numeric",
+				hour: "2-digit",
+				minute: "2-digit",
+				timeZoneName: "short",
+			}),
+		};
 
-    // Determine the from address
-    const fromEmail = 'feedback@inbound.new'
-    
-    // Format sender with name - Resend accepts "Name <email@domain.com>" format
-    const fromWithName = `inbound feedback <${fromEmail}>`
+		// Render the email template
+		const html = await render(FeedbackEmail(templateProps));
 
-    // Build optional attachments
-    const attachments: any[] = []
-    if (data.browserLogs && data.browserLogs.trim().length > 0) {
-      const base64 = Buffer.from(data.browserLogs, 'utf8').toString('base64')
-      const filename = `browser-logs-${new Date().toISOString().replace(/[:.]/g, '-')}.txt`
-      attachments.push({
-        filename,
-        content: base64,
-        content_type: 'text/plain; charset=utf-8'
-      })
-    }
+		// Determine the from address
+		const fromEmail = "feedback@inbound.new";
 
-    // Send the email (Inbound API - supports attachments per docs)
-    const response = await inbound.emails.send({
-      from: fromWithName,
-      to: 'ryan@mandarin3d.com',
-      replyTo: session.user.email ? session.user.email : 'ryan@mandarin3d.com', // Allow Ryan to reply directly to the user
-      subject: `💬 New Feedback from ${session.user.name || session.user.email} - inbound`,
-      html: html,
-      attachments: attachments.length ? attachments : undefined,
-      tags: [
-        { name: 'type', value: 'user-feedback' },
-        { name: 'user_id', value: session.user.id }
-      ]
-    })
+		// Format sender with name - Resend accepts "Name <email@domain.com>" format
+		const fromWithName = `inbound feedback <${fromEmail}>`;
 
-    if (response.error) {
-      console.error('❌ sendFeedbackAction - Inbound API error:', response.error)
-      const errMsg = typeof response.error === 'string' ? response.error : (response.error as any)?.message || 'Unknown error'
-      return {
-        success: false,
-        error: `Email sending failed: ${errMsg}`
-      }
-    }
+		// Build optional attachments
+		const attachments: Array<{
+			filename: string;
+			content: string;
+			content_type?: string;
+		}> = [];
+		if (data.browserLogs && data.browserLogs.trim().length > 0) {
+			const base64 = Buffer.from(data.browserLogs, "utf8").toString("base64");
+			const filename = `browser-logs-${new Date().toISOString().replace(/[:.]/g, "-")}.txt`;
+			attachments.push({
+				filename,
+				content: base64,
+				content_type: "text/plain; charset=utf-8",
+			});
+		}
 
-    // Optionally add request to Linear (if configured properly)
-    try {
-      if (linear && process.env.LINEAR_TEAM_ID) {
-        await linear.createIssue({
-          title: `New Feedback from ${session.user.name || session.user.email} - inbound`,
-          description: data.feedback.trim(),
-          teamId: process.env.LINEAR_TEAM_ID,
-          priority: 3
-        })
-        console.log(`✅ sendFeedbackAction - Linear issue created successfully`)
-      } else {
-        console.log(`⚠️ sendFeedbackAction - Linear integration skipped (missing configuration)`)
-      }
-    } catch (linearError) {
-      // Don't fail the entire feedback submission if Linear fails
-      console.error('⚠️ sendFeedbackAction - Linear integration failed:', linearError)
-      console.log('   📧 Feedback email was still sent successfully')
-    }
+		// Send the email (Inbound API - supports attachments per docs)
+		// The SDK throws on error, returns response directly on success
+		const response = await inbound.emails.send({
+			from: fromWithName,
+			to: "ryan@mandarin3d.com",
+			reply_to: session.user.email ? session.user.email : "ryan@mandarin3d.com", // Allow Ryan to reply directly to the user
+			subject: `💬 New Feedback from ${session.user.name || session.user.email} - inbound`,
+			html: html,
+			attachments: attachments.length ? attachments : undefined,
+			tags: [
+				{ name: "type", value: "user-feedback" },
+				{ name: "user_id", value: session.user.id },
+			],
+		});
 
-    console.log(`✅ sendFeedbackAction - Feedback email sent successfully from ${session.user.email}`)
-    console.log(`   📧 Message ID: ${response.data?.id}`)
+		// Optionally add request to Linear (if configured properly)
+		try {
+			if (linear && process.env.LINEAR_TEAM_ID) {
+				await linear.createIssue({
+					title: `New Feedback from ${session.user.name || session.user.email} - inbound`,
+					description: data.feedback.trim(),
+					teamId: process.env.LINEAR_TEAM_ID,
+					priority: 3,
+				});
+				console.log(
+					`✅ sendFeedbackAction - Linear issue created successfully`,
+				);
+			} else {
+				console.log(
+					`⚠️ sendFeedbackAction - Linear integration skipped (missing configuration)`,
+				);
+			}
+		} catch (linearError) {
+			// Don't fail the entire feedback submission if Linear fails
+			console.error(
+				"⚠️ sendFeedbackAction - Linear integration failed:",
+				linearError,
+			);
+			console.log("   📧 Feedback email was still sent successfully");
+		}
 
-    return {
-      success: true,
-      messageId: response.data?.id
-    }
+		console.log(
+			`✅ sendFeedbackAction - Feedback email sent successfully from ${session.user.email}`,
+		);
+		console.log(`   📧 Message ID: ${response.id}`);
 
-  } catch (error) {
-    console.error('❌ sendFeedbackAction - Unexpected error:', error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error occurred'
-    }
-  }
-} 
+		return {
+			success: true,
+			messageId: response.id,
+		};
+	} catch (error) {
+		console.error("❌ sendFeedbackAction - Unexpected error:", error);
+		return {
+			success: false,
+			error: error instanceof Error ? error.message : "Unknown error occurred",
+		};
+	}
+}
