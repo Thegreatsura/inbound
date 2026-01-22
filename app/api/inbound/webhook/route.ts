@@ -375,8 +375,34 @@ export async function POST(request: NextRequest) {
         console.log(`👥 Webhook - Recipients: ${receipt.recipients.join(', ')}`);
         console.log(`📧 Webhook - Subject: "${mail.commonHeaders.subject || '(no subject)'}"`);
 
-        // EARLY IDEMPOTENCY CHECK: Check if we've already received this SES message
-        // This prevents race conditions when both catchall and specific rules trigger Lambda
+        // EARLY IDEMPOTENCY CHECK 1: Check using email's Message-ID header
+        // This catches duplicates when SES triggers Lambda multiple times for the same email
+        // (e.g., when both catch-all and specific address rules match the same incoming email)
+        const emailMessageId = mail.commonHeaders.messageId
+        if (emailMessageId) {
+          const existingByEmailMessageId = await db
+            .select({ 
+              id: structuredEmails.id,
+              recipient: structuredEmails.recipient
+            })
+            .from(structuredEmails)
+            .where(eq(structuredEmails.messageId, emailMessageId))
+          
+          if (existingByEmailMessageId.length > 0) {
+            const existingRecipients = existingByEmailMessageId.map(e => e.recipient).filter(Boolean) as string[]
+            const hasOverlap = receipt.recipients.some(r => existingRecipients.includes(r))
+            
+            if (hasOverlap) {
+              console.log(`⏭️  Webhook - DUPLICATE DETECTED (by Email Message-ID): ${emailMessageId} already processed for recipients ${receipt.recipients.join(', ')}. Skipping entire record.`)
+              continue // Skip this entire record
+            } else {
+              console.log(`🔍 Webhook - Same Email Message-ID but different recipients. Existing: ${existingRecipients.join(', ')}, Current: ${receipt.recipients.join(', ')}`)
+            }
+          }
+        }
+
+        // EARLY IDEMPOTENCY CHECK 2: Check using SES message ID
+        // This prevents processing the exact same Lambda invocation twice
         const existingSesEvent = await db
           .select({ 
             id: sesEvents.id,
@@ -394,10 +420,10 @@ export async function POST(request: NextRequest) {
           const hasOverlap = receipt.recipients.some(r => existingRecipients.includes(r))
           
           if (hasOverlap) {
-            console.log(`⏭️  Webhook - DUPLICATE DETECTED: messageId=${mail.messageId} already processed for recipients ${receipt.recipients.join(', ')}. Skipping entire record.`)
+            console.log(`⏭️  Webhook - DUPLICATE DETECTED (by SES messageId): ${mail.messageId} already processed for recipients ${receipt.recipients.join(', ')}. Skipping entire record.`)
             continue // Skip this entire record
           } else {
-            console.log(`🔍 Webhook - Same messageId but different recipients. Existing: ${existingRecipients.join(', ')}, Current: ${receipt.recipients.join(', ')}`)
+            console.log(`🔍 Webhook - Same SES messageId but different recipients. Existing: ${existingRecipients.join(', ')}, Current: ${receipt.recipients.join(', ')}`)
           }
         }
 
@@ -451,21 +477,42 @@ export async function POST(request: NextRequest) {
 
         // Then, create a receivedEmail record for each recipient
         for (const recipient of receipt.recipients) {
-          // IDEMPOTENCY CHECK: Skip if we've already processed this SES message for this recipient
-          // Join with sesEvents to check using AWS SES messageId (not email Message-ID header)
-          const existingEmail = await db
-            .select({ id: structuredEmails.id })
-            .from(structuredEmails)
-            .innerJoin(sesEvents, eq(sesEvents.id, structuredEmails.sesEventId))
-            .where(and(
-              eq(sesEvents.messageId, mail.messageId), // AWS SES messageId (e.g., "0000014f-abc123")
-              eq(structuredEmails.recipient, recipient)
-            ))
-            .limit(1)
+          // IDEMPOTENCY CHECK: Skip if we've already processed this email for this recipient
+          // Use the email's Message-ID header (from commonHeaders) for deduplication
+          // This catches duplicates when SES triggers Lambda multiple times for the same email
+          // (e.g., when both catch-all and specific address rules match)
+          const emailMessageId = mail.commonHeaders.messageId // Email's actual Message-ID header
           
-          if (existingEmail[0]) {
-            console.log(`⏭️  Webhook - SKIPPING duplicate processing: SES messageId=${mail.messageId}, recipient=${recipient} (already processed as ${existingEmail[0].id})`)
-            continue // Skip this duplicate
+          if (emailMessageId) {
+            const existingEmail = await db
+              .select({ id: structuredEmails.id })
+              .from(structuredEmails)
+              .where(and(
+                eq(structuredEmails.messageId, emailMessageId), // Email's Message-ID header
+                eq(structuredEmails.recipient, recipient)
+              ))
+              .limit(1)
+            
+            if (existingEmail[0]) {
+              console.log(`⏭️  Webhook - SKIPPING duplicate: Email Message-ID=${emailMessageId}, recipient=${recipient} (already processed as ${existingEmail[0].id})`)
+              continue // Skip this duplicate
+            }
+          } else {
+            // Fallback: If no Message-ID header, use SES messageId (less reliable for duplicates)
+            const existingEmail = await db
+              .select({ id: structuredEmails.id })
+              .from(structuredEmails)
+              .innerJoin(sesEvents, eq(sesEvents.id, structuredEmails.sesEventId))
+              .where(and(
+                eq(sesEvents.messageId, mail.messageId), // AWS SES messageId
+                eq(structuredEmails.recipient, recipient)
+              ))
+              .limit(1)
+            
+            if (existingEmail[0]) {
+              console.log(`⏭️  Webhook - SKIPPING duplicate (fallback): SES messageId=${mail.messageId}, recipient=${recipient} (already processed as ${existingEmail[0].id})`)
+              continue // Skip this duplicate
+            }
           }
           
           const userId = await mapRecipientToUserId(recipient)
