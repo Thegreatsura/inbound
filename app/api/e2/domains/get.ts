@@ -15,6 +15,7 @@ import {
   GetIdentityDkimAttributesCommand,
   GetIdentityMailFromDomainAttributesCommand,
   SetIdentityMailFromDomainCommand,
+  VerifyDomainIdentityCommand,
 } from "@aws-sdk/client-ses";
 import { isSubdomain, getRootDomain } from "@/lib/domains-and-dns/domain-utils";
 
@@ -559,14 +560,61 @@ export const getDomain = new Elysia().get(
                 .where(eq(emailDomains.id, domain.id));
               response.status = "verified";
               response.updatedAt = updateData.updatedAt.toISOString();
-            } else if (sesStatus === "Failed" && domain.status !== "failed") {
-              updateData.status = "failed";
-              await db
-                .update(emailDomains)
-                .set(updateData)
-                .where(eq(emailDomains.id, domain.id));
-              response.status = "failed";
-              response.updatedAt = updateData.updatedAt.toISOString();
+            } else if (sesStatus === "Failed") {
+              // Check if DNS records are all verified - if so, attempt re-verification
+              const dnsAllVerified =
+                verificationResults.length > 0 &&
+                verificationResults.every((r) => r.isVerified);
+
+              if (dnsAllVerified) {
+                // DNS is verified but email service failed - attempt re-verification
+                console.log(
+                  `🔄 DNS verified but email service failed for ${domain.domain} - attempting re-verification`
+                );
+                try {
+                  const verifyCommand = new VerifyDomainIdentityCommand({
+                    Domain: domain.domain,
+                  });
+                  await sesClient.send(verifyCommand);
+                  
+                  // Set status to pending to allow re-verification to complete
+                  updateData.status = "pending";
+                  await db
+                    .update(emailDomains)
+                    .set(updateData)
+                    .where(eq(emailDomains.id, domain.id));
+                  response.status = "pending";
+                  response.updatedAt = updateData.updatedAt.toISOString();
+                  sesStatus = "Pending"; // Update for response
+                  console.log(
+                    `✅ Re-verification initiated for ${domain.domain} - status set to pending`
+                  );
+                } catch (reVerifyError) {
+                  console.error(
+                    `❌ Failed to re-initiate verification for ${domain.domain}:`,
+                    reVerifyError
+                  );
+                  // Keep as failed if re-verification fails
+                  if (domain.status !== "failed") {
+                    updateData.status = "failed";
+                    await db
+                      .update(emailDomains)
+                      .set(updateData)
+                      .where(eq(emailDomains.id, domain.id));
+                    response.status = "failed";
+                    response.updatedAt = updateData.updatedAt.toISOString();
+                  }
+                }
+              } else if (domain.status !== "failed") {
+                // DNS not verified and SES failed - mark as failed
+                updateData.status = "failed";
+                await db
+                  .update(emailDomains)
+                  .set(updateData)
+                  .where(eq(emailDomains.id, domain.id));
+                response.status = "failed";
+                response.updatedAt = updateData.updatedAt.toISOString();
+              }
             } else {
               await db
                 .update(emailDomains)
@@ -575,7 +623,7 @@ export const getDomain = new Elysia().get(
               response.updatedAt = updateData.updatedAt.toISOString();
             }
           } catch (sesError) {
-            console.error(`❌ SES verification check failed:`, sesError);
+            console.error(`❌ Email service verification check failed:`, sesError);
             sesStatus = "Error";
           }
         }

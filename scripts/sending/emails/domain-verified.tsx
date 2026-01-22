@@ -70,7 +70,7 @@ export const DomainVerifiedEmail = ({
         </Text>
         
         <Text style={text}>
-          Great news! Your domain <strong>{domain}</strong> has been successfully verified with Amazon SES and is now ready to receive emails through Inbound.
+          Great news! Your domain <strong>{domain}</strong> has been successfully verified and is now ready to receive emails through Inbound.
         </Text>
 
         <Section style={detailsSection}>
@@ -79,7 +79,7 @@ export const DomainVerifiedEmail = ({
             • Domain verification completed on {verifiedAt}
             • Email receiving is now active
             • All configured email addresses are ready
-            • AWS SES integration is working properly
+            • Email infrastructure is fully configured
           </Text>
         </Section>
 

@@ -4,7 +4,7 @@ import { headers } from 'next/headers'
 import { checkDomainCanReceiveEmails, verifyDnsRecords } from '@/lib/domains-and-dns/dns'
 import { initiateDomainVerification, deleteDomainFromSES } from '@/lib/domains-and-dns/domain-verification'
 import { getDomainWithRecords, updateDomainStatus, createDomainVerification, deleteDomainFromDatabase } from '@/lib/db/domains'
-import { SESClient, GetIdentityVerificationAttributesCommand } from '@aws-sdk/client-ses'
+import { SESClient, GetIdentityVerificationAttributesCommand, VerifyDomainIdentityCommand } from '@aws-sdk/client-ses'
 import { AWSSESReceiptRuleManager } from '@/lib/aws-ses/aws-ses-rules'
 import { BatchRuleManager } from '@/lib/aws-ses/batch-rule-manager'
 import { Autumn as autumn } from 'autumn-js'
@@ -634,6 +634,22 @@ async function handleCheckVerification(
       newStatus = 'verified'
     } else if (!dnsVerified) {
       newStatus = 'pending'
+    } else if (dnsVerified && !sesVerified && sesStatus === 'Failed') {
+      // DNS is verified but email service failed - attempt re-verification
+      console.log(`🔄 DNS verified but email service failed for ${domain} - attempting re-verification`)
+      try {
+        if (sesClient) {
+          const verifyCommand = new VerifyDomainIdentityCommand({
+            Domain: domain,
+          })
+          await sesClient.send(verifyCommand)
+          newStatus = 'pending' // Set to pending to allow re-verification
+          console.log(`✅ Re-verification initiated for ${domain} - status set to pending`)
+        }
+      } catch (reVerifyError) {
+        console.error(`❌ Failed to re-initiate verification for ${domain}:`, reVerifyError)
+        newStatus = 'failed'
+      }
     }
 
     if (newStatus !== domainRecord.status) {

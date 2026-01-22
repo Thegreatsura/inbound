@@ -372,7 +372,14 @@ export default function DomainDetailPage() {
 							toast.warning(`DNS records not verified: ${recordTypes}`);
 						}
 					} else if (sesStatus !== "Success") {
-						toast.info(`DNS records verified. Email status: ${sesStatus}`);
+						// Don't expose internal service status - show user-friendly message
+						if (sesStatus === "Pending") {
+							toast.info("DNS records verified. Email service verification in progress...");
+						} else if (sesStatus === "Failed") {
+							toast.info("DNS records verified. Retrying email service verification...");
+						} else {
+							toast.info("DNS records verified. Finalizing verification...");
+						}
 					} else {
 						toast.info("Verification in progress...");
 					}
@@ -1049,6 +1056,96 @@ export default function DomainDetailPage() {
 					</div>
 				)}
 
+				{/* Verification Failed Banner for failed domains */}
+				{status === DOMAIN_STATUS.FAILED && (
+					<div className="bg-red-50 border border-red-200 rounded-lg p-4">
+						<div className="flex items-center justify-between">
+							<div className="flex items-center gap-2">
+								<CircleXmark width="18" height="18" className="text-red-600" />
+								<span className="font-medium text-red-800">
+									Verification Failed
+								</span>
+							</div>
+							<Button
+								variant="outline"
+								size="sm"
+								onClick={refreshVerification}
+								disabled={isRefreshingVerification}
+								className="text-red-700 border-red-300 hover:bg-red-100"
+							>
+								<Refresh2
+									width="14"
+									height="14"
+									className={`mr-1 ${isRefreshingVerification ? "animate-spin" : ""}`}
+								/>
+								Retry Verification
+							</Button>
+						</div>
+						<p className="text-sm text-red-700 mt-2">
+							Domain verification could not be completed. Please check that your DNS records are correctly configured and try again.
+						</p>
+						
+						{/* Expandable verification details */}
+						{domainDetailsData?.verificationCheck && (
+							<details className="mt-3">
+								<summary className="text-sm font-medium text-red-700 cursor-pointer hover:text-red-800">
+									View verification details
+								</summary>
+								<div className="mt-2 space-y-2 pl-4 border-l-2 border-red-200">
+									{/* DNS Status */}
+									<div className="flex items-center gap-2">
+										{domainDetailsData.verificationCheck.dnsRecords?.every((r: { isVerified: boolean }) => r.isVerified) ? (
+											<>
+												<CircleCheck width="14" height="14" className="text-green-600" />
+												<span className="text-sm text-green-700">DNS records verified</span>
+											</>
+										) : (
+											<>
+												<Clock2 width="14" height="14" className="text-amber-600" />
+												<span className="text-sm text-amber-700">DNS records pending</span>
+											</>
+										)}
+									</div>
+									
+									{/* Email Service Status */}
+									<div className="flex items-center gap-2">
+										{domainDetailsData.verificationCheck.sesStatus === "Success" ? (
+											<>
+												<CircleCheck width="14" height="14" className="text-green-600" />
+												<span className="text-sm text-green-700">Email service verified</span>
+											</>
+										) : domainDetailsData.verificationCheck.sesStatus === "Pending" ? (
+											<>
+												<Clock2 width="14" height="14" className="text-amber-600" />
+												<span className="text-sm text-amber-700">Email service verification in progress</span>
+											</>
+										) : (
+											<>
+												<CircleXmark width="14" height="14" className="text-red-600" />
+												<span className="text-sm text-red-700">Email service verification failed - click Retry to re-attempt</span>
+											</>
+										)}
+									</div>
+									
+									{/* Unverified DNS records list */}
+									{domainDetailsData.verificationCheck.dnsRecords?.some((r: { isVerified: boolean }) => !r.isVerified) && (
+										<div className="mt-2">
+											<p className="text-xs font-medium text-red-700 mb-1">Unverified DNS records:</p>
+											<ul className="text-xs text-red-600 space-y-0.5">
+												{domainDetailsData.verificationCheck.dnsRecords
+													.filter((r: { isVerified: boolean }) => !r.isVerified)
+													.map((r: { type: string; name: string }, i: number) => (
+														<li key={i}>• {r.type} record for {r.name}</li>
+													))}
+											</ul>
+										</div>
+									)}
+								</div>
+							</details>
+						)}
+					</div>
+				)}
+
 				{/* Domain Capabilities Status Card - Shows send/receive status */}
 				{status === DOMAIN_STATUS.VERIFIED && (!canSend || !canReceive) && (
 					<div className="border rounded-lg overflow-hidden">
@@ -1404,7 +1501,7 @@ export default function DomainDetailPage() {
 					})()}
 
 				{/* MAIL FROM Configuration - no card */}
-				{/* Hide for subdomains that inherit from a verified parent - they use parent's SES identity */}
+				{/* Hide for subdomains that inherit from a verified parent - they use parent's email sending identity */}
 				{status === DOMAIN_STATUS.VERIFIED &&
 					!domainWithMailFrom?.mailFromDomain &&
 					!domainDetailsData?.inheritsFromParent && (
