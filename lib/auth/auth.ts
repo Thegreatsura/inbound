@@ -1,5 +1,4 @@
 import { passkey } from "@better-auth/passkey";
-import { stripe } from "@better-auth/stripe";
 import { dubAnalytics } from "@dub/better-auth";
 import { render } from "@react-email/components";
 import { betterAuth } from "better-auth";
@@ -13,7 +12,7 @@ import Inbound from "inboundemail";
 import { nanoid } from "nanoid";
 import path from "path";
 import { Resend } from "resend";
-import Stripe from "stripe";
+
 import MagicLinkEmail from "@/emails/magic-link-email";
 import { db } from "../db/index";
 import * as schema from "../db/schema";
@@ -73,7 +72,6 @@ const BLOCKED_SIGNUP_DOMAINS = [
 	"621688.xyz",
 ];
 
-const stripeClient = new Stripe(process.env.STRIPE_SECRET_KEY as string);
 const resend = new Resend(process.env.RESEND_API_KEY);
 const inbound = new Inbound({
 	apiKey: process.env.INBOUND_API_KEY!,
@@ -279,11 +277,6 @@ export const auth = betterAuth({
 					throw error;
 				}
 			},
-		}),
-		stripe({
-			stripeClient,
-			stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET!,
-			createCustomerOnSignUp: true,
 		}),
 	],
 	hooks: {

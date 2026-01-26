@@ -1,24 +1,19 @@
-import { stripeClient } from "@better-auth/stripe/client"
-import { createAuthClient } from "better-auth/react"
-import { adminClient, apiKeyClient } from "better-auth/client/plugins"
-import { magicLinkClient } from "better-auth/client/plugins";
 import { passkeyClient } from "@better-auth/passkey/client";
+import {
+	adminClient,
+	apiKeyClient,
+	magicLinkClient,
+} from "better-auth/client/plugins";
+import { createAuthClient } from "better-auth/react";
 
 export const authClient = createAuthClient({
-    baseURL: typeof window !== 'undefined' 
-        ? window.location.origin 
-        : process.env.NODE_ENV === 'development' 
-            ? "http://localhost:3000" 
-            : "https://inbound.new",
-    plugins: [
-        stripeClient({
-            subscription: true
-        }), // Type assertion to resolve version compatibility issue
-        adminClient(),
-        apiKeyClient(),
-        magicLinkClient(),
-        passkeyClient()
-    ]
-})
+	baseURL:
+		typeof window !== "undefined"
+			? window.location.origin
+			: process.env.NODE_ENV === "development"
+				? "http://localhost:3000"
+				: "https://inbound.new",
+	plugins: [adminClient(), apiKeyClient(), magicLinkClient(), passkeyClient()],
+});
 
-export const { signIn, signUp, signOut, useSession } = authClient
+export const { signIn, signUp, signOut, useSession } = authClient;

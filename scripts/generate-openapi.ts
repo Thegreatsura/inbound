@@ -10,13 +10,12 @@
  * Usage: bun run scripts/generate-openapi.ts
  */
 
-import { mkdir, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
+import { mkdir, writeFile } from "node:fs/promises";
 
 // Set required env vars with dummy values for spec generation
 // (The spec generation doesn't actually hit the DB or external services - it just introspects routes)
 process.env.DATABASE_URL ??= "postgres://dummy:dummy@localhost:5432/dummy";
-process.env.STRIPE_SECRET_KEY ??= "sk_test_dummy_key_for_openapi_generation";
 process.env.RESEND_API_KEY ??= "re_dummy_key_for_openapi_generation";
 process.env.INBOUND_API_KEY ??= "dummy_key_for_openapi_generation";
 
