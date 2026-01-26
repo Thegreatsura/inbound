@@ -11,7 +11,6 @@ import fs from "fs";
 import Inbound from "inboundemail";
 import { nanoid } from "nanoid";
 import path from "path";
-import { Resend } from "resend";
 
 import MagicLinkEmail from "@/emails/magic-link-email";
 import { db } from "../db/index";
@@ -20,8 +19,6 @@ import * as schema from "../db/schema";
 const dub = new Dub({
 	token: process.env.DUB_API_KEY,
 });
-
-const RESEND_AUTUMN_AUDIENCE_ID = "515e5071-4d0e-4117-9c12-e8ddd29b807e";
 
 // Blocked email domains - users cannot sign up with these domains
 const BLOCKED_SIGNUP_DOMAINS = [
@@ -72,7 +69,6 @@ const BLOCKED_SIGNUP_DOMAINS = [
 	"621688.xyz",
 ];
 
-const resend = new Resend(process.env.RESEND_API_KEY);
 const inbound = new Inbound({
 	apiKey: process.env.INBOUND_API_KEY!,
 	// Use localhost in development, production URL otherwise
@@ -312,13 +308,7 @@ export const auth = betterAuth({
 						console.error("Failed to send new user Slack notification:", err),
 					);
 
-					await resend.contacts.create({
-						audienceId: RESEND_AUTUMN_AUDIENCE_ID,
-						email: user.email,
-						firstName: user.name,
-						lastName: user.name,
-					});
-					// need to redirect to onboarding page
+					// Redirect to onboarding page
 					throw ctx.redirect("/onboarding-demo");
 				} else {
 					console.log("Existing user logged in with email: ", user.email);

@@ -1,13 +1,10 @@
-import { Resend } from "resend";
+import { Inbound } from "@inboundemail/sdk";
 import { render } from "@react-email/render";
 import DomainVerifiedEmail from "@/emails/domain-verified";
-import ReputationAlertEmail from "@/emails/reputation-alert";
 import LimitReachedEmail from "@/emails/limit-reached";
-import { Inbound } from "@inboundemail/sdk";
+import ReputationAlertEmail from "@/emails/reputation-alert";
 import { redis } from "@/lib/redis";
 
-// Initialize Resend client
-const resend = new Resend(process.env.RESEND_API_KEY);
 const inbound = new Inbound(process.env.INBOUND_API_KEY!);
 
 // Slack webhook for admin notifications
@@ -59,9 +56,9 @@ export async function sendDomainVerificationNotification(
 		);
 
 		// Validate required environment variable
-		if (!process.env.RESEND_API_KEY) {
+		if (!process.env.INBOUND_API_KEY) {
 			console.error(
-				"❌ sendDomainVerificationNotification - RESEND_API_KEY not configured",
+				"❌ sendDomainVerificationNotification - INBOUND_API_KEY not configured",
 			);
 			return {
 				success: false,

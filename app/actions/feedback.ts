@@ -4,7 +4,6 @@ import { LinearClient } from "@linear/sdk";
 import { render } from "@react-email/render";
 import Inbound from "inboundemail";
 import { headers } from "next/headers";
-import { Resend } from "resend";
 import FeedbackEmail from "@/emails/feedback";
 import { auth } from "@/lib/auth/auth";
 

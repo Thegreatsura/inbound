@@ -154,7 +154,6 @@
     "rehype-raw": "^7.0.0",
     "rehype-sanitize": "^6.0.0",
     "remark-gfm": "^4.0.1",
-    "resend": "^4.5.2",
     "rough-notation": "^0.5.1",
     "shiki": "^3.12.2",
     "sonare": "^0.0.1",
