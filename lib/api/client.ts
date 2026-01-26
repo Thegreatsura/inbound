@@ -3,16 +3,11 @@ import type { App } from "@/app/api/e2/[[...slugs]]/route";
 
 /**
  * Get the base URL for API requests.
- * - Server-side: Uses BETTER_AUTH_URL or defaults to localhost
- * - Client-side: Uses current window origin
+ * - Server-side: Uses NEXT_PUBLIC_APP_URL or defaults to localhost
+ * - Client-side: Uses NEXT_PUBLIC_APP_URL or defaults to localhost
  */
 const getBaseUrl = () => {
-	if (typeof window === "undefined") {
-		// Server-side
-		return process.env.NEXT_PUBLIC_BETTER_AUTH_URL || "http://localhost:3000";
-	}
-	// Client-side - use current origin
-	return process.env.NEXT_PUBLIC_BETTER_AUTH_URL || "http://localhost:3000";
+	return process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 };
 
 /**

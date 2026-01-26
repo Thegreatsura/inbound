@@ -1,31 +1,31 @@
 "use server";
 
-import { auth } from "@/lib/auth/auth";
-import { headers } from "next/headers";
 import { Autumn as autumn, Customer } from "autumn-js";
-import { db } from "@/lib/db";
-import {
-	emailDomains,
-	emailAddresses,
-	webhooks,
-	sesEvents,
-	structuredEmails,
-	endpoints,
-	user,
-	DOMAIN_STATUS,
-	webhookDeliveries,
-	endpointDeliveries,
-	sentEmails,
-} from "@/lib/db/schema";
-import { eq, and, sql, desc, gte, inArray } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
+import { headers } from "next/headers";
+import { NextRequest } from "next/server";
+import { auth } from "@/lib/auth/auth";
 import { AWSSESReceiptRuleManager } from "@/lib/aws-ses/aws-ses-rules";
 import { BatchRuleManager } from "@/lib/aws-ses/batch-rule-manager";
+import { db } from "@/lib/db";
+import {
+	DOMAIN_STATUS,
+	emailAddresses,
+	emailDomains,
+	endpointDeliveries,
+	endpoints,
+	sentEmails,
+	sesEvents,
+	structuredEmails,
+	user,
+	webhookDeliveries,
+	webhooks,
+} from "@/lib/db/schema";
 import {
 	parseEmail as libParseEmail,
 	sanitizeHtml,
 } from "@/lib/email-management/email-parser";
-import { NextRequest } from "next/server";
 
 // ============================================================================
 // PAYMENTS AND BILLING VIA AUTUMN
@@ -43,7 +43,7 @@ export async function generateAutumnBillingPortal() {
 	const { data: billingPortal, error } = await autumn.customers.billingPortal(
 		session.user.id,
 		{
-			return_url: `${process.env.BETTER_AUTH_URL}/settings`,
+			return_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings`,
 		},
 	);
 

@@ -1,232 +1,236 @@
 import type { Metadata } from "next";
-import { Outfit, Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Outfit } from "next/font/google";
 import "./globals.css";
 import "./prose.css";
-import { Analytics } from "@vercel/analytics/next"
-import { Analytics as DubAnalytics } from '@dub/analytics/react';
+import { Databuddy } from "@databuddy/sdk";
+import { Analytics as DubAnalytics } from "@dub/analytics/react";
+import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import { AutumnProvider } from "autumn-js/react";
+import { Toolbar } from "basehub/next-toolbar";
+import Script from "next/script";
+import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { QueryProvider } from "@/components/providers/query-provider";
 import { RealtimeProvider } from "@/components/providers/realtime-provider";
-import { SpeedInsights } from "@vercel/speed-insights/next"
-import Script from "next/script";
-import { Databuddy } from "@databuddy/sdk"
-import { Toolbar } from "basehub/next-toolbar"
-import { NuqsAdapter } from 'nuqs/adapters/next/app'
 
 const outfit = Outfit({
-  variable: "--font-outfit",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800", "900"], // Regular weight
+	variable: "--font-outfit",
+	subsets: ["latin"],
+	weight: ["400", "500", "600", "700", "800", "900"], // Regular weight
 });
 
 const geist = Geist({
-  variable: "--font-geist",
-  subsets: ["latin"],
+	variable: "--font-geist",
+	subsets: ["latin"],
 });
 
 const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+	variable: "--font-geist-mono",
+	subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
-  title: {
-    default: "inbound | Email API for Developers - Send, Receive & Reply",
-    template: "inbound | %s "
-  },
-  description: "Complete email infrastructure for modern applications. Send transactional emails, receive inbound messages, and build AI email agents with our TypeScript SDK and webhook API.",
-  keywords: [
-    "email infrastructure",
-    "inbound email",
-    "email API",
-    "webhook email",
-    "email parsing",
-    "developer tools",
-    "email management",
-    "SMTP",
-    "email automation",
-    "transactional email",
-    "email routing",
-    "mailgun alternative",
-    "sendgrid alternative",
-    "improvmx alternative",
-    "email to webhook",
-    "email webhook service",
-    "inbound email API",
-    "email processing API",
-    "typescript email SDK",
-    "structured email data",
-    "email parser API",
-    "webhook email forwarding",
-    "email API for developers",
-    "inbound email processing",
-    "email infrastructure platform",
-    "modern email API",
-    "email parsing service",
-    "webhook email integration",
-    "email automation API",
-    "custom domain email"
-  ],
-  authors: [{ name: "inbound team" }],
-  creator: "inbound",
-  publisher: "inbound",
-  formatDetection: {
-    email: false,
-    address: false,
-    telephone: false,
-  },
-  metadataBase: new URL(process.env.BETTER_AUTH_URL || 'http://localhost:3000'),
-  alternates: {
-    canonical: "/",
-  },
-  openGraph: {
-    type: "website",
-    locale: "en_US",
-    url: "/",
-    title: "inbound - email infrastructure, redefined",
-    description: "the modern email infrastructure platform for developers. receive, parse, and manage inbound emails with powerful apis, webhooks, and real-time processing.",
-    siteName: "inbound",
-    images: [
-      {
-        url: "/opengraph-image.png",
-        width: 1200,
-        height: 630,
-        alt: "inbound - email infrastructure platform",
-      },
-    ],
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "inbound - email infrastructure, redefined",
-    description: "the modern email infrastructure platform for developers. receive, parse, and manage inbound emails with powerful apis, webhooks, and real-time processing.",
-    images: ["/twitter-image.png"],
-    creator: "@inboundemail",
-    site: "@inboundemail",
-  },
-  robots: {
-    index: true,
-    follow: true,
-    googleBot: {
-      index: true,
-      follow: true,
-      "max-video-preview": -1,
-      "max-image-preview": "large",
-      "max-snippet": -1,
-    },
-  },
-  icons: {
-    icon: [
-      {
-        media: '(prefers-color-scheme: light)',
-        url: '/images/icon-light.png',
-        href: '/images/icon-light.png',
-      },
-      {
-        media: '(prefers-color-scheme: dark)',
-        url: '/images/icon-dark.png',
-        href: '/images/icon-dark.png',
-      },
-    ],
-    shortcut: "/favicon.ico",
-    apple: [
-      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
-    ],
-  },
-  manifest: "/site.webmanifest",
-  category: "technology",
+	title: {
+		default: "inbound | Email API for Developers - Send, Receive & Reply",
+		template: "inbound | %s ",
+	},
+	description:
+		"Complete email infrastructure for modern applications. Send transactional emails, receive inbound messages, and build AI email agents with our TypeScript SDK and webhook API.",
+	keywords: [
+		"email infrastructure",
+		"inbound email",
+		"email API",
+		"webhook email",
+		"email parsing",
+		"developer tools",
+		"email management",
+		"SMTP",
+		"email automation",
+		"transactional email",
+		"email routing",
+		"mailgun alternative",
+		"sendgrid alternative",
+		"improvmx alternative",
+		"email to webhook",
+		"email webhook service",
+		"inbound email API",
+		"email processing API",
+		"typescript email SDK",
+		"structured email data",
+		"email parser API",
+		"webhook email forwarding",
+		"email API for developers",
+		"inbound email processing",
+		"email infrastructure platform",
+		"modern email API",
+		"email parsing service",
+		"webhook email integration",
+		"email automation API",
+		"custom domain email",
+	],
+	authors: [{ name: "inbound team" }],
+	creator: "inbound",
+	publisher: "inbound",
+	formatDetection: {
+		email: false,
+		address: false,
+		telephone: false,
+	},
+	metadataBase: new URL(
+		process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+	),
+	alternates: {
+		canonical: "/",
+	},
+	openGraph: {
+		type: "website",
+		locale: "en_US",
+		url: "/",
+		title: "inbound - email infrastructure, redefined",
+		description:
+			"the modern email infrastructure platform for developers. receive, parse, and manage inbound emails with powerful apis, webhooks, and real-time processing.",
+		siteName: "inbound",
+		images: [
+			{
+				url: "/opengraph-image.png",
+				width: 1200,
+				height: 630,
+				alt: "inbound - email infrastructure platform",
+			},
+		],
+	},
+	twitter: {
+		card: "summary_large_image",
+		title: "inbound - email infrastructure, redefined",
+		description:
+			"the modern email infrastructure platform for developers. receive, parse, and manage inbound emails with powerful apis, webhooks, and real-time processing.",
+		images: ["/twitter-image.png"],
+		creator: "@inboundemail",
+		site: "@inboundemail",
+	},
+	robots: {
+		index: true,
+		follow: true,
+		googleBot: {
+			index: true,
+			follow: true,
+			"max-video-preview": -1,
+			"max-image-preview": "large",
+			"max-snippet": -1,
+		},
+	},
+	icons: {
+		icon: [
+			{
+				media: "(prefers-color-scheme: light)",
+				url: "/images/icon-light.png",
+				href: "/images/icon-light.png",
+			},
+			{
+				media: "(prefers-color-scheme: dark)",
+				url: "/images/icon-dark.png",
+				href: "/images/icon-dark.png",
+			},
+		],
+		shortcut: "/favicon.ico",
+		apple: [
+			{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+		],
+	},
+	manifest: "/site.webmanifest",
+	category: "technology",
 };
 
 export const viewport = {
-  width: 'device-width',
-  initialScale: 1,
-  maximumScale: 1,
+	width: "device-width",
+	initialScale: 1,
+	maximumScale: 1,
 };
 
 export default function RootLayout({
-  children,
+	children,
 }: Readonly<{
-  children: React.ReactNode;
+	children: React.ReactNode;
 }>) {
-  return (
-    <html lang="en">
-      <head>
-        {/* React Grab - AI Element Inspector (dev only) */}
-        {process.env.NODE_ENV === "development" && (
-          <Script
-            src="//unpkg.com/react-grab/dist/index.global.js"
-            crossOrigin="anonymous"
-            strategy="beforeInteractive"
-          />
-        )}
+	return (
+		<html lang="en">
+			<head>
+				{/* React Grab - AI Element Inspector (dev only) */}
+				{process.env.NODE_ENV === "development" && (
+					<Script
+						src="//unpkg.com/react-grab/dist/index.global.js"
+						crossOrigin="anonymous"
+						strategy="beforeInteractive"
+					/>
+				)}
 
-        {/* Twitter Conversion Tracking */}
-        <Script
-          strategy="beforeInteractive"
-          dangerouslySetInnerHTML={{
-            __html: `
+				{/* Twitter Conversion Tracking */}
+				<Script
+					strategy="beforeInteractive"
+					dangerouslySetInnerHTML={{
+						__html: `
               !function(e,t,n,s,u,a){e.twq || (s = e.twq = function () {
                 s.exe ? s.exe.apply(s, arguments) : s.queue.push(arguments);
               }, s.version = '1.1', s.queue = [], u = t.createElement(n), u.async = !0, u.src = 'https://static.ads-twitter.com/uwt.js',
                 a = t.getElementsByTagName(n)[0], a.parentNode.insertBefore(u, a))}(window,document,'script');
               twq('config','q190x');
-            `
-          }}
-        />
+            `,
+					}}
+				/>
 
-        <Script
-          src="https://static.ads-twitter.com/uwt.js"
-          strategy="beforeInteractive"
-        />
+				<Script
+					src="https://static.ads-twitter.com/uwt.js"
+					strategy="beforeInteractive"
+				/>
 
-        {/* Google Analytics */}
-        <Script
-          src="https://www.googletagmanager.com/gtag/js?id=G-0H8QD9DFB4"
-          strategy="afterInteractive"
-        />
-        <Script
-          id="google-analytics"
-          strategy="afterInteractive"
-          dangerouslySetInnerHTML={{
-            __html: `
+				{/* Google Analytics */}
+				<Script
+					src="https://www.googletagmanager.com/gtag/js?id=G-0H8QD9DFB4"
+					strategy="afterInteractive"
+				/>
+				<Script
+					id="google-analytics"
+					strategy="afterInteractive"
+					dangerouslySetInnerHTML={{
+						__html: `
               window.dataLayer = window.dataLayer || [];
               function gtag(){dataLayer.push(arguments);}
               gtag('js', new Date());
               gtag('config', 'G-0H8QD9DFB4');
-            `
-          }}
-        />
+            `,
+					}}
+				/>
 
-        <script
-          defer
-          data-website-id="689ccf5191092e10bcf500a5"
-          data-domain="inbound.new"
-          src="/js/script.js">
-        </script>
+				<script
+					defer
+					data-website-id="689ccf5191092e10bcf500a5"
+					data-domain="inbound.new"
+					src="/js/script.js"
+				></script>
 
-        {/* PromptWatch Analytics */}
-        <Script
-          id="promptwatch"
-          strategy="afterInteractive"
-          dangerouslySetInnerHTML={{
-            __html: `
+				{/* PromptWatch Analytics */}
+				<Script
+					id="promptwatch"
+					strategy="afterInteractive"
+					dangerouslySetInnerHTML={{
+						__html: `
               (function() {
                 var script = document.createElement('script');
                 script.setAttribute('data-project-id', 'f7c86fd6-182c-41f4-88d9-6f34f89f28d8');
                 script.src = 'https://ingest.promptwatch.com/js/client.min.js';
                 document.head.appendChild(script);
               })();
-            `
-          }}
-        />
-
-      </head>
-      <body
-        className={`${outfit.variable} ${geist.variable} ${geistMono.variable} antialiased`}
-        suppressHydrationWarning
-      >
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
+            `,
+					}}
+				/>
+			</head>
+			<body
+				className={`${outfit.variable} ${geist.variable} ${geistMono.variable} antialiased`}
+				suppressHydrationWarning
+			>
+				<script
+					dangerouslySetInnerHTML={{
+						__html: `
               (function(){
                 try {
                   var d = document.documentElement;
@@ -236,65 +240,74 @@ export default function RootLayout({
                 } catch {}
               })();
             `,
-          }}
-        />
-        {process.env.NODE_ENV === "test" && (
-          <script
-            crossOrigin="anonymous"
-            src="//unpkg.com/react-scan/dist/auto.global.js"
-          />
-        )}
-        <Databuddy clientId="jj0WXe_nNBuyT2e2YnLSY" trackErrors trackAttributes disabled={process.env.NODE_ENV === "development"} />
-        
-        {/* Schema.org structured data */}
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{
-            __html: JSON.stringify({
-              "@context": "https://schema.org",
-              "@type": "Organization",
-              "name": "Inbound",
-              "url": "https://inbound.new",
-              "logo": "https://inbound.new/logo.png",
-              "description": "Complete email infrastructure for modern applications. Send transactional emails, receive inbound messages, and build AI email agents with our TypeScript SDK and webhook API.",
-              "sameAs": [
-                "https://twitter.com/inboundemail",
-                "https://github.com/inbound-org"
-              ],
-              "contactPoint": {
-                "@type": "ContactPoint",
-                "contactType": "customer service",
-                "email": "support@inbound.new"
-              },
-              "offers": {
-                "@type": "Offer",
-                "name": "Email API for Developers",
-                "description": "TypeScript SDK and webhook API for email automation",
-                "category": "Software Development Tools"
-              }
-            })
-          }}
-        />
+					}}
+				/>
+				{process.env.NODE_ENV === "test" && (
+					<script
+						crossOrigin="anonymous"
+						src="//unpkg.com/react-scan/dist/auto.global.js"
+					/>
+				)}
+				<Databuddy
+					clientId="jj0WXe_nNBuyT2e2YnLSY"
+					trackErrors
+					trackAttributes
+					disabled={process.env.NODE_ENV === "development"}
+				/>
 
-        <NuqsAdapter>
-          <QueryProvider>
-            <RealtimeProvider>
-              <AutumnProvider backendUrl={process.env.BETTER_AUTH_URL || ""}>
-                {children}
-                <Analytics />
-                <SpeedInsights />
-              </AutumnProvider>
-            </RealtimeProvider>
-          </QueryProvider>
-        </NuqsAdapter>
-        <DubAnalytics 
-          publishableKey="dub_pk_fOTFXrX9wpCXjiJiFUrb2QVS"
-          domainsConfig={{
-            refer: "inbd.link"
-          }} 
-        />
-        {/* <Toolbar /> */}
-      </body>
-    </html>
-  );
+				{/* Schema.org structured data */}
+				<script
+					type="application/ld+json"
+					dangerouslySetInnerHTML={{
+						__html: JSON.stringify({
+							"@context": "https://schema.org",
+							"@type": "Organization",
+							name: "Inbound",
+							url: "https://inbound.new",
+							logo: "https://inbound.new/logo.png",
+							description:
+								"Complete email infrastructure for modern applications. Send transactional emails, receive inbound messages, and build AI email agents with our TypeScript SDK and webhook API.",
+							sameAs: [
+								"https://twitter.com/inboundemail",
+								"https://github.com/inbound-org",
+							],
+							contactPoint: {
+								"@type": "ContactPoint",
+								contactType: "customer service",
+								email: "support@inbound.new",
+							},
+							offers: {
+								"@type": "Offer",
+								name: "Email API for Developers",
+								description:
+									"TypeScript SDK and webhook API for email automation",
+								category: "Software Development Tools",
+							},
+						}),
+					}}
+				/>
+
+				<NuqsAdapter>
+					<QueryProvider>
+						<RealtimeProvider>
+							<AutumnProvider
+								backendUrl={process.env.NEXT_PUBLIC_APP_URL || ""}
+							>
+								{children}
+								<Analytics />
+								<SpeedInsights />
+							</AutumnProvider>
+						</RealtimeProvider>
+					</QueryProvider>
+				</NuqsAdapter>
+				<DubAnalytics
+					publishableKey="dub_pk_fOTFXrX9wpCXjiJiFUrb2QVS"
+					domainsConfig={{
+						refer: "inbd.link",
+					}}
+				/>
+				{/* <Toolbar /> */}
+			</body>
+		</html>
+	);
 }
