@@ -179,7 +179,7 @@ const app = new Elysia({ prefix: "/api/e2" })
 				openapi: "3.1.0",
 				servers: [
 					{
-						url: "https://inbound.new/api/e2",
+						url: "https://inbound.new",
 						description: "Production API server",
 					},
 				],
