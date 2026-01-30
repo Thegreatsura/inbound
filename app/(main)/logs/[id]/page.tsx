@@ -282,6 +282,7 @@ export default async function LogDetailPage({
 			bcc: bccParsed?.text || null,
 			replyTo: replyToParsed?.text || null,
 			recipient: toParsed?.addresses?.[0]?.address || "unknown",
+			recipientName: toParsed?.addresses?.[0]?.name || null,
 			receivedAt: row.date || row.createdAt,
 			isRead: true,
 			readAt: row.readAt || row.createdAt,
@@ -1065,22 +1066,42 @@ export default async function LogDetailPage({
 												</div>
 											</div>
 										)}
+										{isInbound && inboundDetails?.fromName && (
+											<div>
+												<span className="text-muted-foreground">From Name:</span>
+												<div className="mt-1">
+													<ClickableId id={inboundDetails.fromName} />
+												</div>
+											</div>
+										)}
 										<div>
 											<span className="text-muted-foreground">From:</span>
-											<p className="font-medium">
-												{isInbound
-													? inboundDetails?.from
-													: outboundDetails?.from}
-											</p>
+											<div className="mt-1">
+												<ClickableId id={isInbound
+													? inboundDetails?.from || "unknown"
+													: outboundDetails?.from || "unknown"} />
+											</div>
 										</div>
+										{isInbound && inboundDetails?.recipientName && (
+											<div>
+												<span className="text-muted-foreground">To Name:</span>
+												<div className="mt-1">
+													<ClickableId id={inboundDetails.recipientName} />
+												</div>
+											</div>
+										)}
 										<div>
 											<span className="text-muted-foreground">To:</span>
-											<div className="font-medium">
-												{isInbound
-													? inboundDetails?.recipient
-													: outboundDetails?.to?.map((r, i) => (
-															<div key={i}>{r}</div>
-														))}
+											<div className="mt-1">
+												{isInbound ? (
+													<ClickableId id={inboundDetails?.recipient || "unknown"} />
+												) : (
+													outboundDetails?.to?.map((r, i) => (
+														<div key={i}>
+															<ClickableId id={r} />
+														</div>
+													))
+												)}
 											</div>
 										</div>
 										<div>
