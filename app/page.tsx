@@ -9,7 +9,7 @@ import { PricingTable } from "@/components/pricing-table";
 import EnvelopeSparkle from "@/components/icons/envelope-sparkle";
 import DatabaseCloud from "@/components/icons/database-cloud";
 import { useRealtime } from "@/lib/realtime-client";
-import { authClient } from "@/lib/auth/auth-client";
+import { authClient, useSession } from "@/lib/auth/auth-client";
 
 interface InboxEmail {
 	from: string;
@@ -28,6 +28,7 @@ const Page = () => {
 	const [activeTab, setActiveTab] = useState<"send" | "receive" | "mailboxes">(
 		"send",
 	);
+	const { data: session } = useSession();
 
 	// Extract the local part (word) from the email for channel subscription
 	const inboxId = useMemo(() => {
@@ -172,7 +173,7 @@ data.emails.forEach(email => {
 						</span>
 					</h1>
 
-					<div className="mt-6">
+					{!session && <div className="mt-6">
 						<button
 							type="button"
 							onClick={() =>
@@ -191,7 +192,7 @@ data.emails.forEach(email => {
 							</svg>
 							Get started with Google
 						</button>
-					</div>
+					</div>}
 
 					{/* Email Generator */}
 					<div className="mt-12">
