@@ -385,6 +385,7 @@ export interface GetMailByIdResponse {
 	bcc: string | null;
 	replyTo: string | null;
 	recipient: string;
+	recipientName: string | null;
 	receivedAt: Date | null;
 	isRead: boolean;
 	readAt: Date | null;

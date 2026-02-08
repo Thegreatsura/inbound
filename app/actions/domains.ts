@@ -3,7 +3,7 @@
 import { auth } from "@/lib/auth/auth"
 import { headers } from "next/headers"
 import { revalidatePath } from 'next/cache'
-import { checkDomainCanReceiveEmails, verifyDnsRecords } from '@/lib/domains-and-dns/dns'
+import { checkDomainCanReceiveEmails, verifyDnsRecords, reevaluateCanReceiveEmails } from '@/lib/domains-and-dns/dns'
 import { initiateDomainVerification, deleteDomainFromSES } from '@/lib/domains-and-dns/domain-verification'
 import { getDomainWithRecords, updateDomainStatus, createDomainVerification, deleteDomainFromDatabase } from '@/lib/db/domains'
 import { SESClient, GetIdentityVerificationAttributesCommand } from '@aws-sdk/client-ses'
@@ -370,6 +370,23 @@ export async function checkDomainVerification(domain: string, domainId: string) 
     if (newStatus !== domainRecord.status) {
       console.log(`📝 Check Verification - Updating domain status from ${domainRecord.status} to ${newStatus}`)
       await updateDomainStatus(domainRecord.id, newStatus)
+    }
+
+    // Step 4: Re-evaluate canReceiveEmails if domain is fully verified but flagged as inactive
+    if (allVerified && !domainRecord.canReceiveEmails) {
+      const canReceive = await reevaluateCanReceiveEmails(domain)
+      if (canReceive) {
+        console.log(`📝 Check Verification - Updating canReceiveEmails to true for ${domain}`)
+        const reevalUpdateTime = new Date()
+        await db
+          .update(emailDomains)
+          .set({
+            canReceiveEmails: true,
+            lastDnsCheck: reevalUpdateTime,
+            updatedAt: reevalUpdateTime,
+          })
+          .where(eq(emailDomains.id, domainRecord.id))
+      }
     }
 
     console.log(`🏁 Check Verification - Completed for ${domain} - All verified: ${allVerified}`)
