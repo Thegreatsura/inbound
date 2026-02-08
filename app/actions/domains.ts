@@ -377,12 +377,13 @@ export async function checkDomainVerification(domain: string, domainId: string) 
       const canReceive = await reevaluateCanReceiveEmails(domain)
       if (canReceive) {
         console.log(`📝 Check Verification - Updating canReceiveEmails to true for ${domain}`)
+        const reevalUpdateTime = new Date()
         await db
           .update(emailDomains)
           .set({
             canReceiveEmails: true,
-            lastDnsCheck: new Date(),
-            updatedAt: new Date(),
+            lastDnsCheck: reevalUpdateTime,
+            updatedAt: reevalUpdateTime,
           })
           .where(eq(emailDomains.id, domainRecord.id))
       }
