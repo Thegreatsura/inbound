@@ -310,6 +310,33 @@ export async function checkDomainCanReceiveEmails(domain: string): Promise<DnsCh
   return result;
 }
 
+
+const INBOUND_MX_SUFFIX = '.amazonaws.com'
+const INBOUND_MX_PREFIX = 'inbound-smtp.'
+
+export function hasInboundMxRecord(mxRecords: MxRecord[]): boolean {
+  return mxRecords.some((record) => {
+    const exchange = record.exchange.toLowerCase().replace(/\.$/, '')
+    return exchange.startsWith(INBOUND_MX_PREFIX) && exchange.endsWith(INBOUND_MX_SUFFIX)
+  })
+}
+
+export async function reevaluateCanReceiveEmails(domain: string): Promise<boolean> {
+  try {
+    const mxRecords = await dns.resolveMx(domain)
+    if (mxRecords.length === 0) {
+      return true
+    }
+    return hasInboundMxRecord(mxRecords)
+  } catch (error) {
+    const dnsError = error as DnsError
+    if (dnsError.code === 'ENOTFOUND' || dnsError.code === 'ENODATA') {
+      return true
+    }
+    return false
+  }
+}
+
 /**
  * Batch check multiple domains
  * @param domains - Array of domains to check

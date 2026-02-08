@@ -8,7 +8,7 @@ import {
   domainDnsRecords,
 } from "@/lib/db/schema";
 import { eq, and, count } from "drizzle-orm";
-import { verifyDnsRecords } from "@/lib/domains-and-dns/dns";
+import { verifyDnsRecords, reevaluateCanReceiveEmails } from "@/lib/domains-and-dns/dns";
 import {
   SESClient,
   GetIdentityVerificationAttributesCommand,
@@ -662,6 +662,25 @@ export const getDomain = new Elysia().get(
           response.canReceiveEmails = true;
           response.hasMxRecords = true;
           response.updatedAt = subdomainUpdateTime.toISOString();
+        }
+
+        // Re-evaluate canReceiveEmails for non-subdomain domains that are fully verified
+        if (isFullyVerified && !domain.canReceiveEmails && !inheritsFromParent) {
+          const canReceive = await reevaluateCanReceiveEmails(domain.domain);
+          if (canReceive) {
+            console.log(`📝 Updating canReceiveEmails to true for ${domain.domain}`);
+            const reevalUpdateTime = new Date();
+            await db
+              .update(emailDomains)
+              .set({
+                canReceiveEmails: true,
+                lastDnsCheck: reevalUpdateTime,
+                updatedAt: reevalUpdateTime,
+              })
+              .where(eq(emailDomains.id, domain.id));
+            response.canReceiveEmails = true;
+            response.updatedAt = reevalUpdateTime.toISOString();
+          }
         }
 
         response.verificationCheck = {
