@@ -79,3 +79,12 @@ temps/
 public/openapi.json
 # audit reports
 reports/
+/support_desk
+/tmp
+scripts/db-speed-comparison.ts
+scripts/migrate-data-fast.sh
+scripts/migrate-data-streaming.ts
+scripts/migrate-failed-tables.ts
+scripts/migrate-single-table.ts
+scripts/migrate-to-planetscale.ts
+scripts/webhook-test-verification-report.md

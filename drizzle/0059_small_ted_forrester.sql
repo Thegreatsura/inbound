@@ -1,0 +1,1 @@
+DROP INDEX "structured_emails_message_id_recipient_unique";

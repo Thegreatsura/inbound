@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "structured_emails_message_id_recipient_unique" ON "structured_emails" USING btree ("message_id","recipient") WHERE "message_id" IS NOT NULL AND "recipient" IS NOT NULL;
