@@ -308,10 +308,16 @@ export async function routeEmail(emailId: string): Promise<void> {
 			.limit(1);
 
 		if (existingDelivery[0]) {
+			if (existingDelivery[0].status === "success") {
+				console.log(
+					`⏭️  routeEmail - Email ${emailId} already successfully delivered to endpoint ${endpoint.id} (attempts: ${existingDelivery[0].attempts}). Skipping duplicate delivery.`,
+				);
+				return;
+			}
+			// Allow re-delivery for pending/failed deliveries (retries)
 			console.log(
-				`⏭️  routeEmail - Email ${emailId} already has delivery record for endpoint ${endpoint.id} (status: ${existingDelivery[0].status}, attempts: ${existingDelivery[0].attempts}). Skipping duplicate delivery.`,
+				`🔄 routeEmail - Email ${emailId} has existing delivery for endpoint ${endpoint.id} (status: ${existingDelivery[0].status}, attempts: ${existingDelivery[0].attempts}). Allowing re-delivery.`,
 			);
-			return;
 		}
 
 		// Route based on endpoint type
@@ -678,7 +684,7 @@ async function handleWebhookEndpoint(
 ): Promise<void> {
 	// PRE-CREATE delivery record to prevent race condition duplicates
 	// The unique constraint on (emailId, endpointId) acts as a distributed lock
-	const deliveryId = nanoid();
+	let deliveryId = nanoid();
 
 	try {
 		// Insert delivery record BEFORE sending webhook to prevent race conditions
@@ -696,19 +702,46 @@ async function handleWebhookEndpoint(
 		console.log(
 			`🔒 handleWebhookEndpoint - Created delivery lock ${deliveryId} for ${emailId} → ${endpoint.id}`,
 		);
-	} catch (error: any) {
+	} catch (error: unknown) {
+		const errCode = (error as { code?: string })?.code;
+		const errMsg = (error as { message?: string })?.message;
 		// Check if this is a unique constraint violation (another request already processing)
 		if (
-			error?.code === "23505" ||
-			error?.message?.includes("duplicate key") ||
-			error?.message?.includes("unique constraint")
+			errCode === "23505" ||
+			errMsg?.includes("duplicate key") ||
+			errMsg?.includes("unique constraint")
 		) {
-			console.log(
-				`⏭️  handleWebhookEndpoint - Delivery already in progress for emailId=${emailId}, endpointId=${endpoint.id}. Skipping duplicate.`,
-			);
-			return; // Exit early - another request is handling this delivery
+			// Check if the existing delivery is a retry (pending/failed) or already succeeded
+			const [existingDelivery] = await db
+				.select({
+					id: endpointDeliveries.id,
+					status: endpointDeliveries.status,
+				})
+				.from(endpointDeliveries)
+				.where(
+					and(
+						eq(endpointDeliveries.emailId, emailId),
+						eq(endpointDeliveries.endpointId, endpoint.id),
+					),
+				)
+				.limit(1);
+
+			if (existingDelivery && existingDelivery.status !== "success") {
+				// This is a retry — use the existing delivery record ID and proceed
+				deliveryId = existingDelivery.id;
+				console.log(
+					`🔄 handleWebhookEndpoint - Retry: reusing delivery ${deliveryId} for ${emailId} → ${endpoint.id} (status was: ${existingDelivery.status})`,
+				);
+			} else {
+				// Already succeeded — skip to prevent duplicate delivery
+				console.log(
+					`⏭️  handleWebhookEndpoint - Delivery already succeeded for emailId=${emailId}, endpointId=${endpoint.id}. Skipping duplicate.`,
+				);
+				return;
+			}
+		} else {
+			throw error; // Re-throw other errors
 		}
-		throw error; // Re-throw other errors
 	}
 
 	try {
@@ -1145,7 +1178,7 @@ async function handleEmailForwardEndpoint(
 	emailData: any,
 ): Promise<void> {
 	// PRE-CREATE delivery record to prevent race condition duplicates
-	const deliveryId = nanoid();
+	let deliveryId = nanoid();
 
 	try {
 		// Insert delivery record BEFORE forwarding to prevent race conditions
@@ -1163,19 +1196,44 @@ async function handleEmailForwardEndpoint(
 		console.log(
 			`🔒 handleEmailForwardEndpoint - Created delivery lock ${deliveryId} for ${emailId} → ${endpoint.id}`,
 		);
-	} catch (error: any) {
+	} catch (error: unknown) {
+		const errCode = (error as { code?: string })?.code;
+		const errMsg = (error as { message?: string })?.message;
 		// Check if this is a unique constraint violation
 		if (
-			error?.code === "23505" ||
-			error?.message?.includes("duplicate key") ||
-			error?.message?.includes("unique constraint")
+			errCode === "23505" ||
+			errMsg?.includes("duplicate key") ||
+			errMsg?.includes("unique constraint")
 		) {
-			console.log(
-				`⏭️  handleEmailForwardEndpoint - Delivery already in progress for emailId=${emailId}, endpointId=${endpoint.id}. Skipping duplicate.`,
-			);
-			return; // Exit early
+			// Check if the existing delivery is a retry (pending/failed) or already succeeded
+			const [existingDelivery] = await db
+				.select({
+					id: endpointDeliveries.id,
+					status: endpointDeliveries.status,
+				})
+				.from(endpointDeliveries)
+				.where(
+					and(
+						eq(endpointDeliveries.emailId, emailId),
+						eq(endpointDeliveries.endpointId, endpoint.id),
+					),
+				)
+				.limit(1);
+
+			if (existingDelivery && existingDelivery.status !== "success") {
+				deliveryId = existingDelivery.id;
+				console.log(
+					`🔄 handleEmailForwardEndpoint - Retry: reusing delivery ${deliveryId} for ${emailId} → ${endpoint.id} (status was: ${existingDelivery.status})`,
+				);
+			} else {
+				console.log(
+					`⏭️  handleEmailForwardEndpoint - Delivery already succeeded for emailId=${emailId}, endpointId=${endpoint.id}. Skipping duplicate.`,
+				);
+				return;
+			}
+		} else {
+			throw error;
 		}
-		throw error;
 	}
 
 	try {
