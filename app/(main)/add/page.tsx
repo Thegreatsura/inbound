@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import ArrowBoldRight from "@/components/icons/arrow-bold-right";
+
 import CircleCheck from "@/components/icons/circle-check";
 import CircleWarning2 from "@/components/icons/circle-warning-2";
 import Loader from "@/components/icons/loader";
@@ -140,12 +141,6 @@ export default function AddDomainPage() {
 
 			// At this point, data is the success response with id
 			const domainId = data.id;
-
-			// Track successful domain addition
-			trackEvent("Domain Added", {
-				domain: domain,
-				domainId: domainId,
-			});
 
 			toast.success("Domain added successfully!");
 			router.push(`/emails/${domainId}`);

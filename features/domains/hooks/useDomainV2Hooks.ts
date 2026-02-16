@@ -4,18 +4,6 @@ import {
 	getEdenErrorMessage,
 	safeResponseJson,
 } from "@/lib/api/client";
-import type {
-	DeleteEmailAddressByIdResponse,
-	DomainWithStats,
-	GetDomainByIdResponse,
-	GetDomainsRequest,
-	PostEmailAddressesRequest,
-	PostEmailAddressesResponse,
-	PutDomainByIdRequest,
-	PutEmailAddressByIdRequest,
-	PutEmailAddressByIdResponse,
-} from "@/lib/api-types";
-import { trackEvent } from "@/lib/utils/visitors";
 
 // E2 API Domain type (uses string dates instead of Date objects)
 export interface E2DomainWithStats {
@@ -474,13 +462,6 @@ export const useAddEmailAddressV2Mutation = () => {
 			return responseData as unknown as PostEmailAddressesResponse;
 		},
 		onSuccess: (data) => {
-			// Track email address addition
-			trackEvent("Email Address Added", {
-				address: data.address,
-				domainId: data.domainId,
-				emailAddressId: data.id,
-			});
-
 			// Invalidate domain details to refresh email addresses
 			queryClient.invalidateQueries({
 				queryKey: domainV2Keys.detail(data.domainId),
@@ -591,16 +572,7 @@ export const useUpdateDomainCatchAllV2Mutation = () => {
 
 			return data;
 		},
-		onSuccess: (_, { domainId, isCatchAllEnabled, catchAllEndpointId }) => {
-			// Track catch-all toggle
-			trackEvent(
-				isCatchAllEnabled ? "Catch All Enabled" : "Catch All Disabled",
-				{
-					domainId: domainId,
-					endpointId: catchAllEndpointId || null,
-				},
-			);
-
+		onSuccess: (_, { domainId }) => {
 			// Invalidate domain details to refresh catch-all status
 			queryClient.invalidateQueries({
 				queryKey: domainV2Keys.detail(domainId),
@@ -635,14 +607,7 @@ export const useUpgradeDomainMailFromV2Mutation = () => {
 
 			return data;
 		},
-		onSuccess: (data, { domainId }) => {
-			// Track MAIL FROM upgrade
-			trackEvent("Domain MAIL FROM Upgraded", {
-				domainId: domainId,
-				mailFromDomain: data?.mailFromDomain || null,
-				mailFromDomainStatus: data?.mailFromDomainStatus || null,
-			});
-
+		onSuccess: (_, { domainId }) => {
 			// Invalidate domain details and list to refresh MAIL FROM status
 			queryClient.invalidateQueries({
 				queryKey: domainV2Keys.detail(domainId),

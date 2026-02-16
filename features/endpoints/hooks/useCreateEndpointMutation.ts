@@ -1,6 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { client } from "@/lib/api/client";
-import { trackEvent } from "@/lib/utils/visitors";
 import type { ApiEndpointResponse, CreateEndpointData } from "../types";
 
 async function createEndpoint(
@@ -29,14 +28,7 @@ export const useCreateEndpointMutation = () => {
 
 	return useMutation({
 		mutationFn: createEndpoint,
-		onSuccess: (endpoint) => {
-			// Track endpoint creation
-			trackEvent("Endpoint Created", {
-				endpointType: endpoint.type,
-				endpointName: endpoint.name,
-				endpointId: endpoint.id,
-			});
-
+		onSuccess: () => {
 			// Invalidate and refetch endpoints list
 			queryClient.invalidateQueries({ queryKey: ["endpoints"] });
 		},

@@ -31,7 +31,7 @@ import { Label } from "@/components/ui/label";
 import { useCreateApiKeyMutation } from "@/features/settings/hooks";
 import { client, getEdenErrorMessage } from "@/lib/api/client";
 import { useSession } from "@/lib/auth/auth-client";
-import { identifyUser, trackEvent } from "@/lib/utils/visitors";
+import { trackEvent } from "@/lib/utils/visitors";
 
 const UPGRADE_PRODUCT_ID = "inbound_default_test";
 const FREE_TIER_PRODUCT_ID = "free_tier";
@@ -346,11 +346,6 @@ export default function OnboardingPage() {
 			// Invalidate onboarding status to update the cache
 			queryClient.invalidateQueries({ queryKey: ["onboarding-status"] });
 
-			identifyUser({
-				id: session.user.id,
-				email: session.user.email || undefined,
-				name: session.user.name || undefined,
-			});
 			trackEvent("Signup", { source: "onboarding" });
 
 			toast.success("Welcome to Inbound! 🎉");
@@ -381,11 +376,6 @@ export default function OnboardingPage() {
 			// Invalidate onboarding status to update the cache
 			queryClient.invalidateQueries({ queryKey: ["onboarding-status"] });
 
-			identifyUser({
-				id: session.user.id,
-				email: session.user.email || undefined,
-				name: session.user.name || undefined,
-			});
 			trackEvent("Signup", { source: "onboarding_skipped" });
 
 			toast.success("Onboarding skipped. Welcome to Inbound! 🎉");
@@ -436,6 +426,7 @@ export default function OnboardingPage() {
 			}
 
 			// If no redirect happened, the upgrade was processed (user has payment method on file)
+			trackEvent("Purchase", { productId: UPGRADE_PRODUCT_ID });
 			toast.success("Successfully upgraded!");
 			window.location.reload();
 		} catch (error) {

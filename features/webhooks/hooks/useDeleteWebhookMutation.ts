@@ -1,6 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { deleteWebhook } from "@/app/actions/webhooks";
-import { trackEvent } from "@/lib/utils/visitors";
 
 export const useDeleteWebhookMutation = () => {
 	const queryClient = useQueryClient();
@@ -11,11 +10,6 @@ export const useDeleteWebhookMutation = () => {
 			if (!result.success) {
 				throw new Error(result.error);
 			}
-
-			// Track webhook deletion
-			trackEvent("Webhook Deleted", {
-				webhookId: id,
-			});
 
 			return result;
 		},

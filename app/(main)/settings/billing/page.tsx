@@ -71,6 +71,7 @@ export default function BillingPage() {
 				return;
 			}
 
+			trackEvent("Purchase", { productId: plan.autumn_id });
 			toast.success(`Successfully upgraded to ${plan.name} plan!`);
 			refetchCustomer();
 		} catch (error) {

@@ -1,7 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createWebhook } from "@/app/actions/webhooks";
 import { CreateWebhookData } from "@/features/webhooks/types";
-import { trackEvent } from "@/lib/utils/visitors";
 
 export const useCreateWebhookMutation = () => {
 	const queryClient = useQueryClient();
@@ -15,13 +14,6 @@ export const useCreateWebhookMutation = () => {
 			return result.webhook;
 		},
 		onSuccess: (newWebhook) => {
-			// Track webhook creation
-			trackEvent("Webhook Created", {
-				webhookName: newWebhook.name,
-				webhookId: newWebhook.id,
-				webhookUrl: newWebhook.url,
-			});
-
 			// Invalidate and refetch webhooks
 			queryClient.invalidateQueries({ queryKey: ["webhooks"] });
 

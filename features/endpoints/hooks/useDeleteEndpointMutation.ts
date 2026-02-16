@@ -1,6 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { client } from "@/lib/api/client";
-import { trackEvent } from "@/lib/utils/visitors";
 
 type DeleteEndpointResponse = {
 	message?: string;
@@ -29,12 +28,7 @@ export const useDeleteEndpointMutation = () => {
 
 	return useMutation({
 		mutationFn: deleteEndpoint,
-		onSuccess: (result, endpointId) => {
-			// Track endpoint deletion
-			trackEvent("Endpoint Deleted", {
-				endpointId: endpointId,
-			});
-
+		onSuccess: (_, endpointId) => {
 			// Invalidate and refetch endpoints list
 			queryClient.invalidateQueries({ queryKey: ["endpoints"] });
 			// Also invalidate the specific endpoint query

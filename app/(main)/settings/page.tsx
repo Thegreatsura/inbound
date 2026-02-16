@@ -285,6 +285,7 @@ export default function SettingsPage() {
 			}
 
 			// If no redirect needed (e.g., already has payment method), close dialog and refresh
+			trackEvent("Purchase", { productId: plan.autumn_id });
 			toast.success(`Successfully upgraded to ${plan.name} plan!`);
 			setIsUpgradeDialogOpen(false);
 			refetchCustomer();
