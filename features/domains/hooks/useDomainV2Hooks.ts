@@ -1,5 +1,4 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { track } from "@vercel/analytics";
 import {
 	client,
 	getEdenErrorMessage,
@@ -16,6 +15,7 @@ import type {
 	PutEmailAddressByIdRequest,
 	PutEmailAddressByIdResponse,
 } from "@/lib/api-types";
+import { trackEvent } from "@/lib/utils/visitors";
 
 // E2 API Domain type (uses string dates instead of Date objects)
 export interface E2DomainWithStats {
@@ -475,7 +475,7 @@ export const useAddEmailAddressV2Mutation = () => {
 		},
 		onSuccess: (data) => {
 			// Track email address addition
-			track("Email Address Added", {
+			trackEvent("Email Address Added", {
 				address: data.address,
 				domainId: data.domainId,
 				emailAddressId: data.id,
@@ -593,10 +593,13 @@ export const useUpdateDomainCatchAllV2Mutation = () => {
 		},
 		onSuccess: (_, { domainId, isCatchAllEnabled, catchAllEndpointId }) => {
 			// Track catch-all toggle
-			track(isCatchAllEnabled ? "Catch All Enabled" : "Catch All Disabled", {
-				domainId: domainId,
-				endpointId: catchAllEndpointId || null,
-			});
+			trackEvent(
+				isCatchAllEnabled ? "Catch All Enabled" : "Catch All Disabled",
+				{
+					domainId: domainId,
+					endpointId: catchAllEndpointId || null,
+				},
+			);
 
 			// Invalidate domain details to refresh catch-all status
 			queryClient.invalidateQueries({
@@ -634,10 +637,10 @@ export const useUpgradeDomainMailFromV2Mutation = () => {
 		},
 		onSuccess: (data, { domainId }) => {
 			// Track MAIL FROM upgrade
-			track("Domain MAIL FROM Upgraded", {
+			trackEvent("Domain MAIL FROM Upgraded", {
 				domainId: domainId,
-				mailFromDomain: data?.mailFromDomain,
-				mailFromDomainStatus: data?.mailFromDomainStatus,
+				mailFromDomain: data?.mailFromDomain || null,
+				mailFromDomainStatus: data?.mailFromDomainStatus || null,
 			});
 
 			// Invalidate domain details and list to refresh MAIL FROM status

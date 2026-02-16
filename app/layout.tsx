@@ -2,10 +2,6 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono, Outfit } from "next/font/google";
 import "./globals.css";
 import "./prose.css";
-import { Databuddy } from "@databuddy/sdk";
-import { Analytics as DubAnalytics } from "@dub/analytics/react";
-import { Analytics } from "@vercel/analytics/next";
-import { SpeedInsights } from "@vercel/speed-insights/next";
 import { AutumnProvider } from "autumn-js/react";
 import { Toolbar } from "basehub/next-toolbar";
 import Script from "next/script";
@@ -164,23 +160,11 @@ export default function RootLayout({
 					/>
 				)}
 
-				{/* Twitter Conversion Tracking */}
+				{/* Visitors.now Analytics */}
 				<Script
-					strategy="beforeInteractive"
-					dangerouslySetInnerHTML={{
-						__html: `
-              !function(e,t,n,s,u,a){e.twq || (s = e.twq = function () {
-                s.exe ? s.exe.apply(s, arguments) : s.queue.push(arguments);
-              }, s.version = '1.1', s.queue = [], u = t.createElement(n), u.async = !0, u.src = 'https://static.ads-twitter.com/uwt.js',
-                a = t.getElementsByTagName(n)[0], a.parentNode.insertBefore(u, a))}(window,document,'script');
-              twq('config','q190x');
-            `,
-					}}
-				/>
-
-				<Script
-					src="https://static.ads-twitter.com/uwt.js"
-					strategy="beforeInteractive"
+					src="https://cdn.visitors.now/v.js"
+					data-token="4c65b3f6-144c-4be7-87c1-e938d9c630f3"
+					data-persist=""
 				/>
 
 				{/* Google Analytics */}
@@ -197,29 +181,6 @@ export default function RootLayout({
               function gtag(){dataLayer.push(arguments);}
               gtag('js', new Date());
               gtag('config', 'G-0H8QD9DFB4');
-            `,
-					}}
-				/>
-
-				<script
-					defer
-					data-website-id="689ccf5191092e10bcf500a5"
-					data-domain="inbound.new"
-					src="/js/script.js"
-				></script>
-
-				{/* PromptWatch Analytics */}
-				<Script
-					id="promptwatch"
-					strategy="afterInteractive"
-					dangerouslySetInnerHTML={{
-						__html: `
-              (function() {
-                var script = document.createElement('script');
-                script.setAttribute('data-project-id', 'f7c86fd6-182c-41f4-88d9-6f34f89f28d8');
-                script.src = 'https://ingest.promptwatch.com/js/client.min.js';
-                document.head.appendChild(script);
-              })();
             `,
 					}}
 				/>
@@ -248,13 +209,6 @@ export default function RootLayout({
 						src="//unpkg.com/react-scan/dist/auto.global.js"
 					/>
 				)}
-				<Databuddy
-					clientId="jj0WXe_nNBuyT2e2YnLSY"
-					trackErrors
-					trackAttributes
-					disabled={process.env.NODE_ENV === "development"}
-				/>
-
 				{/* Schema.org structured data */}
 				<script
 					type="application/ld+json"
@@ -294,18 +248,10 @@ export default function RootLayout({
 								backendUrl={process.env.NEXT_PUBLIC_APP_URL || ""}
 							>
 								{children}
-								<Analytics />
-								<SpeedInsights />
 							</AutumnProvider>
 						</RealtimeProvider>
 					</QueryProvider>
 				</NuqsAdapter>
-				<DubAnalytics
-					publishableKey="dub_pk_fOTFXrX9wpCXjiJiFUrb2QVS"
-					domainsConfig={{
-						refer: "inbd.link",
-					}}
-				/>
 				{/* <Toolbar /> */}
 			</body>
 		</html>

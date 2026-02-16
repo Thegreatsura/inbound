@@ -31,7 +31,7 @@ import { Label } from "@/components/ui/label";
 import { useCreateApiKeyMutation } from "@/features/settings/hooks";
 import { client, getEdenErrorMessage } from "@/lib/api/client";
 import { useSession } from "@/lib/auth/auth-client";
-import { trackSignupConversion } from "@/lib/utils/twitter-tracking";
+import { identifyUser, trackEvent } from "@/lib/utils/visitors";
 
 const UPGRADE_PRODUCT_ID = "inbound_default_test";
 const FREE_TIER_PRODUCT_ID = "free_tier";
@@ -346,10 +346,12 @@ export default function OnboardingPage() {
 			// Invalidate onboarding status to update the cache
 			queryClient.invalidateQueries({ queryKey: ["onboarding-status"] });
 
-			// Track user signup conversion for Twitter ads
-			if (session.user.email) {
-				trackSignupConversion(session.user.email, session.user.id);
-			}
+			identifyUser({
+				id: session.user.id,
+				email: session.user.email || undefined,
+				name: session.user.name || undefined,
+			});
+			trackEvent("Signup", { source: "onboarding" });
 
 			toast.success("Welcome to Inbound! 🎉");
 			router.push("/add?onboarding=true");
@@ -379,10 +381,12 @@ export default function OnboardingPage() {
 			// Invalidate onboarding status to update the cache
 			queryClient.invalidateQueries({ queryKey: ["onboarding-status"] });
 
-			// Track user signup conversion for Twitter ads (same as completing)
-			if (session.user.email) {
-				trackSignupConversion(session.user.email, session.user.id);
-			}
+			identifyUser({
+				id: session.user.id,
+				email: session.user.email || undefined,
+				name: session.user.name || undefined,
+			});
+			trackEvent("Signup", { source: "onboarding_skipped" });
 
 			toast.success("Onboarding skipped. Welcome to Inbound! 🎉");
 			router.push("/add?onboarding=true");

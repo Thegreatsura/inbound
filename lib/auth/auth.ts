@@ -1,24 +1,14 @@
 import { passkey } from "@better-auth/passkey";
-import { dubAnalytics } from "@dub/better-auth";
 import { render } from "@react-email/components";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { createAuthMiddleware } from "better-auth/api";
 import { admin, apiKey, magicLink, oAuthProxy } from "better-auth/plugins";
-import { and, eq } from "drizzle-orm";
-import { Dub } from "dub";
-import fs from "fs";
 import Inbound from "inboundemail";
-import { nanoid } from "nanoid";
-import path from "path";
 
 import MagicLinkEmail from "@/emails/magic-link-email";
 import { db } from "../db/index";
 import * as schema from "../db/schema";
-
-const dub = new Dub({
-	token: process.env.DUB_API_KEY,
-});
 
 // Blocked email domains - users cannot sign up with these domains
 const BLOCKED_SIGNUP_DOMAINS = [
@@ -170,13 +160,13 @@ function isBlockedEmailDomain(email: string): boolean {
 export const auth = betterAuth({
 	baseURL:
 		process.env.NODE_ENV === "development"
-			? "https://dev.inbound.new"
+			? process.env.NEXT_PUBLIC_APP_URL
 			: process.env.VERCEL_ENV === "preview"
 				? `https://${process.env.VERCEL_BRANCH_URL}`
 				: "https://inbound.new",
 	trustedOrigins:
 		process.env.NODE_ENV === "development"
-			? ["https://dev.inbound.new", "http://localhost:3000"]
+			? [process.env.NEXT_PUBLIC_APP_URL as string, "http://localhost:3000"]
 			: ([
 					process.env.VERCEL_URL
 						? `https://${process.env.VERCEL_URL}`
@@ -217,14 +207,11 @@ export const auth = betterAuth({
 		},
 	},
 	plugins: [
-		dubAnalytics({
-			dubClient: dub,
-		}),
 		oAuthProxy({
 			productionURL: "https://inbound.new",
 			currentURL:
 				process.env.NODE_ENV === "development"
-					? "https://dev.inbound.new"
+					? (process.env.NEXT_PUBLIC_APP_URL as string)
 					: process.env.VERCEL_URL
 						? `https://${process.env.VERCEL_URL}`
 						: process.env.VERCEL_BRANCH_URL
@@ -242,12 +229,12 @@ export const auth = betterAuth({
 		passkey({
 			rpID:
 				process.env.NODE_ENV === "development"
-					? "dev.inbound.new"
+					? (process.env.NEXT_PUBLIC_APP_URL as string)
 					: "inbound.new",
 			rpName: "Inbound",
 			origin:
 				process.env.NODE_ENV === "development"
-					? "https://dev.inbound.new"
+					? (process.env.NEXT_PUBLIC_APP_URL as string)
 					: "https://inbound.new",
 		}),
 		magicLink({

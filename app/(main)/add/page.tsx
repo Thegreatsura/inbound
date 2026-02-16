@@ -1,23 +1,23 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, FormEvent } from "react";
-import { useRouter } from "next/navigation";
+import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
-import { motion, AnimatePresence } from "framer-motion";
+import { useRouter } from "next/navigation";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { track } from "@vercel/analytics";
+import ArrowBoldRight from "@/components/icons/arrow-bold-right";
+import CircleCheck from "@/components/icons/circle-check";
+import CircleWarning2 from "@/components/icons/circle-warning-2";
+import Loader from "@/components/icons/loader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { client } from "@/lib/api/client";
 import {
-	validateDomain,
 	type DomainValidationResult,
+	validateDomain,
 } from "@/lib/domains-and-dns/validate-domain";
-import Loader from "@/components/icons/loader";
-import ArrowBoldRight from "@/components/icons/arrow-bold-right";
-import CircleCheck from "@/components/icons/circle-check";
-import CircleWarning2 from "@/components/icons/circle-warning-2";
 import { cn } from "@/lib/utils";
+import { trackEvent } from "@/lib/utils/visitors";
 
 type ValidationState = "idle" | "checking" | "valid" | "invalid";
 
@@ -142,7 +142,7 @@ export default function AddDomainPage() {
 			const domainId = data.id;
 
 			// Track successful domain addition
-			track("Domain Added", {
+			trackEvent("Domain Added", {
 				domain: domain,
 				domainId: domainId,
 			});
