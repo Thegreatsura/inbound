@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { sql } from "drizzle-orm";
 import DailyUsageSummaryEmail from "@/emails/daily-usage-summary";
 import { render } from "@react-email/render";
-import { Inbound } from "@inboundemail/sdk";
+import Inbound from "inboundemail";
 import { generateObject } from "ai";
 import { z } from "zod";
 import { getModel } from "@/lib/ai/provider";
@@ -109,20 +109,17 @@ export async function GET() {
 		}),
 	);
 
-	const inbound = new Inbound(process.env.INBOUND_API_KEY!);
+	const inbound = new Inbound({
+		apiKey: process.env.INBOUND_API_KEY!,
+	});
 	const toEmail = process.env.USAGE_REPORT_TO || "ryan@inboundemail.com";
-	const response = await inbound.emails.send({
+	await inbound.emails.send({
 		from: "inbound reports <notifications@inbound.new>",
 		to: toEmail,
 		subject: `Daily usage • ${now.toLocaleDateString("en-US")}`,
 		html,
 		tags: [{ name: "type", value: "daily-usage" }],
 	});
-
-	if (response.error) {
-		console.error("Daily usage email send failed:", response.error);
-		return new Response(null, { status: 500 });
-	}
 
 	return new Response(null, { status: 204 });
 }

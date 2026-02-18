@@ -1,6 +1,6 @@
 {
-  "id": "6d4c81f5-996e-4c24-95ce-f3270230a41b",
-  "prevId": "c2d20ead-2370-4a3d-ac69-6cd5309ca012",
+  "id": "bcfc7e56-ffce-472c-878a-d45e32f1664a",
+  "prevId": "6d4c81f5-996e-4c24-95ce-f3270230a41b",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -3388,28 +3388,6 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "structured_emails_message_id_recipient_unique": {
-          "name": "structured_emails_message_id_recipient_unique",
-          "columns": [
-            {
-              "expression": "message_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "recipient",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"message_id\" IS NOT NULL AND \"recipient\" IS NOT NULL",
           "concurrently": false,
           "method": "btree",
           "with": {}

@@ -4,6 +4,15 @@ import {
 	getEdenErrorMessage,
 	safeResponseJson,
 } from "@/lib/api/client";
+import type {
+	DeleteEmailAddressByIdResponse,
+	GetDomainsRequest,
+	PostEmailAddressesRequest,
+	PostEmailAddressesResponse,
+	PutDomainByIdRequest,
+	PutEmailAddressByIdRequest,
+	PutEmailAddressByIdResponse,
+} from "@/lib/api-types";
 
 // E2 API Domain type (uses string dates instead of Date objects)
 export interface E2DomainWithStats {

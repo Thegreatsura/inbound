@@ -1,145 +1,23 @@
-"use client";
-
-import { useState, useEffect, useMemo } from "react";
-import { Copy, Check, RefreshCw, BookOpen, X } from "lucide-react";
-import { sonare } from "sonare";
+import { BookOpen } from "lucide-react";
+import { headers } from "next/headers";
 import Link from "next/link";
-import { MarketingNav, MarketingFooter } from "@/components/marketing-nav";
-import { PricingTable } from "@/components/pricing-table";
-import EnvelopeSparkle from "@/components/icons/envelope-sparkle";
 import DatabaseCloud from "@/components/icons/database-cloud";
-import { useRealtime } from "@/lib/realtime-client";
-import { authClient, useSession } from "@/lib/auth/auth-client";
+import EnvelopeSparkle from "@/components/icons/envelope-sparkle";
+import { CodeTabs } from "@/components/marketing/code-tabs";
+import { DemoInbox } from "@/components/marketing/demo-inbox";
+import { HeroSignupButton } from "@/components/marketing/hero-signup-button";
+import { MarketingFooter, MarketingNav } from "@/components/marketing-nav";
+import { PricingTable } from "@/components/pricing-table";
+import { auth } from "@/lib/auth/auth";
 
-interface InboxEmail {
-	from: string;
-	subject: string;
-	preview: string;
-	timestamp: Date;
-	emailId?: string;
-}
+export default async function Page() {
+	const session = await auth.api
+		.getSession({
+			headers: await headers(),
+		})
+		.catch(() => null);
 
-const INBOX_STORAGE_KEY = "inbound-demo-inbox";
-
-const Page = () => {
-	const [email, setEmail] = useState("");
-	const [copied, setCopied] = useState(false);
-	const [emails, setEmails] = useState<InboxEmail[]>([]);
-	const [activeTab, setActiveTab] = useState<"send" | "receive" | "mailboxes">(
-		"send",
-	);
-	const { data: session } = useSession();
-
-	// Extract the local part (word) from the email for channel subscription
-	const inboxId = useMemo(() => {
-		if (!email) return null;
-		return email.split("@")[0];
-	}, [email]);
-
-	// Channel name for this inbox
-	const channel = useMemo(() => {
-		return inboxId ? `inbox-${inboxId}` : null;
-	}, [inboxId]);
-
-	// Subscribe to realtime events for this inbox
-	// The hook manages the SSE connection and dispatches events
-	useRealtime({
-		channels: channel ? [channel] : [],
-		events: ["inbox.emailReceived"],
-		onData({ data }) {
-			const emailData = data as {
-				from: string;
-				subject: string;
-				preview: string;
-				timestamp: string;
-				emailId?: string;
-			};
-			const newEmail: InboxEmail = {
-				from: emailData.from,
-				subject: emailData.subject,
-				preview: emailData.preview,
-				timestamp: new Date(emailData.timestamp),
-				emailId: emailData.emailId,
-			};
-			setEmails((prev) => [newEmail, ...prev]);
-		},
-	});
-
-	// Generate a new inbox email and persist to localStorage
-	const generateEmail = (forceNew = false) => {
-		// Check localStorage for existing inbox (unless forcing new)
-		if (!forceNew && typeof window !== "undefined") {
-			const stored = localStorage.getItem(INBOX_STORAGE_KEY);
-			if (stored) {
-				setEmail(stored);
-				return;
-			}
-		}
-
-		// Generate new inbox
-		const word = sonare({ minLength: 6, maxLength: 10 });
-		const newEmail = `${word}@inbox.inbound.new`;
-		setEmail(newEmail);
-		setCopied(false);
-		setEmails([]);
-
-		// Persist to localStorage
-		if (typeof window !== "undefined") {
-			localStorage.setItem(INBOX_STORAGE_KEY, newEmail);
-		}
-	};
-
-	// Initialize email on mount - restore from localStorage or generate new
-	useEffect(() => {
-		generateEmail(false);
-	}, []);
-
-	const copyToClipboard = async () => {
-		await navigator.clipboard.writeText(email);
-		setCopied(true);
-		setTimeout(() => setCopied(false), 2000);
-	};
-
-	const dismissEmail = (index: number) => {
-		setEmails((prev) => prev.filter((_, i) => i !== index));
-	};
-
-	const codeExamples = {
-		send: {
-			comment: "// Send an email",
-			code: `import inbound from 'inboundemail'
-      
-const { data, error } = await inbound.email.send({
-  from: 'Inbound <hello@inbound.new>',
-  to: ['your@email.com'],
-  subject: 'Welcome to Inbound!',
-  html: '<p>Thanks for signing up.</p>'
-})`,
-		},
-		receive: {
-			comment: "// Receive emails via webhook",
-			code: `export async function POST(req) {
-  const { from, subject, body } = await req.json() as InboundWebhook
-
-  // Process the email
-  await handleEmail({ from, subject, body })
-
-  // Reply to the thread
-  await inbound.reply(from, 'Got it, thanks!')
-}`,
-		},
-		mailboxes: {
-			comment: "// List messages in a mailbox",
-			code: `const { data } = await inbound.mail.list({
-  limit: 10
-})
-
-data.emails.forEach(email => {
-  console.log(email.subject)
-  console.log(\`\${email.preview}\`)
-})`,
-		},
-	};
+	const isLoggedIn = !!session?.user;
 
 	return (
 		<div className="min-h-screen bg-[#fafaf9] text-[#1c1917] selection:bg-[#8161FF] selection:text-white">
@@ -152,7 +30,7 @@ data.emails.forEach(email => {
 			</div>
 
 			<div className="max-w-2xl mx-auto px-6">
-				<MarketingNav />
+				<MarketingNav isLoggedIn={isLoggedIn} />
 
 				{/* Hero */}
 				<section className="pt-20 pb-16">
@@ -173,81 +51,11 @@ data.emails.forEach(email => {
 						</span>
 					</h1>
 
-					{!session && <div className="mt-6">
-						<button
-							type="button"
-							onClick={() =>
-								authClient.signIn.social({
-									provider: "google",
-									callbackURL: "/logs",
-								})
-							}
-							className="inline-flex items-center gap-1.5 rounded-md border border-[#e5e5e5] bg-white px-3 py-1.5 text-xs font-medium text-[#52525b] transition-colors hover:bg-[#f5f5f5] hover:text-[#1c1917]"
-						>
-							<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-3.5 h-3.5">
-								<path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
-								<path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-								<path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
-								<path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
-							</svg>
-							Get started with Google
-						</button>
-					</div>}
+					{!isLoggedIn && <HeroSignupButton />}
 
-					{/* Email Generator */}
-					<div className="mt-12">
-						<div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-							<div className="flex-1 bg-white border border-[#e7e5e4] rounded-lg px-3 py-2 flex items-center gap-3 min-w-0">
-								<span className="font-mono text-sm text-[#3f3f46] truncate">
-									{email}
-								</span>
-								<button
-									onClick={copyToClipboard}
-									className="ml-auto text-[#52525b] hover:text-[#1c1917] transition-colors flex-shrink-0"
-								>
-									{copied ? (
-										<Check className="w-4 h-4 text-[#8161FF]" />
-									) : (
-										<Copy className="w-4 h-4" />
-									)}
-								</button>
-							</div>
-						</div>
-						<p className="mt-3 text-sm text-[#52525b]">
-							This is a real inbox. Send an email to this address and watch it
-							appear in real-time.
-						</p>
-
-						{emails.length > 0 && (
-							<div className="mt-4 space-y-2">
-								{emails.map((mail, i) => (
-									<div
-										key={i}
-										className="bg-white border border-[#e7e5e4] rounded-xl p-4 animate-in slide-in-from-top-2 fade-in duration-300 relative group"
-									>
-										<button
-											onClick={() => dismissEmail(i)}
-											className="absolute top-3 right-3 text-[#a8a29e] hover:text-[#1c1917] transition-colors opacity-0 group-hover:opacity-100"
-										>
-											<X className="w-4 h-4" />
-										</button>
-										<div className="flex items-center gap-2 mb-1">
-											<span className="text-sm font-medium text-[#1c1917]">
-												{mail.from}
-											</span>
-											<span className="text-xs text-[#a8a29e]">just now</span>
-										</div>
-										<p className="text-sm text-[#3f3f46]">{mail.subject}</p>
-										<p className="text-xs text-[#78716c] mt-1 line-clamp-1">
-											{mail.preview}
-										</p>
-									</div>
-								))}
-							</div>
-						)}
-					</div>
+					{/* Email Generator - Client Component */}
+					<DemoInbox />
 				</section>
-
 
 				{/* Code Block - Light Monaco-style theme */}
 				<section className="py-12 border-t border-[#e7e5e4]">
@@ -259,124 +67,7 @@ data.emails.forEach(email => {
 							bun install inboundemail
 						</code>
 					</div>
-					<div className="bg-[#f8f8f8] border border-[#e5e5e5] rounded-xl overflow-hidden">
-						{/* Tab bar with macOS dots */}
-						<div className="flex items-center justify-between px-4 border-b border-[#e5e5e5] bg-[#f0f0f0] py-2">
-							<div className="flex items-center gap-1.5">
-								<div className="w-3 h-3 rounded-full bg-[#ff5f57]" />
-								<div className="w-3 h-3 rounded-full bg-[#febc2e]" />
-								<div className="w-3 h-3 rounded-full bg-[#28c840]" />
-							</div>
-							<div className="flex items-center gap-1 text-xs font-mono">
-								<button
-									onClick={() => setActiveTab("send")}
-									className={`px-3 py-1 rounded-md transition-colors ${
-										activeTab === "send"
-											? "bg-white text-[#1c1917] shadow-sm"
-											: "text-[#52525b] hover:text-[#1c1917]"
-									}`}
-								>
-									send
-								</button>
-								<button
-									onClick={() => setActiveTab("receive")}
-									className={`px-3 py-1 rounded-md transition-colors ${
-										activeTab === "receive"
-											? "bg-white text-[#1c1917] shadow-sm"
-											: "text-[#52525b] hover:text-[#1c1917]"
-									}`}
-								>
-									receive
-								</button>
-								<button
-									onClick={() => setActiveTab("mailboxes")}
-									className={`px-3 py-1 rounded-md transition-colors ${
-										activeTab === "mailboxes"
-											? "bg-white text-[#1c1917] shadow-sm"
-											: "text-[#52525b] hover:text-[#1c1917]"
-									}`}
-								>
-									mailboxes
-								</button>
-							</div>
-						</div>
-						<pre className="p-5 font-mono text-[13px] leading-relaxed overflow-x-auto">
-							<code>
-								<span className="text-[#16a34a] italic">
-									{codeExamples[activeTab].comment}
-								</span>
-								{"\n\n"}
-								{codeExamples[activeTab].code.split("\n").map((line, i) => {
-									// Simple syntax highlighting
-									const highlightedLine = line
-										.replace(
-											/\b(const|await|async|function|export)\b/g,
-											"<kw>$1</kw>",
-										)
-										.replace(/'([^']*)'/g, "<str>'$1'</str>")
-										.replace(/`([^`]*)`/g, "<str>`$1`</str>")
-										.replace(/\/\/.*/g, "<cmt>$&</cmt>")
-										.replace(/\b(console)\b/g, "<obj>$1</obj>")
-										.replace(
-											/\.(send|email|reply|thread|list|log|json|forEach)\b/g,
-											".<fn>$1</fn>",
-										);
-
-									return (
-										<span key={i}>
-											{highlightedLine
-												.split(
-													/(<kw>.*?<\/kw>|<str>.*?<\/str>|<cmt>.*?<\/cmt>|<obj>.*?<\/obj>|<fn>.*?<\/fn>)/,
-												)
-												.map((part, j) => {
-													if (part.startsWith("<kw>"))
-														return (
-															<span
-																key={j}
-																className="text-[#7c3aed] font-medium"
-															>
-																{part.replace(/<\/?kw>/g, "")}
-															</span>
-														);
-													if (part.startsWith("<str>"))
-														return (
-															<span key={j} className="text-[#c2410c]">
-																{part.replace(/<\/?str>/g, "")}
-															</span>
-														);
-													if (part.startsWith("<cmt>"))
-														return (
-															<span key={j} className="text-[#16a34a] italic">
-																{part.replace(/<\/?cmt>/g, "")}
-															</span>
-														);
-													if (part.startsWith("<obj>"))
-														return (
-															<span key={j} className="text-[#0891b2]">
-																{part.replace(/<\/?obj>/g, "")}
-															</span>
-														);
-													if (part.startsWith("<fn>"))
-														return (
-															<span key={j} className="text-[#0d9488]">
-																{part.replace(/<\/?fn>/g, "")}
-															</span>
-														);
-													return (
-														<span key={j} className="text-[#374151]">
-															{part}
-														</span>
-													);
-												})}
-											{i <
-												codeExamples[activeTab].code.split("\n").length - 1 &&
-												"\n"}
-										</span>
-									);
-								})}
-							</code>
-						</pre>
-					</div>
+					<CodeTabs />
 					<p className="mt-4 text-sm text-[#52525b] flex items-center gap-4">
 						<Link
 							href="/docs"
@@ -430,7 +121,7 @@ data.emails.forEach(email => {
 						>
 							<path
 								fill="currentColor"
-								d="M39.127 12.622H24.606V0h-4.692v13.695c0 1.454.574 2.851 1.595 3.88l11.857 11.958 3.317-3.346-8.757-8.831h11.203v-4.732l-.002-.002ZM2.446 5.812l8.758 8.832H0v4.731h14.521v12.622h4.692V18.302a5.514 5.514 0 0 0-1.595-3.88L5.764 2.466 2.446 5.812Zm58.84 19.78c-2.132 0-3.883-.466-5.245-1.397-1.365-.931-2.189-2.262-2.475-3.993l3.827-.998c.153.777.414 1.386.776 1.829.362.445.814.759 1.352.95a5.33 5.33 0 0 0 1.765.282c.967 0 1.682-.172 2.143-.514.462-.345.695-.77.695-1.282s-.22-.903-.661-1.18c-.442-.278-1.143-.505-2.113-.682l-.923-.168a16.437 16.437 0 0 1-3.133-.915c-.947-.389-1.704-.927-2.276-1.614-.571-.687-.857-1.574-.857-2.66 0-1.642.594-2.9 1.78-3.777 1.19-.875 2.748-1.315 4.685-1.315 1.824 0 3.342.412 4.551 1.23 1.21.82 2 1.896 2.375 3.226l-3.86 1.197c-.176-.841-.533-1.441-1.071-1.796-.538-.355-1.204-.533-1.995-.533-.791 0-1.398.14-1.814.417-.419.278-.628.661-.628 1.148 0 .532.22.926.66 1.18.44.255 1.034.45 1.782.582l.923.167c1.233.222 2.347.515 3.348.883 1 .365 1.79.888 2.375 1.564.581.677.875 1.593.875 2.746 0 1.728-.623 3.066-1.865 4.008-1.243.944-2.909 1.415-4.998 1.415h.002Zm14.099-.067c-1.276 0-2.39-.294-3.347-.883-.957-.586-1.7-1.402-2.228-2.444-.528-1.042-.79-2.241-.79-3.592V8.76h4.155v9.514c0 1.243.302 2.174.909 2.794.604.62 1.467.932 2.59.932 1.275 0 2.265-.427 2.969-1.281.704-.855 1.056-2.046 1.056-3.577V8.76h4.156v16.5h-4.09v-2.162h-.594c-.263.556-.758 1.1-1.485 1.632-.724.532-1.827.797-3.299.797l-.002-.002Zm12.439 6.387V8.76h4.09v1.996h.594c.373-.643.957-1.214 1.748-1.713.79-.5 1.924-.749 3.398-.749a7.14 7.14 0 0 1 3.661.98c1.123.654 2.023 1.614 2.705 2.877.681 1.263 1.023 2.794 1.023 4.59v.532c0 1.796-.342 3.327-1.023 4.59-.682 1.264-1.585 2.224-2.705 2.877a7.146 7.146 0 0 1-3.66.98c-.99 0-1.82-.116-2.49-.35-.672-.231-1.21-.532-1.618-.898a5.397 5.397 0 0 1-.972-1.114h-.595v8.55h-4.156v.005Zm8.578-9.846c1.298 0 2.37-.417 3.217-1.248s1.27-2.046 1.27-3.643v-.332c0-1.598-.428-2.813-1.286-3.643-.857-.832-1.923-1.248-3.199-1.248-1.276 0-2.342.416-3.2 1.248-.856.83-1.285 2.045-1.285 3.643v.332c0 1.597.428 2.812 1.286 3.643.857.83 1.923 1.248 3.199 1.248h-.002Zm18.277 3.66c-1.628 0-3.061-.35-4.304-1.047a7.361 7.361 0 0 1-2.903-2.961c-.692-1.276-1.038-2.779-1.038-4.508v-.399c0-1.729.339-3.231 1.023-4.508a7.258 7.258 0 0 1 2.87-2.96c1.232-.698 2.661-1.048 4.288-1.048 1.628 0 3.003.36 4.189 1.08 1.187.721 2.113 1.72 2.771 2.995.661 1.277.99 2.756.99 4.441v1.43h-11.909c.043 1.133.462 2.051 1.252 2.761.791.71 1.761 1.066 2.904 1.066s2.023-.255 2.571-.765a5.393 5.393 0 0 0 1.253-1.695l3.398 1.796c-.308.576-.752 1.204-1.336 1.88-.585.677-1.358 1.254-2.327 1.73-.967.476-2.199.715-3.694.715l.002-.003Zm-3.993-10.613h7.654c-.089-.954-.467-1.719-1.138-2.295-.671-.576-1.546-.864-2.622-.864-1.077 0-2.013.288-2.672.864-.66.576-1.066 1.343-1.219 2.295h-.003Zm13.919 10.147V8.76h4.09v1.863h.595c.242-.666.642-1.153 1.204-1.464.561-.311 1.214-.466 1.962-.466h1.979v3.726h-2.046c-1.056 0-1.923.283-2.604.849-.682.566-1.024 1.436-1.024 2.611v9.381h-4.156Zm11.415 0V8.76h4.089v1.795h.595c.285-.553.757-1.037 1.418-1.446.661-.409 1.528-.615 2.605-.615 1.166 0 2.1.227 2.804.682a4.56 4.56 0 0 1 1.617 1.78h.595a4.81 4.81 0 0 1 1.584-1.762c.681-.466 1.648-.697 2.903-.697 1.011 0 1.929.216 2.756.648.824.432 1.484 1.086 1.979 1.963.495.878.743 1.979.743 3.311v10.845h-4.156V14.718c0-.908-.232-1.59-.692-2.046-.461-.455-1.112-.681-1.946-.681-.947 0-1.676.306-2.194.916-.518.61-.776 1.48-.776 2.611v9.749h-4.156V14.72c0-.909-.232-1.59-.691-2.046-.462-.455-1.112-.682-1.947-.682-.946 0-1.676.306-2.194.916-.518.61-.775 1.48-.775 2.612v9.748h-4.156l-.005-.01Zm33.98.466c-1.628 0-3.062-.35-4.304-1.047a7.357 7.357 0 0 1-2.904-2.961c-.691-1.276-1.038-2.779-1.038-4.508v-.399c0-1.729.339-3.231 1.023-4.508a7.264 7.264 0 0 1 2.87-2.96c1.232-.698 2.661-1.048 4.289-1.048 1.628 0 3.003.36 4.189 1.08 1.186.721 2.112 1.72 2.771 2.995.66 1.277.989 2.756.989 4.441v1.43h-11.909c.044 1.133.462 2.051 1.253 2.761.791.71 1.76 1.066 2.903 1.066s2.023-.255 2.574-.765a5.393 5.393 0 0 0 1.253-1.695l3.398 1.796c-.308.576-.752 1.204-1.336 1.88-.585.677-1.358 1.254-2.327 1.73-.967.476-2.199.715-3.694.715v-.003Zm-3.991-10.613h7.654c-.089-.954-.467-1.719-1.138-2.295-.671-.576-1.546-.864-2.622-.864-1.077 0-2.013.288-2.672.864-.66.576-1.066 1.343-1.219 2.295h-.003Zm13.917 10.147V8.76h4.089v1.795h.595c.286-.553.758-1.037 1.418-1.446.661-.409 1.529-.615 2.605-.615 1.166 0 2.1.227 2.804.682a4.56 4.56 0 0 1 1.617 1.78h.595a4.816 4.816 0 0 1 1.584-1.762c.681-.466 1.648-.697 2.904-.697 1.01 0 1.928.216 2.755.648.824.432 1.485 1.086 1.98 1.963.495.878.742 1.979.742 3.311v10.845h-4.156V14.718c0-.908-.232-1.59-.691-2.046-.462-.455-1.113-.681-1.947-.681-.946 0-1.676.306-2.194.916-.518.61-.776 1.48-.776 2.611v9.749h-4.155V14.72c0-.909-.233-1.59-.692-2.046-.462-.455-1.112-.682-1.946-.682-.947 0-1.677.306-2.195.916-.517.61-.775 1.48-.775 2.612v9.748h-4.156l-.005-.01Zm34.306.466c-1.628 0-3.089-.332-4.388-.998a7.45 7.45 0 0 1-3.069-2.895c-.748-1.263-1.123-2.783-1.123-4.556v-.533c0-1.775.373-3.293 1.123-4.556a7.45 7.45 0 0 1 3.069-2.895c1.296-.666 2.76-.998 4.388-.998 1.628 0 3.09.332 4.388.998a7.486 7.486 0 0 1 3.069 2.895c.748 1.263 1.12 2.784 1.12 4.556v.533c0 1.775-.375 3.293-1.12 4.556a7.45 7.45 0 0 1-3.069 2.895c-1.298.666-2.76.998-4.388.998Zm0-3.725c1.276 0 2.329-.417 3.166-1.248.837-.831 1.253-2.025 1.253-3.576v-.332c0-1.552-.413-2.746-1.237-3.577-.825-.83-1.886-1.248-3.184-1.248-1.299 0-2.332.417-3.167 1.248-.836.831-1.252 2.025-1.252 3.577v.332c0 1.551.416 2.745 1.252 3.576.837.83 1.891 1.248 3.167 1.248h.002Zm10.756 3.259V8.76h4.09v1.863h.594c.243-.666.643-1.153 1.205-1.464.561-.311 1.214-.466 1.961-.466h1.98v3.726h-2.046c-1.056 0-1.924.283-2.605.849-.681.566-1.023 1.436-1.023 2.611v9.381h-4.156Zm13.195 6.653v-3.658h8.906c.615 0 .924-.332.924-.999V23.1h-.595c-.176.378-.451.753-.824 1.132-.375.378-.88.686-1.518.93-.637.245-1.451.366-2.441.366-1.276 0-2.393-.293-3.347-.882-.957-.587-1.699-1.402-2.228-2.444-.528-1.043-.79-2.242-.79-3.592V8.76h4.156v9.515c0 1.243.301 2.174.908 2.794.604.62 1.467.932 2.589.932 1.276 0 2.266-.427 2.97-1.281.704-.855 1.056-2.046 1.056-3.577V8.76h4.156v19.428c0 1.132-.329 2.035-.99 2.712-.661.676-1.541 1.013-2.638 1.013h-10.294Zm17.415-21.906h1.421v4.075h1.173v-4.075h1.421V8.908h-4.015v1.099Zm7.921-1.099-.801 4.07-.799-4.07h-1.939v5.174h1.146v-3.694l.73 3.694h1.727l.729-3.694v3.694h1.146V8.908h-1.939Z"
+								d="M39.127 12.622H24.606V0h-4.692v13.695c0 1.454.574 2.851 1.595 3.88l11.857 11.958 3.317-3.346-8.757-8.831h11.203v-4.732l-.002-.002ZM2.446 5.812l8.758 8.832H0v4.731h14.521v12.622h4.692V18.302a5.514 5.514 0 0 0-1.595-3.88L5.764 2.466 2.446 5.812Zm58.84 19.78c-2.132 0-3.883-.466-5.245-1.397-1.365-.931-2.189-2.262-2.475-3.993l3.827-.998c.153.777.414 1.386.776 1.829.362.445.814.759 1.352.95a5.33 5.33 0 0 0 1.765.282c.967 0 1.682-.172 2.143-.514.462-.345.695-.77.695-1.282s-.22-.903-.661-1.18c-.442-.278-1.143-.505-2.113-.682l-.923-.168a16.437 16.437 0 0 1-3.133-.915c-.947-.389-1.704-.927-2.276-1.614-.571-.687-.857-1.574-.857-2.66 0-1.642.594-2.9 1.78-3.777 1.19-.875 2.748-1.315 4.685-1.315 1.824 0 3.342.412 4.551 1.23 1.21.82 2 1.896 2.375 3.226l-3.86 1.197c-.176-.841-.533-1.441-1.071-1.796-.538-.355-1.204-.533-1.995-.533-.791 0-1.398.14-1.814.417-.419.278-.628.661-.628 1.148 0 .532.22.926.66 1.18.44.255 1.034.45 1.782.582l.923.167c1.233.222 2.347.515 3.348.883 1 .365 1.79.888 2.375 1.564.581.677.875 1.593.875 2.746 0 1.728-.623 3.066-1.865 4.008-1.243.944-2.909 1.415-4.998 1.415h.002Zm14.099-.067c-1.276 0-2.39-.294-3.347-.883-.957-.586-1.7-1.402-2.228-2.444-.528-1.042-.79-2.241-.79-3.592V8.76h4.155v9.514c0 1.243.302 2.174.909 2.794.604.62 1.467.932 2.59.932 1.275 0 2.265-.427 2.969-1.281.704-.855 1.056-2.046 1.056-3.577V8.76h4.156v16.5h-4.09v-2.162h-.594c-.263.556-.758 1.1-1.485 1.632-.724.532-1.827.797-3.299.797l-.002-.002Zm12.439 6.387V8.76h4.09v1.996h.594c.373-.643.957-1.214 1.748-1.713.79-.5 1.924-.749 3.398-.749a7.14 7.14 0 0 1 3.661.98c1.123.654 2.023 1.614 2.705 2.877.681 1.263 1.023 2.794 1.023 4.59v.532c0 1.796-.342 3.327-1.023 4.59-.682 1.264-1.585 2.224-2.705 2.877a7.146 7.146 0 0 1-3.66.98c-.99 0-1.82-.116-2.49-.35-.672-.231-1.21-.532-1.618-.898a5.397 5.397 0 0 1-.972-1.114h-.595v8.55h-4.156v.005Zm8.578-9.846c1.298 0 2.37-.417 3.217-1.248s1.27-2.046 1.27-3.643v-.332c0-1.598-.428-2.813-1.286-3.643-.857-.832-1.923-1.248-3.199-1.248-1.276 0-2.342.416-3.199 1.248-.857.83-1.286 2.045-1.286 3.643v.332c0 1.597.429 2.812 1.286 3.643.857.831 1.921 1.248 3.197 1.248Zm13.263 3.526c-1.277 0-2.394-.294-3.348-.883-.957-.586-1.7-1.402-2.228-2.444-.528-1.042-.792-2.241-.792-3.592V8.76h4.156v9.514c0 1.243.304 2.174.908 2.794.604.62 1.467.932 2.59.932 1.275 0 2.265-.427 2.969-1.281.704-.855 1.056-2.046 1.056-3.577V8.76h4.156v16.5h-4.09v-2.162h-.594c-.264.556-.76 1.1-1.486 1.632-.725.532-1.827.797-3.299.797h.002Zm12.439.067V8.76h4.09v2.162h.595c.263-.576.752-1.125 1.468-1.647.714-.523 1.818-.782 3.315-.782 1.277 0 2.39.294 3.348.883.957.588 1.698 1.4 2.227 2.444.528 1.042.792 2.241.792 3.592v9.846h-4.156v-9.514c0-1.242-.302-2.174-.909-2.794-.604-.62-1.467-.932-2.59-.932-1.275 0-2.264.427-2.969 1.281-.704.855-1.055 2.046-1.055 3.577v8.382h-4.156l.002.002h-.002Zm22.55.067c-1.848 0-3.41-.427-4.684-1.28-1.277-.856-2.113-2.082-2.508-3.677l3.86-1.198c.176.776.535 1.382 1.072 1.813.539.433 1.265.648 2.178.648.858 0 1.5-.153 1.931-.466.427-.31.643-.706.643-1.18 0-.477-.22-.857-.66-1.148-.441-.29-1.124-.523-2.047-.7l-1.056-.199a11.22 11.22 0 0 1-2.903-.916 5.287 5.287 0 0 1-2.046-1.614c-.528-.687-.79-1.547-.79-2.578 0-1.553.571-2.8 1.715-3.744 1.143-.941 2.664-1.414 4.567-1.414 1.584 0 2.947.35 4.089 1.047 1.143.699 1.912 1.673 2.31 2.927l-3.86 1.198c-.154-.576-.446-1.042-.875-1.397-.433-.355-1.01-.532-1.73-.532-.703 0-1.26.145-1.664.434-.407.289-.612.659-.612 1.113 0 .488.22.87.66 1.148.44.278 1.11.503 2.013.682l1.056.2c1.276.242 2.38.565 3.315.964.935.4 1.66.936 2.178 1.614.517.676.776 1.552.776 2.627 0 1.664-.609 2.963-1.831 3.894-1.219.931-2.824 1.397-4.816 1.397l.002-.002Zm11.12-.067v-5.23h-2.507V8.76h6.663v12.533l5.607-12.533h4.386L192.3 20.03h2.572v5.23h-6.663V12.728l-5.608 12.533h-4.386l4.02-12.533h-2.572v12.533h-4.155l-.002-.002Zm22.42.067c-1.782 0-3.353-.408-4.716-1.23-1.364-.82-2.434-1.995-3.316-3.526-.879-1.531-1.319-3.36-1.319-5.49 0-2.13.44-3.96 1.319-5.49.882-1.531 2.065-2.708 3.547-3.527 1.485-.82 3.143-1.23 4.979-1.23 1.759 0 3.316.389 4.666 1.164 1.353.776 2.408 1.862 3.166 3.261.759 1.397 1.14 3.048 1.14 4.955v1.63h-14.659c.066 1.73.493 3.048 1.286 3.96.79.91 1.875 1.364 3.249 1.364 1.033 0 1.882-.253 2.541-.764.66-.51 1.126-1.175 1.4-1.996l3.86 1.264c-.615 1.575-1.594 2.822-2.936 3.743-1.342.92-2.979 1.38-4.914 1.38l.002.002h-.296l.002-.268Zm-5.146-13.431h10.306c-.112-1.508-.549-2.658-1.319-3.443-.77-.788-1.787-1.182-3.051-1.182-1.341 0-2.427.42-3.25 1.264-.824.844-1.362 1.969-1.616 3.377l-.07-.016Zm21.792 13.431c-2.023 0-3.708-.511-5.047-1.53-1.341-1.02-2.145-2.441-2.408-4.257l3.86-1.098c.176 1.065.571 1.863 1.187 2.394.617.533 1.418.798 2.408.798.901 0 1.584-.175 2.046-.533.462-.355.693-.826.693-1.414 0-.554-.231-.998-.693-1.331-.462-.332-1.176-.59-2.145-.764l-1.055-.2c-1.607-.308-2.93-.826-3.96-1.563-1.033-.734-1.549-1.813-1.549-3.227 0-1.685.612-2.994 1.832-3.927 1.22-.931 2.798-1.397 4.731-1.397 1.804 0 3.316.437 4.534 1.314 1.22.875 2.003 2.09 2.343 3.643l-3.86 1.098c-.174-.844-.521-1.475-1.038-1.896-.517-.42-1.204-.632-2.063-.632-.769 0-1.373.162-1.814.484-.44.322-.661.741-.661 1.264 0 .555.231.993.694 1.315.462.32 1.156.571 2.078.748l1.055.199c1.672.31 3.026.842 4.056 1.597 1.033.753 1.549 1.876 1.549 3.36 0 1.752-.627 3.113-1.882 4.076-1.252.964-2.89 1.448-4.913 1.448l.002-.002v-.172Zm-124.5 0c-2.024 0-3.71-.511-5.047-1.53-1.342-1.02-2.145-2.441-2.409-4.257l3.86-1.098c.176 1.065.571 1.863 1.188 2.394.616.533 1.418.798 2.407.798.902 0 1.585-.175 2.047-.533.462-.355.693-.826.693-1.414 0-.554-.231-.998-.693-1.331-.462-.332-1.177-.59-2.145-.764l-1.056-.2c-1.606-.308-2.93-.826-3.959-1.563-1.033-.734-1.55-1.813-1.55-3.227 0-1.685.612-2.994 1.832-3.927 1.221-.931 2.798-1.397 4.732-1.397 1.804 0 3.315.437 4.534 1.314 1.22.875 2.002 2.09 2.342 3.643l-3.86 1.098c-.174-.844-.52-1.475-1.038-1.896-.517-.42-1.204-.632-2.063-.632-.769 0-1.373.162-1.813.484-.44.322-.661.741-.661 1.264 0 .555.231.993.693 1.315.462.32 1.157.571 2.079.748l1.055.199c1.672.31 3.027.842 4.056 1.597 1.033.753 1.55 1.876 1.55 3.36 0 1.752-.628 3.113-1.882 4.076-1.253.964-2.891 1.448-4.914 1.448l.002-.002v-.172Z"
 							/>
 						</svg>
 					</div>
@@ -495,17 +186,17 @@ data.emails.forEach(email => {
 						<div className="font-mono text-sm space-y-1.5">
 							<div className="flex items-center gap-3">
 								<span className="text-[#52525b]">support@acme.com</span>
-								<span className="text-[#a8a29e]">→</span>
+								<span className="text-[#a8a29e]">&rarr;</span>
 								<span className="text-[#3f3f46]">/api/support-agent</span>
 							</div>
 							<div className="flex items-center gap-3">
 								<span className="text-[#52525b]">billing@acme.com</span>
-								<span className="text-[#a8a29e]">→</span>
+								<span className="text-[#a8a29e]">&rarr;</span>
 								<span className="text-[#3f3f46]">/api/billing</span>
 							</div>
 							<div className="flex items-center gap-3">
 								<span className="text-[#52525b]">*@acme.com</span>
-								<span className="text-[#a8a29e]">→</span>
+								<span className="text-[#a8a29e]">&rarr;</span>
 								<span className="text-[#3f3f46]">/api/catch-all</span>
 							</div>
 						</div>
@@ -548,6 +239,4 @@ data.emails.forEach(email => {
 			</div>
 		</div>
 	);
-};
-
-export default Page;
+}

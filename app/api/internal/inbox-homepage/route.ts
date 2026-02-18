@@ -1,5 +1,5 @@
 import { realtime } from "@/lib/realtime"
-import type { InboundWebhookPayload } from "@inboundemail/sdk"
+import type { InboundWebhookPayload } from "@/packages/inbound-typescript-sdk/src/lib/webhooks"
 
 /**
  * Inbound webhook handler for the homepage inbox demo

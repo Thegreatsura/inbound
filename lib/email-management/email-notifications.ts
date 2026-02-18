@@ -1,11 +1,13 @@
-import { Inbound } from "@inboundemail/sdk";
+import Inbound from "inboundemail";
 import { render } from "@react-email/render";
 import DomainVerifiedEmail from "@/emails/domain-verified";
 import LimitReachedEmail from "@/emails/limit-reached";
 import ReputationAlertEmail from "@/emails/reputation-alert";
 import { redis } from "@/lib/redis";
 
-const inbound = new Inbound(process.env.INBOUND_API_KEY!);
+const inbound = new Inbound({
+	apiKey: process.env.INBOUND_API_KEY!,
+});
 
 // Slack webhook for admin notifications
 const SLACK_ADMIN_WEBHOOK_URL = process.env.SLACK_ADMIN_WEBHOOK_URL;
@@ -102,25 +104,14 @@ export async function sendDomainVerificationNotification(
 			],
 		});
 
-		if (response.error) {
-			console.error(
-				"❌ sendDomainVerificationNotification - Resend API error:",
-				response.error,
-			);
-			return {
-				success: false,
-				error: `Email sending failed: ${response.error}`,
-			};
-		}
-
 		console.log(
 			`✅ sendDomainVerificationNotification - Email sent successfully to ${data.userEmail}`,
 		);
-		console.log(`   📧 Message ID: ${response.data?.id}`);
+		console.log(`   📧 Message ID: ${response.id}`);
 
 		return {
 			success: true,
-			messageId: response.data?.id,
+			messageId: response.id,
 		};
 	} catch (error) {
 		console.error(
@@ -303,17 +294,6 @@ export async function sendReputationAlertNotification(
 			],
 		});
 
-		if (response.error) {
-			console.error(
-				"❌ sendReputationAlertNotification - Inbound API error:",
-				response.error,
-			);
-			return {
-				success: false,
-				error: `Email sending failed: ${response.error}`,
-			};
-		}
-
 		// Update Redis to prevent future spam (set with TTL for automatic cleanup)
 		try {
 			await redis.set(redisKey, Date.now(), { ex: cooldownSeconds });
@@ -327,14 +307,14 @@ export async function sendReputationAlertNotification(
 		console.log(
 			`✅ sendReputationAlertNotification - Alert email sent successfully to ${data.userEmail}`,
 		);
-		console.log(`   📧 Message ID: ${response.data?.id}`);
+		console.log(`   📧 Message ID: ${response.id}`);
 		console.log(
 			`   🏷️ Alert: ${data.alertType} ${data.severity} (${percentageDisplay})`,
 		);
 
 		return {
 			success: true,
-			messageId: response.data?.id,
+			messageId: response.id,
 		};
 	} catch (error) {
 		console.error(
@@ -587,17 +567,6 @@ export async function sendLimitReachedNotification(
 			],
 		});
 
-		if (response.error) {
-			console.error(
-				"❌ sendLimitReachedNotification - Inbound API error:",
-				response.error,
-			);
-			return {
-				success: false,
-				error: `Email sending failed: ${response.error}`,
-			};
-		}
-
 		// Update Redis to prevent future spam (set with TTL for automatic cleanup)
 		try {
 			await redis.set(redisKey, Date.now(), {
@@ -613,7 +582,7 @@ export async function sendLimitReachedNotification(
 		console.log(
 			`✅ sendLimitReachedNotification - Alert email sent successfully to ${data.userEmail}`,
 		);
-		console.log(`   📧 Message ID: ${response.data?.id}`);
+		console.log(`   📧 Message ID: ${response.id}`);
 		console.log(`   🏷️ Limit type: ${data.limitType}`);
 
 		// Send Slack notification to admin channel (fire and forget, don't block on this)
@@ -626,7 +595,7 @@ export async function sendLimitReachedNotification(
 
 		return {
 			success: true,
-			messageId: response.data?.id,
+			messageId: response.id,
 		};
 	} catch (error) {
 		console.error("❌ sendLimitReachedNotification - Unexpected error:", error);

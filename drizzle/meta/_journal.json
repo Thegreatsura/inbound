@@ -421,6 +421,13 @@
       "when": 1770571325645,
       "tag": "0059_small_ted_forrester",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1770647296056,
+      "tag": "0060_military_triathlon",
+      "breakpoints": true
     }
   ]
 }

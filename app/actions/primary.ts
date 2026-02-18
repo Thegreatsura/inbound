@@ -3491,9 +3491,11 @@ export async function getEmailVolumeChartData(
 // THREADS WAITLIST
 // ============================================================================
 
-import { Inbound } from "@inboundemail/sdk";
+import Inbound from "inboundemail";
 
-const inbound = new Inbound(process.env.INBOUND_API_KEY!);
+const inbound = new Inbound({
+	apiKey: process.env.INBOUND_API_KEY!,
+});
 
 export interface ThreadsWaitlistData {
 	name: string;
@@ -3553,38 +3555,18 @@ submitted: ${new Date().toLocaleDateString("en-US", {
     `.trim();
 
 		// Send the email using Inbound
-		const { data: response, error: errorResponse } = await inbound.emails.send({
+		const response = await inbound.emails.send({
 			from: "threads waitlist <notifications@inbound.new>",
 			to: "ryan@mandarin3d.com",
-			replyTo: data.email.trim(),
+			reply_to: data.email.trim(),
 			subject: `🧵 new threads waitlist signup - ${data.email.trim()}`,
 			text: plainTextContent,
 		});
 
-		if (errorResponse) {
-			console.error(
-				"❌ submitThreadsWaitlist - inbound api error:",
-				errorResponse,
-			);
-			return {
-				success: false,
-				error: `email sending failed: ${errorResponse}`,
-			};
-		}
-
-		// Check if the response indicates success
-		if (!response?.id) {
-			console.error("❌ submitThreadsWaitlist - inbound api error:", response);
-			return {
-				success: false,
-				error: `email sending failed: ${response?.id || "unknown error"}`,
-			};
-		}
-
 		console.log(
 			`✅ submitThreadsWaitlist - threads waitlist email sent successfully from ${data.email}`,
 		);
-		console.log(`   📧 message id: ${response?.id}`);
+		console.log(`   📧 message id: ${response.id}`);
 
 		return {
 			success: true,

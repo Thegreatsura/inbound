@@ -1,13 +1,15 @@
 "use server";
 
 import { render } from "@react-email/components";
-import { Inbound } from "@inboundemail/sdk";
+import Inbound from "inboundemail";
 import { auth } from "@/lib/auth/auth";
 import { headers } from "next/headers";
 import DnsSetupInstructionsEmail from "@/emails/dns-setup-instructions";
 
 // Initialize Inbound client
-const inbound = new Inbound(process.env.INBOUND_API_KEY!);
+const inbound = new Inbound({
+  apiKey: process.env.INBOUND_API_KEY!,
+});
 
 interface DnsRecord {
   type: "TXT" | "MX" | string;
@@ -107,7 +109,7 @@ export async function sendDnsSetupInstructions(
     const response = await inbound.emails.send({
       from: fromWithName,
       to: data.recipientEmail.trim(),
-      replyTo: session.user.email || 'support@inbound.new',
+      reply_to: session.user.email || "support@inbound.new",
       subject: `DNS Setup Instructions for ${data.domain} - inbound`,
       html: html,
       tags: [
@@ -117,22 +119,13 @@ export async function sendDnsSetupInstructions(
       ]
     });
 
-    if (response.error) {
-      console.error('❌ sendDnsSetupInstructions - Inbound API error:', response.error);
-      const errMsg = typeof response.error === 'string' ? response.error : (response.error as any)?.message || 'Unknown error';
-      return {
-        success: false,
-        error: `Email sending failed: ${errMsg}`
-      };
-    }
-
     console.log(`✅ sendDnsSetupInstructions - DNS setup instructions sent successfully to ${data.recipientEmail}`);
-    console.log(`   📧 Message ID: ${response.data?.id}`);
+    console.log(`   📧 Message ID: ${response.id}`);
     console.log(`   🌐 Domain: ${data.domain}`);
 
     return {
       success: true,
-      messageId: response.data?.id
+      messageId: response.id
     };
 
   } catch (error) {

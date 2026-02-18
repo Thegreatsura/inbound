@@ -19,10 +19,57 @@
 	},
 	"linter": {
 		"enabled": true,
+		"domains": {
+			"react": "all",
+			"next": "all"
+		},
 		"rules": {
 			"recommended": false,
+
+			"a11y": {
+				"useAltText": "warn",
+				"useAriaPropsForRole": "warn",
+				"useHtmlLang": "warn",
+				"useKeyWithClickEvents": "warn",
+				"noStaticElementInteractions": "warn",
+				"noAutofocus": "warn",
+				"noLabelWithoutControl": "warn",
+				"useIframeTitle": "warn",
+				"useHeadingContent": "warn",
+				"useValidAnchor": "warn"
+			},
+
+			"correctness": {
+				"useHookAtTopLevel": "error",
+				"noNestedComponentDefinitions": "error",
+				"useExhaustiveDependencies": "warn",
+				"useUniqueElementIds": "warn",
+				"noUnusedImports": "warn",
+				"noUnusedVariables": "warn",
+				"noUnusedFunctionParameters": "warn",
+				"noSwitchDeclarations": "warn"
+			},
+
 			"suspicious": {
-				"noExplicitAny": "error"
+				"noExplicitAny": "error",
+				"noArrayIndexKey": "warn",
+				"noCommentText": "warn",
+				"noAssignInExpressions": "warn"
+			},
+
+			"security": {
+				"noDangerouslySetInnerHtml": "warn"
+			},
+
+			"style": {
+				"useImportType": "warn",
+				"useConst": "warn",
+				"useComponentExportOnlyModules": "off",
+				"noHeadElement": "warn"
+			},
+
+			"performance": {
+				"noImgElement": "warn"
 			}
 		}
 	}

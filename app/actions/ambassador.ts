@@ -1,10 +1,5 @@
 'use server'
 
-import { Inbound } from '@inboundemail/sdk'
-
-// Initialize Inbound client
-const inbound = new Inbound(process.env.INBOUND_API_KEY!)
-
 export interface AmbassadorApplicationData {
   name: string
   email: string
@@ -19,15 +14,6 @@ export async function submitAmbassadorApplication(
   data: AmbassadorApplicationData
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
   try {
-    // Validate required environment variable
-    if (!process.env.INBOUND_API_KEY) {
-      console.error('❌ submitAmbassadorApplication - INBOUND_API_KEY not configured')
-      return {
-        success: false,
-        error: 'Email service not configured'
-      }
-    }
-
     // Validate required fields
     if (!data.name?.trim()) {
       return {
@@ -104,38 +90,21 @@ Submitted: ${new Date().toLocaleDateString('en-US', {
 })}
     `.trim()
 
-    // Send the email using Inbound
-    const { data: response, error: errorResponse } = await inbound.emails.send({
-      from: 'New Ambassador Application <notifications@inbound.new>',
-      to: 'ryan@mandarin3d.com',
-      replyTo: data.email.trim(),
-      subject: `🎯 New Ambassador Application from ${data.name.trim()} - Inbound`,
-      text: plainTextContent,
+    // Email sending has been intentionally disabled for this action.
+    // Keep logging the full payload so applications can still be reviewed.
+    console.log('📝 submitAmbassadorApplication - Application payload captured:', {
+      name: data.name.trim(),
+      email: data.email.trim(),
+      xHandle: data.xHandle.trim(),
+      reason: data.reason.trim(),
+      submittedAt: new Date().toISOString(),
+      contentPreview: plainTextContent,
     })
 
-    if (errorResponse) {
-      console.error('❌ submitAmbassadorApplication - Inbound API error:', errorResponse)
-      return {
-        success: false,
-        error: `Email sending failed: ${errorResponse}`
-      }
-    }
-
-    // Check if the response indicates success
-    if (!response?.id) {
-      console.error('❌ submitAmbassadorApplication - Inbound API error:', response)
-      return {
-        success: false,
-        error: `Email sending failed: ${response?.id || 'Unknown error'}`
-      }
-    }
-
-    console.log(`✅ submitAmbassadorApplication - Ambassador application sent successfully from ${data.email}`)
-    console.log(`   📧 Message ID: ${response?.id}`)
+    console.log(`✅ submitAmbassadorApplication - Application accepted from ${data.email}`)
 
     return {
       success: true,
-      messageId: response.id
     }
 
   } catch (error) {
