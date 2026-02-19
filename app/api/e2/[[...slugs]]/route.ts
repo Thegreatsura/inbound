@@ -18,6 +18,7 @@ import { replyToEmail } from "../emails/reply";
 import { retryEmail } from "../emails/retry";
 // Email routes
 import { sendEmail } from "../emails/send";
+import { updateEmail } from "../emails/update";
 import { createEndpoint } from "../endpoints/create";
 import { deleteEndpoint } from "../endpoints/delete";
 import { getEndpoint } from "../endpoints/get";
@@ -459,6 +460,7 @@ https://inbound.new/api/e2
 	.use(sendEmail)
 	.use(listEmails)
 	.use(getEmail)
+	.use(updateEmail)
 	.use(cancelEmail)
 	.use(replyToEmail)
 	.use(retryEmail)
