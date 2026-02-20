@@ -1,43 +1,43 @@
-import { Elysia, t } from "elysia";
-import { validateAndRateLimit } from "../lib/auth";
-import { db } from "@/lib/db";
-import {
-	sentEmails,
-	emailDomains,
-	scheduledEmails,
-	SENT_EMAIL_STATUS,
-	SCHEDULED_EMAIL_STATUS,
-} from "@/lib/db/schema";
-import { eq, and } from "drizzle-orm";
-import { nanoid } from "nanoid";
-import { Autumn as autumn } from "autumn-js";
 import { SESv2Client, SendEmailCommand } from "@aws-sdk/client-sesv2";
 import { Client as QStashClient } from "@upstash/qstash";
 import { waitUntil } from "@vercel/functions";
+import { Autumn as autumn } from "autumn-js";
+import { and, eq } from "drizzle-orm";
+import { Elysia, t } from "elysia";
+import { nanoid } from "nanoid";
 import {
-	canUserSendFromEmail,
-	extractEmailAddress,
-	extractDomain,
-} from "@/lib/email-management/agent-email-helper";
-import {
-	parseScheduledAt,
-	validateScheduledDate,
-	formatScheduledDate,
-} from "@/lib/utils/date-parser";
-import {
-	processAttachments,
-	attachmentsToStorageFormat,
-} from "../helper/attachment-processor";
-import { buildRawEmailMessage } from "../helper/email-builder";
-import { evaluateSending } from "@/lib/email-management/email-evaluation";
-import { checkSendingSpike } from "@/lib/email-management/sending-spike-detector";
-import { isSubdomain, getRootDomain } from "@/lib/domains-and-dns/domain-utils";
-import {
-	getTenantSendingInfoForDomainOrParent,
 	getAgentIdentityArn,
+	getTenantSendingInfoForDomainOrParent,
 	type TenantSendingInfo,
 } from "@/lib/aws-ses/identity-arn-helper";
+import { db } from "@/lib/db";
+import {
+	SCHEDULED_EMAIL_STATUS,
+	SENT_EMAIL_STATUS,
+	scheduledEmails,
+	sentEmails,
+} from "@/lib/db/schema";
+import { getRootDomain, isSubdomain } from "@/lib/domains-and-dns/domain-utils";
+import {
+	canUserSendFromEmail,
+	extractDomain,
+	extractEmailAddress,
+} from "@/lib/email-management/agent-email-helper";
 import { checkRecipientsAgainstBlocklist } from "@/lib/email-management/email-blocking";
+import { evaluateSending } from "@/lib/email-management/email-evaluation";
+import { enforceOutboundSendGuard } from "@/lib/email-management/outbound-send-guard";
+import { checkSendingSpike } from "@/lib/email-management/sending-spike-detector";
+import {
+	formatScheduledDate,
+	parseScheduledAt,
+	validateScheduledDate,
+} from "@/lib/utils/date-parser";
+import {
+	attachmentsToStorageFormat,
+	processAttachments,
+} from "../helper/attachment-processor";
+import { buildRawEmailMessage } from "../helper/email-builder";
+import { validateAndRateLimit } from "../lib/auth";
 
 // Initialize SES client
 const awsRegion = process.env.AWS_REGION || "us-east-2";
@@ -258,56 +258,24 @@ export const sendEmail = new Elysia().post(
 		if (isAgentEmail) {
 			console.log("✅ Using agent@inbnd.dev - allowed for all users");
 		} else {
-			// Verify sender domain ownership
-			console.log("🔍 Verifying domain ownership for:", fromDomain);
-			let userDomain = await db
-				.select()
-				.from(emailDomains)
-				.where(
-					and(
-						eq(emailDomains.userId, userId),
-						eq(emailDomains.domain, fromDomain),
-						eq(emailDomains.status, "verified"),
-					),
-				)
-				.limit(1);
+			console.log("🔍 Running outbound security guard for:", fromDomain);
+		}
 
-			// Check parent root domain if subdomain
-			if (userDomain.length === 0 && isSubdomain(fromDomain)) {
-				const rootDomain = getRootDomain(fromDomain);
-				if (rootDomain) {
-					console.log(
-						`🔍 Checking parent domain ${rootDomain} for subdomain ${fromDomain}`,
-					);
-					userDomain = await db
-						.select()
-						.from(emailDomains)
-						.where(
-							and(
-								eq(emailDomains.userId, userId),
-								eq(emailDomains.domain, rootDomain),
-								eq(emailDomains.status, "verified"),
-							),
-						)
-						.limit(1);
-
-					if (userDomain.length > 0) {
-						console.log(
-							`✅ Allowing send from ${fromDomain} - parent ${rootDomain} is verified`,
-						);
-					}
-				}
-			}
-
-			if (userDomain.length === 0) {
-				console.log("❌ User does not own the sender domain:", fromDomain);
-				set.status = 403;
-				return {
-					error: `You don't have permission to send from domain: ${fromDomain}`,
-				};
-			}
-
-			console.log("✅ Domain ownership verified");
+		const outboundGuard = await enforceOutboundSendGuard({
+			userId,
+			fromAddress,
+			fromDomain,
+			isAgentEmail,
+		});
+		if (!outboundGuard.allowed) {
+			console.log("🚫 Outbound send blocked:", {
+				userId,
+				fromAddress,
+				fromDomain,
+				reasonCode: outboundGuard.reasonCode,
+			});
+			set.status = outboundGuard.statusCode;
+			return { error: outboundGuard.error || "Email send blocked" };
 		}
 
 		// Convert recipients to arrays

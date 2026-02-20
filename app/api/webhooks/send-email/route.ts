@@ -1,32 +1,31 @@
-import { NextRequest, NextResponse } from "next/server";
-import { Receiver } from "@upstash/qstash";
-import { db } from "@/lib/db";
-import {
-	scheduledEmails,
-	sentEmails,
-	SCHEDULED_EMAIL_STATUS,
-	SENT_EMAIL_STATUS,
-} from "@/lib/db/schema";
-import { user } from "@/lib/db/auth-schema";
-import { eq } from "drizzle-orm";
 import { SESv2Client, SendEmailCommand } from "@aws-sdk/client-sesv2";
-import { buildRawEmailMessage } from "../../e2/helper/email-builder";
-import {
-	extractEmailAddress,
-	extractDomain,
-	canUserSendFromEmail,
-} from "@/lib/email-management/agent-email-helper";
-import { nanoid } from "nanoid";
+import { Receiver } from "@upstash/qstash";
 import { waitUntil } from "@vercel/functions";
-import { evaluateSending } from "@/lib/email-management/email-evaluation";
-import { checkSendingSpike } from "@/lib/email-management/sending-spike-detector";
+import { eq } from "drizzle-orm";
+import { nanoid } from "nanoid";
+import { type NextRequest, NextResponse } from "next/server";
 import type { PostEmailsRequest } from "@/lib/api-types";
 import {
-	getTenantSendingInfoForDomainOrParent,
 	getAgentIdentityArn,
+	getTenantSendingInfoForDomainOrParent,
 	type TenantSendingInfo,
 } from "@/lib/aws-ses/identity-arn-helper";
-import { isSubdomain, getRootDomain } from "@/lib/domains-and-dns/domain-utils";
+import { db } from "@/lib/db";
+import {
+	SCHEDULED_EMAIL_STATUS,
+	SENT_EMAIL_STATUS,
+	scheduledEmails,
+	sentEmails,
+} from "@/lib/db/schema";
+import { getRootDomain, isSubdomain } from "@/lib/domains-and-dns/domain-utils";
+import {
+	canUserSendFromEmail,
+	extractEmailAddress,
+} from "@/lib/email-management/agent-email-helper";
+import { evaluateSending } from "@/lib/email-management/email-evaluation";
+import { enforceOutboundSendGuard } from "@/lib/email-management/outbound-send-guard";
+import { checkSendingSpike } from "@/lib/email-management/sending-spike-detector";
+import { buildRawEmailMessage } from "../../e2/helper/email-builder";
 
 /**
  * POST /api/webhooks/send-email
@@ -75,53 +74,6 @@ interface QStashPayload {
 	emailData?: PostEmailsRequest; // for batch
 	batchId?: string; // for batch
 	batchIndex?: number; // for batch
-}
-
-/**
- * Check if a user is banned
- * Returns true if banned (and ban hasn't expired), false otherwise
- */
-async function isUserBanned(
-	userId: string,
-): Promise<{ banned: boolean; reason?: string }> {
-	try {
-		const [userRecord] = await db
-			.select({
-				banned: user.banned,
-				banReason: user.banReason,
-				banExpires: user.banExpires,
-			})
-			.from(user)
-			.where(eq(user.id, userId))
-			.limit(1);
-
-		if (!userRecord) {
-			// User not found - treat as not banned but log it
-			console.warn(`⚠️ User ${userId} not found when checking ban status`);
-			return { banned: false };
-		}
-
-		if (userRecord.banned) {
-			// Check if ban has expired
-			if (
-				userRecord.banExpires &&
-				new Date(userRecord.banExpires) < new Date()
-			) {
-				console.log(`🔓 User ${userId} ban has expired, allowing email`);
-				return { banned: false };
-			}
-			return {
-				banned: true,
-				reason: userRecord.banReason || "Account suspended",
-			};
-		}
-
-		return { banned: false };
-	} catch (error) {
-		console.error(`❌ Error checking ban status for user ${userId}:`, error);
-		// On error, allow the email (fail open) to prevent blocking legitimate emails
-		return { banned: false };
-	}
 }
 
 export async function POST(request: NextRequest) {
@@ -234,11 +186,19 @@ async function handleScheduledEmail(payload: QStashPayload) {
 			);
 		}
 
-		// Check if user is banned before sending
-		const banCheck = await isUserBanned(scheduledEmail.userId);
-		if (banCheck.banned) {
+		const scheduledFromAddress = extractEmailAddress(
+			scheduledEmail.fromAddress,
+		);
+		const { isAgentEmail } = canUserSendFromEmail(scheduledEmail.fromAddress);
+		const scheduledGuard = await enforceOutboundSendGuard({
+			userId: scheduledEmail.userId,
+			fromAddress: scheduledFromAddress,
+			fromDomain: scheduledEmail.fromDomain,
+			isAgentEmail,
+		});
+		if (!scheduledGuard.allowed) {
 			console.log(
-				`🚫 Blocking scheduled email for banned user ${scheduledEmail.userId}: ${banCheck.reason}`,
+				`🚫 Blocking scheduled email for user ${scheduledEmail.userId}: ${scheduledGuard.reasonCode}`,
 			);
 
 			// Update scheduled email status to failed
@@ -246,7 +206,7 @@ async function handleScheduledEmail(payload: QStashPayload) {
 				.update(scheduledEmails)
 				.set({
 					status: SCHEDULED_EMAIL_STATUS.FAILED,
-					lastError: `Email blocked: User account suspended - ${banCheck.reason}`,
+					lastError: `Email blocked: ${scheduledGuard.error || "Outbound security guard"}`,
 					updatedAt: new Date(),
 				})
 				.where(eq(scheduledEmails.id, scheduledEmailId));
@@ -254,8 +214,8 @@ async function handleScheduledEmail(payload: QStashPayload) {
 			// Return 200 so QStash doesn't retry - this is intentional blocking
 			return NextResponse.json(
 				{
-					error: "User account suspended",
-					reason: banCheck.reason,
+					error: scheduledGuard.error || "Email blocked",
+					reason: scheduledGuard.reasonCode,
 				},
 				{ status: 200 },
 			);
@@ -360,7 +320,7 @@ async function handleScheduledEmail(payload: QStashPayload) {
 		const sentEmailData = {
 			id: sentEmailId,
 			from: scheduledEmail.fromAddress,
-			fromAddress: extractEmailAddress(scheduledEmail.fromAddress),
+			fromAddress: scheduledFromAddress,
 			fromDomain: scheduledEmail.fromDomain,
 			to: JSON.stringify(toAddresses),
 			cc: ccAddresses.length > 0 ? JSON.stringify(ccAddresses) : null,
@@ -403,7 +363,6 @@ async function handleScheduledEmail(payload: QStashPayload) {
 
 		// Get the tenant sending info (identity ARN, configuration set, and tenant name) for tenant-level tracking
 		const fromDomain = scheduledEmail.fromDomain;
-		const { isAgentEmail } = canUserSendFromEmail(scheduledEmail.fromAddress);
 
 		let tenantSendingInfo: TenantSendingInfo = {
 			identityArn: null,
@@ -635,11 +594,19 @@ async function handleBatchEmail(
 		console.log("⚠️ Email previously failed, retrying:", emailId);
 	}
 
-	// Check if user is banned before sending
-	const banCheck = await isUserBanned(userId);
-	if (banCheck.banned) {
+	const batchFromAddress = extractEmailAddress(sentEmail.from);
+	const { isAgentEmail: batchIsAgentEmail } = canUserSendFromEmail(
+		sentEmail.from,
+	);
+	const batchGuard = await enforceOutboundSendGuard({
+		userId,
+		fromAddress: batchFromAddress,
+		fromDomain: sentEmail.fromDomain,
+		isAgentEmail: batchIsAgentEmail,
+	});
+	if (!batchGuard.allowed) {
 		console.log(
-			`🚫 Blocking batch email for banned user ${userId}: ${banCheck.reason}`,
+			`🚫 Blocking batch email for user ${userId}: ${batchGuard.reasonCode}`,
 		);
 
 		// Update sent email status to failed
@@ -647,7 +614,7 @@ async function handleBatchEmail(
 			.update(sentEmails)
 			.set({
 				status: SENT_EMAIL_STATUS.FAILED,
-				failureReason: `Email blocked: User account suspended - ${banCheck.reason}`,
+				failureReason: `Email blocked: ${batchGuard.error || "Outbound security guard"}`,
 				updatedAt: new Date(),
 			})
 			.where(eq(sentEmails.id, emailId));
@@ -655,8 +622,8 @@ async function handleBatchEmail(
 		// Return 200 so QStash doesn't retry - this is intentional blocking
 		return NextResponse.json(
 			{
-				error: "User account suspended",
-				reason: banCheck.reason,
+				error: batchGuard.error || "Email blocked",
+				reason: batchGuard.reasonCode,
 			},
 			{ status: 200 },
 		);
@@ -760,9 +727,6 @@ async function handleBatchEmail(
 
 		// Get the tenant sending info (identity ARN, configuration set, and tenant name) for tenant-level tracking
 		const batchFromDomain = sentEmail.fromDomain;
-		const { isAgentEmail: batchIsAgentEmail } = canUserSendFromEmail(
-			sentEmail.from,
-		);
 
 		let batchTenantInfo: TenantSendingInfo = {
 			identityArn: null,
