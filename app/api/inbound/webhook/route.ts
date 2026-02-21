@@ -2,9 +2,8 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { sesEvents, structuredEmails, emailDomains, emailAddresses, endpointDeliveries } from '@/lib/db/schema'
+import { sesEvents, structuredEmails, emailDomains } from '@/lib/db/schema'
 import { user } from '@/lib/db/auth-schema'
-import { nanoid } from 'nanoid'
 import { eq, and } from 'drizzle-orm'
 import { Autumn as autumn } from 'autumn-js'
 import { parseEmail, type ParsedEmailData } from '@/lib/email-management/email-parser'
@@ -14,8 +13,14 @@ import { routeEmail } from '@/lib/email-management/email-router'
 import { sendLimitReachedNotification } from '@/lib/email-management/email-notifications'
 import { isDsn } from '@/lib/email-management/dsn-parser'
 import { recordDeliveryEventFromDsn } from '@/lib/email-management/delivery-event-tracker'
+import {
+  buildInboundDeterministicId,
+  buildInboundDedupeFingerprint,
+  normalizeMessageIdForDedupe,
+  normalizeRecipientForDedupe,
+} from '@/lib/email-management/inbound-dedupe'
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3'
-import { createHash, timingSafeEqual } from 'crypto'
+import { timingSafeEqual } from 'crypto'
 
 interface ProcessedSESRecord extends SESRecord {
   emailContent?: string | null
@@ -45,24 +50,6 @@ interface WebhookPayload {
  */
 function extractDomain(email: string): string {
   return email.split('@')[1]?.toLowerCase() || ''
-}
-
-/**
- * Generate a deterministic, collision-resistant ID for emails
- * Uses SHA-256 hash to ensure uniqueness while maintaining determinism
- * @param prefix - ID prefix (e.g., 'inbnd', 'inbnd_failed', 'inbnd_minimal')
- * @param sesEventId - The SES event ID
- * @param recipient - The recipient email address
- * @returns A deterministic ID like "inbnd_a1b2c3d4..."
- */
-function generateDeterministicEmailId(prefix: string, sesEventId: string, recipient: string): string {
-  // Create hash of sesEventId + recipient for collision resistance
-  const hash = createHash('sha256')
-    .update(`${sesEventId}:${recipient}`)
-    .digest('hex')
-    .substring(0, 16) // Use first 16 chars for reasonable length
-  
-  return `${prefix}_${hash}`
 }
 
 /**
@@ -194,22 +181,26 @@ async function createStructuredEmailRecord(
   sesEventId: string, 
   parsedEmailData: ParsedEmailData, 
   userId: string,
-  recipient: string
+  recipient: string,
+  normalizedHeaderMessageId: string | null
 ): Promise<string> {
   try {
-    console.log(`📝 Webhook - Creating structured email record for recipient ${recipient}`)
+    const normalizedRecipient = normalizeRecipientForDedupe(recipient)
+    const normalizedParsedMessageId = normalizeMessageIdForDedupe(parsedEmailData.messageId)
+    const effectiveMessageId = normalizedParsedMessageId || normalizedHeaderMessageId
+    console.log(`📝 Webhook - Creating structured email record for recipient ${normalizedRecipient}`)
 
     // Use hash-based deterministic ID to prevent race condition duplicates AND ID collisions
-    // SHA-256 hash ensures emails like user+tag@x.com and user.tag@x.com get different IDs
-    const structuredEmailId = generateDeterministicEmailId('inbnd', sesEventId, recipient)
+    // Primary seed is normalized Message-ID + recipient, fallback is SES event + recipient
+    const structuredEmailId = buildInboundDeterministicId('inbnd', sesEventId, normalizedRecipient, effectiveMessageId)
     const structuredEmailRecord = {
       id: structuredEmailId,
       emailId: structuredEmailId, // Self-referencing for backward compatibility
       sesEventId: sesEventId,
-      recipient: recipient,
+      recipient: normalizedRecipient,
       
       // Core email fields matching ParsedEmailData exactly
-      messageId: parsedEmailData.messageId || null,
+      messageId: effectiveMessageId || null,
       date: parsedEmailData.date || null,
       subject: parsedEmailData.subject || null,
       
@@ -256,7 +247,8 @@ async function createStructuredEmailRecord(
     } catch (insertError: any) {
       // Check if this is a duplicate key error (race condition)
       if (insertError?.code === '23505' || insertError?.message?.includes('duplicate key')) {
-        console.log(`⏭️  Webhook - Structured email ${structuredEmailId} already exists (race condition), skipping duplicate`)
+        const fingerprint = buildInboundDedupeFingerprint(userId, normalizedRecipient, effectiveMessageId)
+        console.log(`⏭️  Webhook - DEDUPE decision=duplicate_skip scope=insert source=db_unique_constraint fingerprint=${fingerprint} existing=${structuredEmailId}`)
         return structuredEmailId // Return the ID even though we didn't create it
       } else {
         // Re-throw if it's a different error
@@ -273,12 +265,14 @@ async function createStructuredEmailRecord(
     // Note: We use hash-based ID so repeated failures for the same email will hit duplicate key
     // This is intentional - we log the error above and return the existing ID
     try {
-      const failedStructuredId = generateDeterministicEmailId('inbnd_failed', sesEventId, recipient)
+      const normalizedRecipient = normalizeRecipientForDedupe(recipient)
+      const failedStructuredId = buildInboundDeterministicId('inbnd_failed', sesEventId, normalizedRecipient, normalizedHeaderMessageId)
       const failedStructuredRecord = {
         id: failedStructuredId,
         emailId: failedStructuredId, // Self-referencing
         sesEventId: sesEventId,
-        recipient: recipient,
+        recipient: normalizedRecipient,
+        messageId: normalizedHeaderMessageId,
         parseSuccess: false,
         parseError: error instanceof Error ? error.message : 'Unknown parsing error',
         userId: userId,
@@ -291,7 +285,8 @@ async function createStructuredEmailRecord(
         console.log(`⚠️ Webhook - Created failed structured parse record ${failedStructuredId}`)
       } catch (failedInsertError: any) {
         if (failedInsertError?.code === '23505' || failedInsertError?.message?.includes('duplicate key')) {
-          console.warn(`⚠️ Webhook - REPEATED FAILURE: Failed record ${failedStructuredId} already exists. This indicates the same email failed parsing multiple times. Original error: ${error instanceof Error ? error.message : 'Unknown'}`)
+          const failedFingerprint = buildInboundDedupeFingerprint(userId, normalizedRecipient, normalizedHeaderMessageId)
+          console.warn(`⏭️  Webhook - DEDUPE decision=duplicate_skip scope=failed_insert source=db_unique_constraint fingerprint=${failedFingerprint} existing=${failedStructuredId} error=${error instanceof Error ? error.message : 'Unknown'}`)
         } else {
           throw failedInsertError
         }
@@ -374,29 +369,50 @@ export async function POST(request: NextRequest) {
         console.log(`📨 Webhook - Processing email: ${mail.messageId}`);
         console.log(`👥 Webhook - Recipients: ${receipt.recipients.join(', ')}`);
         console.log(`📧 Webhook - Subject: "${mail.commonHeaders.subject || '(no subject)'}"`);
+        const normalizedEmailMessageId = normalizeMessageIdForDedupe(mail.commonHeaders.messageId)
+        const recipientEntries: Array<{ recipient: string; userId: string }> = []
+        for (const rawRecipient of receipt.recipients) {
+          const recipient = normalizeRecipientForDedupe(rawRecipient)
+          if (!recipient) {
+            continue
+          }
+          const userId = await mapRecipientToUserId(recipient)
+          recipientEntries.push({ recipient, userId })
+        }
+        const normalizedRecipients = recipientEntries.map(entry => entry.recipient)
 
         // EARLY IDEMPOTENCY CHECK 1: Check using email's Message-ID header
         // This catches duplicates when SES triggers Lambda multiple times for the same email
         // (e.g., when both catch-all and specific address rules match the same incoming email)
-        const emailMessageId = mail.commonHeaders.messageId
-        if (emailMessageId) {
+        if (normalizedEmailMessageId) {
           const existingByEmailMessageId = await db
             .select({ 
               id: structuredEmails.id,
-              recipient: structuredEmails.recipient
+              recipient: structuredEmails.recipient,
+              userId: structuredEmails.userId,
             })
             .from(structuredEmails)
-            .where(eq(structuredEmails.messageId, emailMessageId))
+            .where(eq(structuredEmails.messageId, normalizedEmailMessageId))
           
           if (existingByEmailMessageId.length > 0) {
-            const existingRecipients = existingByEmailMessageId.map(e => e.recipient).filter(Boolean) as string[]
-            const hasOverlap = receipt.recipients.some(r => existingRecipients.includes(r))
+            const existingRecipientOwners = existingByEmailMessageId
+              .map(e => {
+                if (!e.recipient || !e.userId) return null
+                return { recipient: normalizeRecipientForDedupe(e.recipient), userId: e.userId }
+              })
+              .filter((value): value is { recipient: string; userId: string } => !!value)
+            const hasOverlap = recipientEntries.some(entry =>
+              existingRecipientOwners.some(existing =>
+                existing.recipient === entry.recipient && existing.userId === entry.userId,
+              ),
+            )
             
             if (hasOverlap) {
-              console.log(`⏭️  Webhook - DUPLICATE DETECTED (by Email Message-ID): ${emailMessageId} already processed for recipients ${receipt.recipients.join(', ')}. Skipping entire record.`)
+              console.log(`⏭️  Webhook - DEDUPE decision=duplicate_skip scope=record reason=message_id_overlap_same_owner messageId=${normalizedEmailMessageId} recipients=${normalizedRecipients.join(',')}`)
               continue // Skip this entire record
             } else {
-              console.log(`🔍 Webhook - Same Email Message-ID but different recipients. Existing: ${existingRecipients.join(', ')}, Current: ${receipt.recipients.join(', ')}`)
+              const existingRecipients = existingRecipientOwners.map(existing => existing.recipient)
+              console.log(`🔍 Webhook - Same Email Message-ID but different recipient-owner pairs. Existing recipients: ${existingRecipients.join(', ')}, Current recipients: ${normalizedRecipients.join(', ')}`)
             }
           }
         }
@@ -405,25 +421,34 @@ export async function POST(request: NextRequest) {
         // This prevents processing the exact same Lambda invocation twice
         const existingSesEvent = await db
           .select({ 
-            id: sesEvents.id,
-            recipients: sesEvents.recipients
+            recipient: structuredEmails.recipient,
+            userId: structuredEmails.userId,
           })
-          .from(sesEvents)
+          .from(structuredEmails)
+          .innerJoin(sesEvents, eq(sesEvents.id, structuredEmails.sesEventId))
           .where(eq(sesEvents.messageId, mail.messageId))
-          .limit(1)
         
-        if (existingSesEvent[0]) {
-          // Parse the recipients JSON array
-          const existingRecipients = JSON.parse(existingSesEvent[0].recipients as string) as string[]
+        if (existingSesEvent.length > 0) {
+          const existingRecipientOwners = existingSesEvent
+            .map(e => {
+              if (!e.recipient || !e.userId) return null
+              return { recipient: normalizeRecipientForDedupe(e.recipient), userId: e.userId }
+            })
+            .filter((value): value is { recipient: string; userId: string } => !!value)
           
-          // Check if ANY of the current recipients were already processed
-          const hasOverlap = receipt.recipients.some(r => existingRecipients.includes(r))
+          // Check if ANY current recipient-owner pair was already processed
+          const hasOverlap = recipientEntries.some(entry =>
+            existingRecipientOwners.some(existing =>
+              existing.recipient === entry.recipient && existing.userId === entry.userId,
+            ),
+          )
           
           if (hasOverlap) {
-            console.log(`⏭️  Webhook - DUPLICATE DETECTED (by SES messageId): ${mail.messageId} already processed for recipients ${receipt.recipients.join(', ')}. Skipping entire record.`)
+            console.log(`⏭️  Webhook - DEDUPE decision=duplicate_skip scope=record reason=ses_message_id_overlap_same_owner sesMessageId=${mail.messageId} recipients=${normalizedRecipients.join(',')}`)
             continue // Skip this entire record
           } else {
-            console.log(`🔍 Webhook - Same SES messageId but different recipients. Existing: ${existingRecipients.join(', ')}, Current: ${receipt.recipients.join(', ')}`)
+            const existingRecipients = existingRecipientOwners.map(existing => existing.recipient)
+            console.log(`🔍 Webhook - Same SES messageId but different recipients. Existing: ${existingRecipients.join(', ')}, Current: ${normalizedRecipients.join(', ')}`)
           }
         }
 
@@ -441,7 +466,7 @@ export async function POST(request: NextRequest) {
           timestamp: new Date(mail.timestamp),
           receiptTimestamp: new Date(receipt.timestamp),
           processingTimeMillis: receipt.processingTimeMillis,
-          recipients: JSON.stringify(receipt.recipients),
+          recipients: JSON.stringify(normalizedRecipients),
           spamVerdict: receipt.spamVerdict.status,
           virusVerdict: receipt.virusVerdict.status,
           spfVerdict: receipt.spfVerdict.status,
@@ -476,25 +501,26 @@ export async function POST(request: NextRequest) {
         }
 
         // Then, create a receivedEmail record for each recipient
-        for (const recipient of receipt.recipients) {
+        for (const { recipient, userId } of recipientEntries) {
+
           // IDEMPOTENCY CHECK: Skip if we've already processed this email for this recipient
           // Use the email's Message-ID header (from commonHeaders) for deduplication
           // This catches duplicates when SES triggers Lambda multiple times for the same email
           // (e.g., when both catch-all and specific address rules match)
-          const emailMessageId = mail.commonHeaders.messageId // Email's actual Message-ID header
-          
-          if (emailMessageId) {
+          if (normalizedEmailMessageId) {
             const existingEmail = await db
               .select({ id: structuredEmails.id })
               .from(structuredEmails)
               .where(and(
-                eq(structuredEmails.messageId, emailMessageId), // Email's Message-ID header
-                eq(structuredEmails.recipient, recipient)
+                eq(structuredEmails.messageId, normalizedEmailMessageId), // Normalized Message-ID header
+                eq(structuredEmails.recipient, recipient),
+                eq(structuredEmails.userId, userId),
               ))
               .limit(1)
             
             if (existingEmail[0]) {
-              console.log(`⏭️  Webhook - SKIPPING duplicate: Email Message-ID=${emailMessageId}, recipient=${recipient} (already processed as ${existingEmail[0].id})`)
+              const fingerprint = buildInboundDedupeFingerprint(userId, recipient, normalizedEmailMessageId)
+              console.log(`⏭️  Webhook - DEDUPE decision=duplicate_skip scope=recipient reason=message_id_match fingerprint=${fingerprint} existing=${existingEmail[0].id}`)
               continue // Skip this duplicate
             }
           } else {
@@ -505,17 +531,20 @@ export async function POST(request: NextRequest) {
               .innerJoin(sesEvents, eq(sesEvents.id, structuredEmails.sesEventId))
               .where(and(
                 eq(sesEvents.messageId, mail.messageId), // AWS SES messageId
-                eq(structuredEmails.recipient, recipient)
+                eq(structuredEmails.recipient, recipient),
+                eq(structuredEmails.userId, userId),
               ))
               .limit(1)
             
             if (existingEmail[0]) {
-              console.log(`⏭️  Webhook - SKIPPING duplicate (fallback): SES messageId=${mail.messageId}, recipient=${recipient} (already processed as ${existingEmail[0].id})`)
+              const fingerprint = buildInboundDedupeFingerprint(userId, recipient, null)
+              console.log(`⏭️  Webhook - DEDUPE decision=duplicate_skip scope=recipient reason=ses_message_id_fallback fingerprint=${fingerprint} existing=${existingEmail[0].id}`)
               continue // Skip this duplicate
             }
           }
-          
-          const userId = await mapRecipientToUserId(recipient)
+
+          const fingerprint = buildInboundDedupeFingerprint(userId, recipient, normalizedEmailMessageId)
+          console.log(`✅ Webhook - DEDUPE decision=accepted scope=recipient fingerprint=${fingerprint}`)
 
           // Check and track inbound trigger usage
           const triggerResult = await checkAndTrackInboundTrigger(userId, recipient)
@@ -628,17 +657,17 @@ export async function POST(request: NextRequest) {
           // Create structured email record - this is now the PRIMARY and ONLY record
           let structuredEmailId: string
           if (parsedEmailData) {
-            structuredEmailId = await createStructuredEmailRecord(sesEventId, parsedEmailData, userId, recipient)
+            structuredEmailId = await createStructuredEmailRecord(sesEventId, parsedEmailData, userId, recipient, normalizedEmailMessageId)
           } else {
             // Create minimal record for unparseable emails with hash-based deterministic ID
             console.warn(`⚠️ Webhook - No parsed data for ${mail.messageId}, creating minimal record`)
-            structuredEmailId = generateDeterministicEmailId('inbnd_minimal', sesEventId, recipient)
+            structuredEmailId = buildInboundDeterministicId('inbnd_minimal', sesEventId, recipient, normalizedEmailMessageId)
             const minimalRecord = {
               id: structuredEmailId,
               emailId: structuredEmailId,
               sesEventId: sesEventId,
               recipient: recipient,
-              messageId: mail.messageId,
+              messageId: normalizedEmailMessageId,
               subject: mail.commonHeaders.subject || 'No Subject',
               parseSuccess: false,
               parseError: 'Failed to parse email content',
@@ -651,7 +680,8 @@ export async function POST(request: NextRequest) {
               await db.insert(structuredEmails).values(minimalRecord)
             } catch (minimalInsertError: any) {
               if (minimalInsertError?.code === '23505' || minimalInsertError?.message?.includes('duplicate key')) {
-                console.log(`⏭️  Webhook - Minimal record ${structuredEmailId} already exists (race condition), skipping`)
+                const minimalFingerprint = buildInboundDedupeFingerprint(userId, recipient, normalizedEmailMessageId)
+                console.log(`⏭️  Webhook - DEDUPE decision=duplicate_skip scope=insert source=db_unique_constraint fingerprint=${minimalFingerprint} existing=${structuredEmailId}`)
               } else {
                 throw minimalInsertError
               }

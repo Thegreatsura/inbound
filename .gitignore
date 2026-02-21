@@ -88,3 +88,5 @@ scripts/migrate-failed-tables.ts
 scripts/migrate-single-table.ts
 scripts/migrate-to-planetscale.ts
 scripts/webhook-test-verification-report.md
+
+.reference/

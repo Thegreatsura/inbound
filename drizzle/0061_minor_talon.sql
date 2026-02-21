@@ -1,0 +1,1 @@
+ALTER TABLE "structured_emails" ADD CONSTRAINT "structured_emails_user_message_recipient_unique" UNIQUE("user_id","message_id","recipient");

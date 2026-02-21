@@ -1,6 +1,6 @@
 {
-  "id": "bcfc7e56-ffce-472c-878a-d45e32f1664a",
-  "prevId": "e74ecb71-b937-4557-a14f-58ab5e77b144",
+  "id": "792847e7-8d65-456a-95a0-25da07e4e32c",
+  "prevId": "bcfc7e56-ffce-472c-878a-d45e32f1664a",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -3461,7 +3461,17 @@
       },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "structured_emails_user_message_recipient_unique": {
+          "name": "structured_emails_user_message_recipient_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "user_id",
+            "message_id",
+            "recipient"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false

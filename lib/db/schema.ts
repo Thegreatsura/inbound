@@ -344,6 +344,7 @@ export const structuredEmails = pgTable('structured_emails', {
   threadId: varchar('thread_id', { length: 255 }), // Reference to emailThreads.id
   threadPosition: integer('thread_position'), // Position in thread (1 = first, 2 = second, etc.)
 }, (table) => ({
+  uniqueUserMessageRecipient: unique('structured_emails_user_message_recipient_unique').on(table.userId, table.messageId, table.recipient),
   messageIdIdx: index('structured_emails_message_id_idx').on(table.messageId),
   threadIdIdx: index('structured_emails_thread_id_idx').on(table.threadId),
   userCreatedIdx: index('structured_emails_user_created_idx').on(table.userId, table.createdAt),
