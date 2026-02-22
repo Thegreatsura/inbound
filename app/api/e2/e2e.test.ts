@@ -358,10 +358,11 @@ async function apiRequest(
 	});
 
 	if (response.status === 429 && retryCount < RATE_LIMIT_CONFIG.maxRetries) {
-		const retryAfter = response.headers.get("Retry-After");
-		const delayMs = retryAfter
-			? Number.parseInt(retryAfter, 10) * 1000
-			: RATE_LIMIT_CONFIG.retryDelayMs * 2 ** retryCount;
+		const retryAfterDelayMs = parseRetryAfterDelayMs(
+			response.headers.get("Retry-After"),
+		);
+		const delayMs =
+			retryAfterDelayMs ?? RATE_LIMIT_CONFIG.retryDelayMs * 2 ** retryCount;
 
 		console.log(
 			`⏳ Rate limited, retrying in ${delayMs}ms (${retryCount + 1}/${RATE_LIMIT_CONFIG.maxRetries})`,
@@ -657,6 +658,24 @@ function queryString(
 	}
 	const query = search.toString();
 	return query ? `?${query}` : "";
+}
+
+function parseRetryAfterDelayMs(retryAfterHeader: string | null): number | null {
+	if (!retryAfterHeader) {
+		return null;
+	}
+
+	const seconds = Number.parseInt(retryAfterHeader, 10);
+	if (Number.isFinite(seconds) && seconds >= 0) {
+		return seconds * 1000;
+	}
+
+	const retryAtMs = Date.parse(retryAfterHeader);
+	if (!Number.isNaN(retryAtMs)) {
+		return Math.max(0, retryAtMs - Date.now());
+	}
+
+	return null;
 }
 
 function makeToken(prefix: string): string {
@@ -1040,13 +1059,14 @@ async function ensureWebhookDelivery(receivedEmailId: string): Promise<void> {
 			"Managed endpoint ID is missing during webhook delivery verification",
 		);
 	}
+	const endpointId = managedEndpointId;
 
 	const delivery = await pollFor(
 		"webhook delivery",
 		POLL_CONFIG.inboundTimeoutMs,
 		async () => {
 			const endpoint = await apiJson<EndpointDetailResponse>(
-				`/endpoints/${managedEndpointId}`,
+				`/endpoints/${endpointId}`,
 			);
 
 			if (endpoint.response.status !== 200) {
