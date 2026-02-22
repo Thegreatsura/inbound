@@ -29,6 +29,10 @@ const WebhookConfigSchema = t.Object(
 const EmailConfigSchema = t.Object(
 	{
 		forwardTo: t.String({ format: "email" }),
+		includeAttachments: t.Optional(t.Boolean()),
+		subjectPrefix: t.Optional(t.String({ maxLength: 255 })),
+		fromAddress: t.Optional(t.String({ format: "email" })),
+		senderName: t.Optional(t.String({ maxLength: 255 })),
 		preserveHeaders: t.Optional(t.Boolean()),
 	},
 	{ title: "EmailConfig" },
@@ -40,6 +44,10 @@ const EmailGroupConfigSchema = t.Object(
 			minItems: 1,
 			maxItems: 50,
 		}),
+		includeAttachments: t.Optional(t.Boolean()),
+		subjectPrefix: t.Optional(t.String({ maxLength: 255 })),
+		fromAddress: t.Optional(t.String({ format: "email" })),
+		senderName: t.Optional(t.String({ maxLength: 255 })),
 		preserveHeaders: t.Optional(t.Boolean()),
 	},
 	{ title: "EmailGroupConfig" },
@@ -153,7 +161,7 @@ export const updateEndpoint = new Elysia().put(
 		}
 
 		// Prepare update data
-		const updateData: any = {
+		const updateData: Partial<typeof endpoints.$inferInsert> = {
 			updatedAt: new Date(),
 		};
 
