@@ -1,18 +1,18 @@
+import { and, eq } from "drizzle-orm";
 import { Elysia, t } from "elysia";
-import { validateAndRateLimit } from "../lib/auth";
-import { db } from "@/lib/db";
-import { endpoints } from "@/lib/db/schema";
-import { eq, and } from "drizzle-orm";
-import { generateTestPayload } from "@/lib/webhooks/webhook-formats";
-import type { WebhookFormat } from "@/lib/db/schema";
 import { nanoid } from "nanoid";
-import { getOrCreateVerificationToken } from "@/lib/webhooks/verification";
+import { db } from "@/lib/db";
+import type { WebhookFormat } from "@/lib/db/schema";
+import { endpoints } from "@/lib/db/schema";
 import { sanitizeHtml } from "@/lib/email-management/email-parser";
 import type {
-	InboundWebhookPayload,
 	InboundEmailAddress,
 	InboundEmailHeaders,
+	InboundWebhookPayload,
 } from "@/lib/types/inbound-webhooks";
+import { getOrCreateVerificationToken } from "@/lib/webhooks/verification";
+import { generateTestPayload } from "@/lib/webhooks/webhook-formats";
+import { validateAndRateLimit } from "../lib/auth";
 
 // Request/Response Types (OpenAPI-compatible)
 const EndpointParamsSchema = t.Object({
@@ -362,10 +362,11 @@ export const testEndpoint = new Elysia().post(
 						});
 
 						// Get or create verification token for this endpoint
+						const hadToken = !!config.verificationToken;
 						const verificationToken = getOrCreateVerificationToken(config);
 
 						// Save token if it was newly generated
-						if (!config.verificationToken) {
+						if (!hadToken) {
 							await db
 								.update(endpoints)
 								.set({
@@ -443,10 +444,11 @@ export const testEndpoint = new Elysia().post(
 						);
 
 						// Get or create verification token for this endpoint
+						const hadToken2 = !!config.verificationToken;
 						const verificationToken2 = getOrCreateVerificationToken(config);
 
 						// Save token if it was newly generated
-						if (!config.verificationToken) {
+						if (!hadToken2) {
 							await db
 								.update(endpoints)
 								.set({
@@ -608,7 +610,7 @@ export const testEndpoint = new Elysia().post(
 				}
 				break;
 
-			default:
+			default: {
 				const responseTime = Date.now() - startTime;
 				testResult = {
 					success: false,
@@ -617,6 +619,8 @@ export const testEndpoint = new Elysia().post(
 					error: `Unsupported endpoint type: ${endpoint.type}`,
 				};
 				console.log("❌ Unknown endpoint type:", endpoint.type);
+				break;
+			}
 		}
 
 		console.log(
