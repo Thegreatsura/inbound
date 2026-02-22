@@ -1,0 +1,23 @@
+{
+  "name": "inbound-cli",
+  "version": "0.1.0",
+  "private": false,
+  "type": "module",
+  "bin": {
+    "inbound": "./dist/bin/inbound.js"
+  },
+  "files": [
+    "dist",
+    "llm.txt"
+  ],
+  "scripts": {
+    "dev": "bun run src/bin/inbound.ts",
+    "build": "bun build ./src/bin/inbound.ts --target=node --format=esm --outfile ./dist/bin/inbound.js --banner '#!/usr/bin/env node'",
+    "prepublishOnly": "bun run build",
+    "test": "bun test",
+    "lint": "biome check src tests"
+  },
+  "dependencies": {
+    "inboundemail": "^0.20.0"
+  }
+}

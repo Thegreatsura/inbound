@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "api": {
+    "baseUrl": "https://inbound.new"
+  },
+  "mailbox": {
+    "default": "inbound-support",
+    "mailboxes": {
+      "inbound-support": {
+        "name": "Inbound Support",
+        "email": "support@inbound.new",
+        "addresses": [
+          "support@inbound.new"
+        ],
+        "domains": [
+          "inbound.new"
+        ]
+      }
+    }
+  }
+}

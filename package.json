@@ -5,6 +5,7 @@
   "license": "MIT",
   "scripts": {
     "dev": "basehub dev & next dev",
+    "inbound": "bun run packages/inbound-cli/src/bin/inbound.ts",
     "dev:basehub": "basehub dev",
     "generate:openapi": "bun run scripts/generate-openapi.ts",
     "verify:openapi": "bun run scripts/verify-openapi.ts",
