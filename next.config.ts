@@ -20,10 +20,6 @@ const nextConfig: NextConfig = {
 				protocol: "https",
 				hostname: "inbound.new",
 			},
-			{
-				protocol: "https",
-				hostname: "assets.basehub.com",
-			},
 		],
 		formats: ["image/webp", "image/avif"],
 		minimumCacheTTL: 86400, // 1 day cache for better performance
@@ -103,6 +99,10 @@ const nextConfig: NextConfig = {
 	},
 	async rewrites() {
 		return [
+			{
+				source: "/blog/images/:path*",
+				destination: "/api/blog-images/:path*",
+			},
 			// Reroute all v2 API requests to e2
 			{
 				source: "/api/v2/:path*",

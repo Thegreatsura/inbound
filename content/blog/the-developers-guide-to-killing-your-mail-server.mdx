@@ -1,0 +1,60 @@
+---
+title: The Developer’s Guide to Killing Your Mail Server
+description: >-
+  Every developer has been there:
+
+  You launch a product, you nail transactional email sending, then the first
+  customer hits “reply.”
+id: gpJLGxgA2kEZz61FNn83g
+date: '2025-09-25T00:00:00.000Z'
+image: /blog/images/604ffdb4eb543ebcac29.png
+authorName: Ryan Vogel
+authorPosition: Founder & CEO
+authorImage: /blog/images/89c9433c01a24dea2c53.jpg
+---
+
+## The Pain of DIY Inbound Email
+
+Let’s break it down:
+
+- **MX Records:** You’re configuring DNS for every domain.
+- **Parsing:** You’re decoding multipart MIME by hand (and testing every weird edge case).
+- **Spam Filtering:** You either accept everything (hello, spam) or write clunky filters.
+- **Retries & Queues:** A single transient bounce? Your email is gone forever.
+- **Monitoring:** If your server goes down, so do your customer workflows.
+
+All of this just to get what you *actually need* — **subject, sender, body text, and attachments** — into your app.
+
+---
+
+## The API Era of Email
+
+Thankfully, the tide is turning. With players like **Resend** announcing a **private beta for inbound email**, and tools like [inbound.new](https://blog.inbd.link/dC8Q5Jo) already in production, email receiving is finally getting the same treatment as email sending:
+
+- **Webhook-first**: Your app just receives structured JSON.
+- **Simple domain setup**: One-click MX + DKIM config.
+- **Attachments + metadata**: No more parsing nightmares.
+- **Retries + deduplication**: Because dropped messages aren’t an option.
+
+---
+
+## Why [inbound.new](https://blog.inbd.link/dC8Q5Jo) Exists
+
+We built [inbound.new](https://blog.inbd.link/dC8Q5Jo) for developers who never want to maintain a mail server again.
+
+- **Send, receive, and reply** — all in one API.
+- **Instant webhooks** with message, headers, and files included.
+- **Production-ready today**, not on a months-long waitlist.
+- **DX you’ll love** — clear docs, test events, and SDKs.
+
+If you’ve been waiting for the industry to catch up, good news: you don’t have to wait.
+
+---
+
+## Your Action Plan Tonight
+
+- Kill the mail server.
+- Stop wasting engineering cycles on email plumbing.
+- Ship features, not MIME parsers.
+
+Sign up at [inbound](https://blog.inbd.link/dC8Q5Jo)[.new](https://inbound.new)

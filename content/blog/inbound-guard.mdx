@@ -1,0 +1,104 @@
+---
+title: Inbound Guard
+description: >-
+  Inbound Guard is a major update to inbound emails, think of it as a firewall
+  for your inbox. 
+id: ovZ68A6Ib6LijbqMjVLCQ
+date: '2025-10-26T00:00:00.000Z'
+image: /blog/images/c4837b2d60a8645dc5e5.png
+authorName: Ryan Vogel
+authorPosition: Founder
+authorImage: /blog/images/89c9433c01a24dea2c53.jpg
+---
+
+Let me tell you about a problem I just went through that made me build something I think you're going to want.
+
+My email ryan@inbound.new got leaked onto some platform meant for spam. Within 48 hours, I got over 3,000 emails. Not just regular spam—I'm talking about the kind that completely destroys your ability to find anything real. Every time I opened my inbox, hundreds more had arrived. My email was basically unusable.
+
+Gmail filters? Cute. They're fine for catching the obvious stuff, but these spammers knew what they were doing. They were using AI to rotate subjects, change sender names, vary the content just enough to slip through. Traditional filters couldn't keep up.
+
+That's when I built Guard 🛡️
+
+## What Actually Is Guard?
+
+Think of Guard as a firewall, but for your inbox. It sits between the outside world and your emails, evaluating every single message before it hits your inbox based on rules *you* define.
+
+It's now in public beta, and anyone on Pro or above gets access. And here's the thing—AI Guard usage is free on these plans, and I'm keeping it that way as long as it's maintainable.
+
+## Two Ways to Catch Spam
+
+Guard gives you two completely different approaches to filtering, and you can mix and match them:
+
+**Explicit Rules** are for when you know exactly what you're looking for. You can match on:
+
+- Subject lines (with AND/OR logic for multiple keywords)
+
+- Sender addresses (supports wildcards like *@sketchy-domain.com)
+
+- Body content (specific words or phrases)
+
+- Whether an email has attachments
+
+These rules support proper boolean logic—so you can say "block if subject contains 'bitcoin' AND 'investment' but NOT from my actual financial advisor."
+
+**AI Prompt Rules** are where it gets interesting. Instead of explicit patterns, you just describe what you want in plain English. Something like: "Block emails that are trying to sell me crypto courses" or "Flag emails that feel like marketing disguised as personal messages."
+
+The AI doesn't just look at keywords. It understands context, intent, and those subtle patterns that humans can spot but are impossible to write explicit rules for. This is what catches the smart spammers—the ones who know how to avoid traditional filters.
+
+## Why This Actually Matters
+
+Here's what happened when I turned Guard on during my spam attack:
+
+Within minutes, I had rules set up. One explicit rule to catch the obvious patterns (they all had similar subject structures). One AI rule to catch the variants that were trying to be clever.
+
+Guard evaluates rules by priority—highest first. Once it matches, that's it. No need to process 50 other rules. The email gets blocked, flagged, or routed based on what you told it to do.
+
+Over the next few hours, Guard blocked 2,847 spam emails. My inbox went from completely unusable to actually functional again. The real emails started appearing. I could breathe.
+
+But here's what makes Guard different from just "better spam filters":
+
+**You're in control.** You decide what gets blocked. You write the rules. You set the priorities. Some people want aggressive filtering. Others want to flag suspicious emails but still see them. Guard doesn't care—it does what you tell it to.
+
+**It learns your patterns.** Each rule tracks how many times it's triggered and when. You can see what's working and what's not. Adjust priorities. Refine rules. Add exceptions.
+
+**It's not just about blocking.** You can route emails to specific endpoints. Flag them for review. Label them. Block them entirely. It's not binary—it's a full routing system.
+
+## The Real Use Cases
+
+Beyond my spam nightmare, people are using Guard for:
+
+- **Pre-filtering for AI agents** - Only send relevant emails to your AI processing
+
+- **Customer support routing** - Send urgent issues to one endpoint, general questions to another
+
+- **Personal email hygiene** - Flag newsletters you're not ready to unsubscribe from but don't want cluttering your main view
+
+- **Security layers** - Block emails matching known phishing patterns before they even reach your system
+
+- **Development environments** - Route test emails separately from production
+
+## Getting Started
+
+Guard is available now on Pro plans and above. The AI filtering is included—no extra usage charges as long as I can keep it sustainable (which so far, I can).
+
+You get:
+
+- Unlimited explicit rules
+
+- Unlimited AI prompt rules
+
+- Priority-based rule execution
+
+- Real-time stats on what's being caught
+
+- Full control over block/flag/route actions
+
+If you've ever felt like your inbox was out of your control, or you're building something that needs intelligent email filtering, Guard is built for this.
+
+Set up your first rule in about 30 seconds. Watch it catch things you didn't even know were problems.
+
+Your inbox should work for you, not against you.
+
+—Ryan
+
+try out guard today! [here](https://inbound.new/guard)

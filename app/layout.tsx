@@ -3,7 +3,6 @@ import { Geist, Geist_Mono, Outfit } from "next/font/google";
 import "./globals.css";
 import "./prose.css";
 import { AutumnProvider } from "autumn-js/react";
-import { Toolbar } from "basehub/next-toolbar";
 import Script from "next/script";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { QueryProvider } from "@/components/providers/query-provider";
@@ -252,7 +251,6 @@ export default function RootLayout({
 						</RealtimeProvider>
 					</QueryProvider>
 				</NuqsAdapter>
-				{/* <Toolbar /> */}
 			</body>
 		</html>
 	);

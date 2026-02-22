@@ -1,35 +1,21 @@
-import { basehub } from "basehub";
+export type HomepageContent = {
+	_title: string;
+	heroPrimaryText: string;
+	heroSublineText: string;
+	ctaButtonPrimaryText: string;
+};
+
+const DEFAULT_HOMEPAGE_CONTENT: HomepageContent = {
+	_title: "inbound",
+	heroPrimaryText: "Programmable email infrastructure.",
+	heroSublineText:
+		"Send, receive, and reply to email with one API designed for developers.",
+	ctaButtonPrimaryText: "Get Started",
+};
 
 export async function getHomepageContent() {
-  try {
-    const selection = {
-      homepage: {
-        _title: true,
-        heroPrimaryText: true,
-        heroSublineText: true,
-        ctaButtonPrimaryText: true,
-      },
-    } as any;
-
-    const data = (await basehub().query(selection)) as any;
-
-    return {
-      success: true,
-      data: data.homepage,
-    };
-  } catch (error) {
-    console.error("Error fetching homepage content:", error);
-    return {
-      success: false,
-      error: "Failed to fetch homepage content",
-      data: null,
-    };
-  }
+	return {
+		success: true,
+		data: DEFAULT_HOMEPAGE_CONTENT,
+	};
 }
-
-export type HomepageContent = {
-  _title: string;
-  heroPrimaryText: string;
-  heroSublineText: string;
-  ctaButtonPrimaryText: string;
-};

@@ -1,5 +1,5 @@
 import { glob } from "glob";
-import { MetadataRoute } from "next";
+import type { MetadataRoute } from "next";
 import { resolve } from "path";
 
 async function getChangelogEntries() {
@@ -15,18 +15,12 @@ async function getChangelogEntries() {
 
 async function getBlogPosts() {
 	try {
-		const { basehub } = await import("basehub");
-		const { generateBlogPostsQuery } = await import(
-			"@/features/blog/utils/blog-query"
+		const { getBlogPostsSorted } = await import(
+			"@/features/blog/utils/blog-posts"
 		);
-		const { mapBlogPosts } = await import("@/features/blog/utils/blog-mapper");
+		const blogPosts = await getBlogPostsSorted();
 
-		const { blogPosts } = await basehub().query({
-			blogPosts: generateBlogPostsQuery(),
-		});
-
-		const mappedBlogs = mapBlogPosts(blogPosts);
-		return mappedBlogs.map((blog) => blog.slug);
+		return blogPosts.map((blog) => blog.slug);
 	} catch (error) {
 		console.warn("Could not read blog posts:", error);
 		return [];
