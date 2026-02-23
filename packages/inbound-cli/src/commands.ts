@@ -1,3 +1,4 @@
+import { writeFile } from "node:fs/promises";
 import { basename, resolve } from "node:path";
 import { rawE2BinaryRequest, rawE2Request } from "./client/e2-client";
 import {
@@ -6,7 +7,12 @@ import {
 	type MailboxConfig,
 	saveConfig,
 } from "./config/inbound-config";
-import { getOptionBoolean, getOptionString, type ParsedArgv } from "./lib/argv";
+import {
+	getOptionBoolean,
+	getOptionString,
+	getOptionStrings,
+	type ParsedArgv,
+} from "./lib/argv";
 import {
 	defaultAttachmentPath,
 	parseBooleanString,
@@ -17,6 +23,11 @@ import {
 	requirePositional,
 	writeDownloadedFile,
 } from "./lib/command-utils";
+import {
+	createInboundDraftTemplate,
+	readInboundDraftFile,
+	validateSendPayload,
+} from "./lib/draft";
 import {
 	buildFanoutQueries,
 	dedupeById,
@@ -163,6 +174,167 @@ export async function runMailboxCommand(ctx: CliContext): Promise<unknown> {
 	);
 }
 
+export async function runDraftCommand(ctx: CliContext): Promise<unknown> {
+	const [, action, maybePath] = ctx.parsed.positionals;
+
+	if (action !== "init") {
+		throw new Error("Unknown draft command. Use: init");
+	}
+
+	const draftPath = resolve(
+		getOptionString(ctx.parsed, "path", "out") || maybePath || "draft.inbound",
+	);
+	const force = getOptionBoolean(ctx.parsed, "force");
+	const mailbox = resolveActiveMailbox(ctx);
+	const defaultFrom = mailbox?.email
+		? formatAddressWithName(mailbox.email, mailbox.name)
+		: undefined;
+
+	try {
+		await writeFile(
+			draftPath,
+			createInboundDraftTemplate({
+				from: defaultFrom,
+			}),
+			{
+				encoding: "utf8",
+				flag: force ? "w" : "wx",
+			},
+		);
+	} catch (error) {
+		if (
+			typeof error === "object" &&
+			error !== null &&
+			"code" in error &&
+			error.code === "EEXIST"
+		) {
+			throw new Error(
+				`Draft already exists at ${draftPath}. Use --force to overwrite.`,
+			);
+		}
+
+		if (error instanceof Error) {
+			throw new Error(
+				`Failed to write draft file ${draftPath}: ${error.message}`,
+			);
+		}
+
+		throw new Error(`Failed to write draft file ${draftPath}`);
+	}
+
+	return {
+		message: `Created draft template at ${draftPath}`,
+		path: draftPath,
+		next: `inbound send ${draftPath}`,
+	};
+}
+
+function resolveActiveMailbox(ctx: CliContext): MailboxConfig | null {
+	const mailboxKey = ctx.globals.mailbox || ctx.config.mailbox?.default;
+	if (!mailboxKey) return null;
+
+	const mailbox = ctx.config.mailbox?.mailboxes?.[mailboxKey];
+	return mailbox || null;
+}
+
+function parseEmailWithOptionalName(
+	value: string,
+): { email: string; name?: string } | null {
+	const trimmed = value.trim();
+	if (!trimmed) return null;
+
+	const match = /^(.*?)\s*<([^>]+)>$/.exec(trimmed);
+	if (match) {
+		const name = match[1].trim().replace(/^['"]|['"]$/g, "");
+		const email = match[2].trim();
+		if (!email) return null;
+		return name ? { email, name } : { email };
+	}
+
+	return { email: trimmed };
+}
+
+function formatAddressWithName(email: string, name?: string): string {
+	if (!name || !name.trim()) return email;
+
+	const normalizedName = name.trim();
+	const escapedName = normalizedName.replaceAll('"', '\\"');
+	const needsQuotes = /[,<>()[\]:;@\\"]/.test(normalizedName);
+	if (needsQuotes) {
+		return `"${escapedName}" <${email}>`;
+	}
+
+	return `${normalizedName} <${email}>`;
+}
+
+function applyMailboxSenderDefaults(
+	ctx: CliContext,
+	body: Record<string, unknown>,
+): Record<string, unknown> {
+	const mailbox = resolveActiveMailbox(ctx);
+	if (!mailbox?.email) return body;
+
+	const preferredFrom = formatAddressWithName(mailbox.email, mailbox.name);
+	const fromValue = typeof body.from === "string" ? body.from.trim() : "";
+
+	if (!fromValue) {
+		return {
+			...body,
+			from: preferredFrom,
+		};
+	}
+
+	const parsedFrom = parseEmailWithOptionalName(fromValue);
+	if (!parsedFrom || parsedFrom.name) return body;
+
+	if (parsedFrom.email.toLowerCase() !== mailbox.email.toLowerCase()) {
+		return body;
+	}
+
+	return {
+		...body,
+		from: preferredFrom,
+	};
+}
+
+function getReplyTargetId(body: Record<string, unknown>): string | undefined {
+	const value = body.reply_to_id;
+	if (typeof value !== "string") return undefined;
+	const trimmed = value.trim();
+	return trimmed || undefined;
+}
+
+function validateReplyModeFields(body: Record<string, unknown>): void {
+	const unsupported = ["cc", "bcc", "scheduled_at", "timezone"];
+	const present = unsupported.filter((field) => body[field] !== undefined);
+	if (present.length > 0) {
+		throw new Error(
+			`These fields are not supported when ReplyTo targets an inbound email id: ${present.join(", ")}`,
+		);
+	}
+}
+
+function validateReplyPayload(payload: Record<string, unknown>): void {
+	const missing: string[] = [];
+	if (typeof payload.from !== "string" || payload.from.trim().length === 0) {
+		missing.push("from");
+	}
+
+	const hasHtml =
+		typeof payload.html === "string" && payload.html.trim().length > 0;
+	const hasText =
+		typeof payload.text === "string" && payload.text.trim().length > 0;
+	if (!hasHtml && !hasText) {
+		missing.push("text/html");
+	}
+
+	if (missing.length > 0) {
+		throw new Error(
+			`Missing required reply field(s): ${missing.join(", ")}. Include them in flags, --data, or your .inbound draft.`,
+		);
+	}
+}
+
 function requireApiContext(ctx: CliContext): {
 	apiKey: string;
 	baseUrl: string;
@@ -185,6 +357,54 @@ function readCommonFilterQuery(parsed: ParsedArgv) {
 	if (type) query.type = type;
 	if (timeRange) query.time_range = timeRange;
 	return query;
+}
+
+function parseAddressOption(
+	parsed: ParsedArgv,
+	...names: string[]
+): string | string[] | undefined {
+	const addresses = getOptionStrings(parsed, ...names)
+		.flatMap((value) => value.split(","))
+		.map((value) => value.trim())
+		.filter(Boolean);
+
+	if (addresses.length === 0) return undefined;
+	if (addresses.length === 1) return addresses[0];
+	return addresses;
+}
+
+function buildEmailSendFallback(parsed: ParsedArgv): Record<string, unknown> {
+	return withDefinedValues({
+		from: getOptionString(parsed, "from"),
+		to: parseAddressOption(parsed, "to"),
+		cc: parseAddressOption(parsed, "cc"),
+		bcc: parseAddressOption(parsed, "bcc"),
+		reply_to: parseAddressOption(parsed, "reply_to", "reply-to", "replyTo"),
+		reply_to_id: getOptionString(
+			parsed,
+			"reply_to_id",
+			"reply-to-id",
+			"replyToId",
+		),
+		subject: getOptionString(parsed, "subject"),
+		html: getOptionString(parsed, "html"),
+		text: getOptionString(parsed, "text"),
+		scheduled_at: getOptionString(
+			parsed,
+			"scheduled_at",
+			"scheduled-at",
+			"scheduledAt",
+		),
+		timezone: getOptionString(parsed, "timezone"),
+	});
+}
+
+function withDefinedValues(
+	value: Record<string, unknown>,
+): Record<string, unknown> {
+	return Object.fromEntries(
+		Object.entries(value).filter(([, fieldValue]) => fieldValue !== undefined),
+	);
 }
 
 export async function runApiCommand(ctx: CliContext): Promise<unknown> {
@@ -369,15 +589,40 @@ export async function runApiCommand(ctx: CliContext): Promise<unknown> {
 			return sdk.emails.retrieve(id);
 		}
 		if (action === "send") {
-			const body = await readBodyInput(ctx.parsed, {
-				from: getOptionString(ctx.parsed, "from"),
-				to: getOptionString(ctx.parsed, "to"),
-				subject: getOptionString(ctx.parsed, "subject"),
-				html: getOptionString(ctx.parsed, "html"),
-				text: getOptionString(ctx.parsed, "text"),
+			const draftPath =
+				getOptionString(ctx.parsed, "draft", "draft-file", "draftFile") ||
+				maybeThird;
+
+			const draftBody = draftPath ? await readInboundDraftFile(draftPath) : {};
+
+			const inputBody = await readBodyInput(ctx.parsed, {
+				...draftBody,
+				...buildEmailSendFallback(ctx.parsed),
 			});
+			const body = applyMailboxSenderDefaults(ctx, inputBody);
+			const replyTargetId = getReplyTargetId(body);
+
+			if (replyTargetId) {
+				validateReplyModeFields(body);
+				const replyBody = withDefinedValues({
+					from: body.from,
+					to: body.to,
+					subject: body.subject,
+					html: body.html,
+					text: body.text,
+					headers: body.headers,
+					attachments: body.attachments,
+					reply_all: body.reply_all,
+					tags: body.tags,
+				});
+
+				validateReplyPayload(replyBody);
+				return sdk.emails.reply(replyTargetId, replyBody as never);
+			}
+
+			validateSendPayload(body);
 			return sdk.emails.send(
-				body as { from: string; to: string; subject: string },
+				body as { from: string; to: string | string[]; subject: string },
 			);
 		}
 		if (action === "update") {
@@ -399,7 +644,7 @@ export async function runApiCommand(ctx: CliContext): Promise<unknown> {
 		}
 		if (action === "reply") {
 			const id = requirePositional(maybeThird, "email or thread id");
-			const body = await readBodyInput(ctx.parsed, {
+			const inputBody = await readBodyInput(ctx.parsed, {
 				from: getOptionString(ctx.parsed, "from"),
 				to: getOptionString(ctx.parsed, "to"),
 				subject: getOptionString(ctx.parsed, "subject"),
@@ -407,6 +652,8 @@ export async function runApiCommand(ctx: CliContext): Promise<unknown> {
 				text: getOptionString(ctx.parsed, "text"),
 				reply_all: getOptionBoolean(ctx.parsed, "reply_all", "reply-all"),
 			});
+			const body = applyMailboxSenderDefaults(ctx, inputBody);
+			validateReplyPayload(body);
 			return sdk.emails.reply(id, body as never);
 		}
 		if (action === "retry") {

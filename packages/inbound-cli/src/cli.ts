@@ -1,5 +1,5 @@
 import { createSdkClient } from "./client/e2-client";
-import { runApiCommand, runMailboxCommand } from "./commands";
+import { runApiCommand, runDraftCommand, runMailboxCommand } from "./commands";
 import { loadConfig } from "./config/inbound-config";
 import {
 	getOptionBoolean,
@@ -19,6 +19,7 @@ import type { CliContext, GlobalOptions } from "./types";
 
 export async function runCli(argv: string[]): Promise<void> {
 	const parsed = parseArgv(argv);
+	parsed.positionals = normalizeShortcutTokens(parsed.positionals);
 	const tokens = parsed.positionals;
 	const wantsHelp = getOptionBoolean(parsed, "help", "h");
 
@@ -106,6 +107,8 @@ export async function runCli(argv: string[]): Promise<void> {
 		let result: unknown;
 		if (group === "mailbox") {
 			result = await runMailboxCommand(ctx);
+		} else if (group === "draft") {
+			result = await runDraftCommand(ctx);
 		} else {
 			if (!globals.apiKey) {
 				throw new Error(
@@ -155,4 +158,18 @@ function makeGlobalOptions(
 		domains: getOptionStrings(parsed, "domain"),
 		mergeFilters: getOptionBoolean(parsed, "merge-filters", "mergeFilters"),
 	};
+}
+
+function normalizeShortcutTokens(tokens: string[]): string[] {
+	if (tokens.length === 0) return tokens;
+
+	if (tokens[0] === "send") {
+		return ["emails", "send", ...tokens.slice(1)];
+	}
+
+	if (tokens[0] === "help" && tokens[1] === "send") {
+		return ["help", "emails", "send", ...tokens.slice(2)];
+	}
+
+	return tokens;
 }

@@ -96,6 +96,28 @@ const GROUPS: Record<string, GroupSpec> = {
 			"bun run inbound mailbox use support",
 		],
 	},
+	draft: {
+		summary: "Create local .inbound email draft files",
+		actions: {
+			init: {
+				summary: "Create a draft template",
+				usage: "bun run inbound draft init [path] [--force]",
+				examples: [
+					"bun run inbound draft init",
+					"bun run inbound draft init ./welcome.inbound",
+				],
+				flags: [
+					"--force                Overwrite existing file",
+					"--path <path>          Output path for the draft file",
+				],
+			},
+		},
+		examples: [
+			"bun run inbound draft init",
+			"bun run inbound draft init ./welcome.inbound",
+			"bun run inbound send ./welcome.inbound",
+		],
+	},
 	domains: {
 		summary: "Manage email domains",
 		actions: {
@@ -190,9 +212,24 @@ const GROUPS: Record<string, GroupSpec> = {
 			send: {
 				summary: "Send an email",
 				usage:
-					"bun run inbound emails send --from <email> --to <email> --subject <subject> [--text <text>] [--html <html>]",
+					"bun run inbound emails send [<draft.inbound>] [--from <email>] [--to <email>] [--subject <subject>] [--text <text>] [--html <html>]",
 				examples: [
+					"bun run inbound send ./welcome.inbound",
 					'bun run inbound emails send --from support@inbound.new --to you@example.com --subject "Hello" --text "Hi"',
+				],
+				flags: [
+					"--draft <path>         Read .inbound draft file",
+					"--from <email>         Sender address (overrides draft)",
+					"--to <email>           Recipient (repeatable/comma-separated)",
+					"--cc <email>           CC recipient (repeatable/comma-separated)",
+					"--bcc <email>          BCC recipient (repeatable/comma-separated)",
+					"--reply-to-id <id>     Reply to inbound email/thread id",
+					"--reply-to <email>     Reply-To header address(es)",
+					"--subject <text>       Subject line",
+					"--text <text>          Plain text body",
+					"--html <html>          HTML body",
+					"--scheduled-at <time>  Schedule time (ISO or natural language)",
+					"--timezone <tz>        Timezone for scheduled-at",
 				],
 			},
 			update: {
@@ -435,10 +472,12 @@ export function printMainHelp() {
 		"",
 		"Usage:",
 		"  inbound <group> <action> [args] [flags]",
+		"  inbound send [draft.inbound] [flags]",
 		"  inbound help [group] [action]",
 		"  (or use bun run inbound ... in this repo)",
 		"",
 		"  bun run inbound <group> <action> [args] [flags]",
+		"  bun run inbound send [draft.inbound] [flags]",
 		"  bun run inbound help [group] [action]",
 		"",
 	]);
@@ -447,7 +486,9 @@ export function printMainHelp() {
 
 	printSection("Quick examples:", [
 		"  bun run inbound mailbox init",
+		"  bun run inbound draft init ./welcome.inbound",
 		'  bun run inbound mailbox add support --name "Support" --email support@inbound.new --domain inbound.new',
+		"  bun run inbound send ./welcome.inbound",
 		"  bun run inbound emails list --mailbox support",
 		"  bun run inbound mail threads list --domain inbound.new",
 		'  bun run inbound emails send --from support@inbound.new --to you@example.com --subject "Hello" --text "Hi"',
@@ -752,7 +793,7 @@ _inbound_complete() {
   sub="\${COMP_WORDS[2]}"
 
   if [[ $COMP_CWORD -eq 1 ]]; then
-    COMPREPLY=( $(compgen -W "mailbox domains addresses email-addresses emails endpoints attachments mail guard completion help" -- "$cur") )
+    COMPREPLY=( $(compgen -W "mailbox draft domains addresses email-addresses emails endpoints attachments mail guard completion send help" -- "$cur") )
     return 0
   fi
 
@@ -773,8 +814,12 @@ _inbound_complete() {
       COMPREPLY=( $(compgen -W "get" -- "$cur") ) ;;
     guard)
       COMPREPLY=( $(compgen -W "list get create update delete check generate" -- "$cur") ) ;;
+    draft)
+      COMPREPLY=( $(compgen -W "init" -- "$cur") ) ;;
     completion)
       COMPREPLY=( $(compgen -W "bash zsh fish" -- "$cur") ) ;;
+    send)
+      COMPREPLY=() ;;
     mail)
       if [[ $COMP_CWORD -eq 2 ]]; then
         COMPREPLY=( $(compgen -W "threads" -- "$cur") )
@@ -793,7 +838,7 @@ function buildZshCompletion(): string {
 _inbound() {
   local -a groups
   local -a actions
-  groups=(mailbox domains addresses email-addresses emails endpoints attachments mail guard completion help)
+  groups=(mailbox draft domains addresses email-addresses emails endpoints attachments mail guard completion send help)
 
   if (( CURRENT == 2 )); then
     _describe 'group' groups
@@ -809,7 +854,9 @@ _inbound() {
     endpoints) actions=(list get create update delete test) ;;
     attachments) actions=(get) ;;
     guard) actions=(list get create update delete check generate) ;;
+    draft) actions=(init) ;;
     completion) actions=(bash zsh fish) ;;
+    send) actions=() ;;
     mail)
       if (( CURRENT == 3 )); then
         _describe 'mail command' '(threads)'
@@ -832,7 +879,7 @@ compdef _inbound inbound`;
 
 function buildFishCompletion(): string {
 	return `complete -c inbound -f
-complete -c inbound -n '__fish_use_subcommand' -a 'mailbox domains addresses email-addresses emails endpoints attachments mail guard completion help'
+complete -c inbound -n '__fish_use_subcommand' -a 'mailbox draft domains addresses email-addresses emails endpoints attachments mail guard completion send help'
 
 complete -c inbound -n '__fish_seen_subcommand_from mailbox' -a 'init list add use remove show find'
 complete -c inbound -n '__fish_seen_subcommand_from domains' -a 'list get create update delete'
@@ -842,6 +889,7 @@ complete -c inbound -n '__fish_seen_subcommand_from emails' -a 'list get send up
 complete -c inbound -n '__fish_seen_subcommand_from endpoints' -a 'list get create update delete test'
 complete -c inbound -n '__fish_seen_subcommand_from attachments' -a 'get'
 complete -c inbound -n '__fish_seen_subcommand_from guard' -a 'list get create update delete check generate'
+complete -c inbound -n '__fish_seen_subcommand_from draft' -a 'init'
 complete -c inbound -n '__fish_seen_subcommand_from completion' -a 'bash zsh fish'
 
 complete -c inbound -n '__fish_seen_subcommand_from mail; and not __fish_seen_subcommand_from threads' -a 'threads'
