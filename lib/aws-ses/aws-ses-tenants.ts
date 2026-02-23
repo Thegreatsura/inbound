@@ -1154,14 +1154,29 @@ export async function pauseTenantSending(
 	configurationSetName: string,
 	reason: string,
 ): Promise<{ success: boolean; error?: string }> {
+	return disableTenantSending(configurationSetName, reason, "paused");
+}
+
+export async function suspendTenantSending(
+	configurationSetName: string,
+	reason: string,
+): Promise<{ success: boolean; error?: string }> {
+	return disableTenantSending(configurationSetName, reason, "suspended");
+}
+
+async function disableTenantSending(
+	configurationSetName: string,
+	reason: string,
+	tenantStatus: "paused" | "suspended",
+): Promise<{ success: boolean; error?: string }> {
 	if (!sesv2Client) {
-		console.error("❌ pauseTenantSending - AWS SES not configured");
+		console.error("❌ disableTenantSending - AWS SES not configured");
 		return { success: false, error: "AWS SES not configured" };
 	}
 
 	try {
 		console.log(
-			`🛑 pauseTenantSending - Pausing sending for: ${configurationSetName}`,
+			`🛑 disableTenantSending - Disabling sending for: ${configurationSetName}`,
 		);
 		console.log(`   Reason: ${reason}`);
 
@@ -1184,22 +1199,25 @@ export async function pauseTenantSending(
 			await db
 				.update(sesTenants)
 				.set({
-					status: "paused",
+					status: tenantStatus,
 					updatedAt: new Date(),
 				})
 				.where(eq(sesTenants.id, tenant.id));
 
 			console.log(
-				`✅ pauseTenantSending - Tenant status updated to 'paused' in database`,
+				`✅ disableTenantSending - Tenant status updated to '${tenantStatus}' in database`,
 			);
 		}
 
 		console.log(
-			`✅ pauseTenantSending - Sending disabled for: ${configurationSetName}`,
+			`✅ disableTenantSending - Sending disabled for: ${configurationSetName}`,
 		);
 		return { success: true };
 	} catch (error) {
-		console.error(`❌ pauseTenantSending - Failed to pause sending:`, error);
+		console.error(
+			`❌ disableTenantSending - Failed to disable sending:`,
+			error,
+		);
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : "Unknown error",

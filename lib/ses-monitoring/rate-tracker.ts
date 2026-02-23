@@ -12,16 +12,21 @@ import { nanoid } from "nanoid";
 import { db } from "@/lib/db";
 import { emailDeliveryEvents, sentEmails, sesTenants } from "@/lib/db/schema";
 
-// Rate thresholds (same as the old CloudWatch alarms)
+// Rate thresholds for tenant alerting and automatic suspension
 export const RATE_THRESHOLDS = {
 	bounce: {
-		warning: 0.05, // 5%
-		critical: 0.07, // 7%
+		warning: 0.02, // 2.0%
+		critical: 0.025, // 2.5%
 	},
 	complaint: {
-		warning: 0.001, // 0.1%
-		critical: 0.003, // 0.3%
+		warning: 0.0008, // 0.08%
+		critical: 0.001, // 0.1%
 	},
+} as const;
+
+export const AUTO_SUSPEND_MIN_SENDS = {
+	bounce: 200,
+	complaint: 1000,
 } as const;
 
 // Time window for rate calculation (24 hours)
@@ -206,9 +211,16 @@ export async function getTenantRates(
  */
 export function checkRateThresholds(rates: TenantRates): RateAlert[] {
 	const alerts: RateAlert[] = [];
+	const canAutoSuspendForBounce =
+		rates.totalSends >= AUTO_SUSPEND_MIN_SENDS.bounce;
+	const canAutoSuspendForComplaint =
+		rates.totalSends >= AUTO_SUSPEND_MIN_SENDS.complaint;
 
 	// Check bounce rate
-	if (rates.bounceRate >= RATE_THRESHOLDS.bounce.critical) {
+	if (
+		canAutoSuspendForBounce &&
+		rates.bounceRate >= RATE_THRESHOLDS.bounce.critical
+	) {
 		alerts.push({
 			alertType: "bounce",
 			severity: "critical",
@@ -229,7 +241,10 @@ export function checkRateThresholds(rates: TenantRates): RateAlert[] {
 	}
 
 	// Check complaint rate
-	if (rates.complaintRate >= RATE_THRESHOLDS.complaint.critical) {
+	if (
+		canAutoSuspendForComplaint &&
+		rates.complaintRate >= RATE_THRESHOLDS.complaint.critical
+	) {
 		alerts.push({
 			alertType: "complaint",
 			severity: "critical",
