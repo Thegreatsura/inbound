@@ -27,6 +27,7 @@ import {
 	ListTenantsCommand,
 	PutConfigurationSetSendingOptionsCommand,
 	SESv2Client,
+	UpdateReputationEntityPolicyCommand,
 } from "@aws-sdk/client-sesv2";
 import {
 	CreateTopicCommand,
@@ -72,10 +73,13 @@ export interface AssociateIdentityParams {
 	resourceType: "IDENTITY";
 }
 
+type SesTenantRecord = typeof sesTenants.$inferSelect;
+
 // AWS SESv2 Client Setup (required for tenant management)
 const awsRegion = process.env.AWS_REGION || "us-east-2";
 const awsAccessKeyId = process.env.AWS_ACCESS_KEY_ID;
 const awsSecretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
+const STRICT_REPUTATION_POLICY_ARN = `arn:aws:ses:${awsRegion}:aws:reputation-policy/strict`;
 
 let sesv2Client: SESv2Client | null = null;
 let snsClient: SNSClient | null = null;
@@ -282,6 +286,77 @@ export class SESTenantManager {
 		}
 	}
 
+	private buildTenantArn(tenantName: string, awsTenantId: string): string {
+		if (!AWS_ACCOUNT_ID) {
+			throw new Error("AWS_ACCOUNT_ID environment variable is not set");
+		}
+
+		return `arn:aws:ses:${awsRegion}:${AWS_ACCOUNT_ID}:tenant/${tenantName}/${awsTenantId}`;
+	}
+
+	private async applyStrictReputationPolicy(
+		tenantName: string,
+		awsTenantId: string,
+	): Promise<{ success: boolean; error?: string }> {
+		try {
+			const tenantArn = this.buildTenantArn(tenantName, awsTenantId);
+			const command = new UpdateReputationEntityPolicyCommand({
+				ReputationEntityType: "RESOURCE",
+				ReputationEntityReference: tenantArn,
+				ReputationEntityPolicy: STRICT_REPUTATION_POLICY_ARN,
+			});
+
+			await this.sesv2Client.send(command);
+			return { success: true };
+		} catch (error) {
+			return {
+				success: false,
+				error:
+					error instanceof Error
+						? error.message
+						: "Unknown error applying strict reputation policy",
+			};
+		}
+	}
+
+	private async ensureStrictPolicyForTenantRecord(
+		tenant: SesTenantRecord,
+	): Promise<{ tenant: SesTenantRecord; success: boolean; error?: string }> {
+		const policyResult = await this.applyStrictReputationPolicy(
+			tenant.tenantName,
+			tenant.awsTenantId,
+		);
+
+		if (!policyResult.success) {
+			return {
+				tenant,
+				success: false,
+				error: policyResult.error,
+			};
+		}
+
+		if (tenant.reputationPolicy === "strict") {
+			return {
+				tenant,
+				success: true,
+			};
+		}
+
+		const [updatedTenant] = await db
+			.update(sesTenants)
+			.set({
+				reputationPolicy: "strict",
+				updatedAt: new Date(),
+			})
+			.where(eq(sesTenants.id, tenant.id))
+			.returning();
+
+		return {
+			tenant: updatedTenant || { ...tenant, reputationPolicy: "strict" },
+			success: true,
+		};
+	}
+
 	/**
 	 * Create a new tenant for a user
 	 * This creates the AWS SES tenant, configuration set, associates them, and creates the local database record
@@ -293,6 +368,13 @@ export class SESTenantManager {
 	}: CreateTenantParams): Promise<CreateTenantResult> {
 		try {
 			console.log(`🏢 Creating SES tenant for user: ${userId}`);
+			const enforcedReputationPolicy: "strict" = "strict";
+
+			if (reputationPolicy && reputationPolicy !== "strict") {
+				console.warn(
+					`⚠️ Requested reputation policy "${reputationPolicy}" ignored; enforcing "strict"`,
+				);
+			}
 
 			// Check if user already has a tenant
 			const existingTenant = await db
@@ -302,8 +384,20 @@ export class SESTenantManager {
 				.limit(1);
 
 			if (existingTenant.length > 0) {
+				const strictPolicyResult = await this.ensureStrictPolicyForTenantRecord(
+					existingTenant[0],
+				);
+
+				if (!strictPolicyResult.success) {
+					return {
+						tenant: existingTenant[0],
+						success: false,
+						error: `Tenant exists but strict reputation policy could not be enforced: ${strictPolicyResult.error || "Unknown error"}`,
+					};
+				}
+
 				return {
-					tenant: existingTenant[0],
+					tenant: strictPolicyResult.tenant,
 					success: true,
 					error: "Tenant already exists for user",
 				};
@@ -366,6 +460,23 @@ export class SESTenantManager {
 					throw error; // Re-throw if not an "already exists" error
 				}
 			}
+
+			console.log(
+				`🛡️ Enforcing strict reputation policy for: ${finalTenantName}`,
+			);
+			const strictPolicyResult = await this.applyStrictReputationPolicy(
+				finalTenantName,
+				awsTenantId,
+			);
+
+			if (!strictPolicyResult.success) {
+				throw new Error(
+					`Failed to enforce strict reputation policy for tenant ${finalTenantName}: ${strictPolicyResult.error || "Unknown error"}`,
+				);
+			}
+			console.log(
+				`✅ Strict reputation policy applied to tenant: ${finalTenantName}`,
+			);
 
 			// Step 2: Create Configuration Set for this tenant
 			console.log(`📋 Creating configuration set: ${configSetName}`);
@@ -515,7 +626,7 @@ export class SESTenantManager {
 					tenantName: finalTenantName,
 					configurationSetName: configSetCreated ? configSetName : null,
 					status: "active",
-					reputationPolicy,
+					reputationPolicy: enforcedReputationPolicy,
 					createdAt: new Date(),
 					updatedAt: new Date(),
 				})
@@ -747,11 +858,23 @@ export class SESTenantManager {
 				.limit(1);
 
 			if (existingTenant.length > 0) {
+				const strictPolicyResult = await this.ensureStrictPolicyForTenantRecord(
+					existingTenant[0],
+				);
+
+				if (!strictPolicyResult.success) {
+					return {
+						tenant: existingTenant[0],
+						success: false,
+						error: `Failed to enforce strict reputation policy for existing tenant: ${strictPolicyResult.error || "Unknown error"}`,
+					};
+				}
+
 				console.log(
-					`📋 Found existing tenant for user ${userId}: ${existingTenant[0].id}`,
+					`📋 Found existing tenant for user ${userId}: ${strictPolicyResult.tenant.id}`,
 				);
 				return {
-					tenant: existingTenant[0],
+					tenant: strictPolicyResult.tenant,
 					success: true,
 				};
 			}
@@ -828,9 +951,7 @@ export class SESTenantManager {
 	/**
 	 * Get tenant information including AWS status
 	 */
-	async getTenant(
-		tenantId: string,
-	): Promise<{
+	async getTenant(tenantId: string): Promise<{
 		tenant: any;
 		awsTenant?: any;
 		success: boolean;
