@@ -1,361 +1,510 @@
-/**
- * Email Sending Spike Detector
- * 
- * Detects unusual spikes in email sending volume compared to historical patterns.
- * When a user's current sending volume significantly exceeds their historical average,
- * an alert is sent to the admin Slack channel.
- * 
- * This helps identify:
- * - Compromised accounts
- * - Sudden spam campaigns
- * - Unusual user behavior that may need investigation
- */
-
+import { and, count, eq, gte, isNull, lt, or } from "drizzle-orm"
+import { getAwsSesStats } from "@/lib/aws-ses/aws-stats-core"
+import { user } from "@/lib/db/auth-schema"
 import { db } from "@/lib/db"
 import { sentEmails } from "@/lib/db/schema"
-import { user } from "@/lib/db/auth-schema"
-import { eq, and, gte, lt, sql, count } from "drizzle-orm"
 import { redis } from "@/lib/redis"
 
 const SLACK_ADMIN_WEBHOOK_URL = process.env.SLACK_ADMIN_WEBHOOK_URL
 
-/**
- * Configuration for spike detection
- */
 const SPIKE_DETECTION_CONFIG = {
-  /** Number of days to look back for historical baseline */
-  HISTORICAL_DAYS: 7,
-  /** Multiplier threshold - alert if current > average * threshold */
-  SPIKE_THRESHOLD_MULTIPLIER: 3,
-  /** Minimum emails in historical period to establish a baseline */
-  MIN_HISTORICAL_EMAILS: 5,
-  /** Minimum emails in current period to trigger spike alert (prevent alerts for low-volume users) */
-  MIN_CURRENT_EMAILS_FOR_ALERT: 10,
-  /** Cooldown period in hours - don't alert again for same user within this time */
-  ALERT_COOLDOWN_HOURS: 24, // Increased from 4 to 24 hours
+	HISTORICAL_DAYS: 14,
+	SPIKE_THRESHOLD_MULTIPLIER: 8,
+	MIN_HISTORICAL_DAILY_AVERAGE: 50,
+	MIN_CURRENT_EMAILS_FOR_RELATIVE_ALERT: 500,
+	ABSOLUTE_15_MIN_WARNING: 200,
+	ABSOLUTE_1H_WARNING: 500,
+	ABSOLUTE_1H_HIGH: 1000,
+	ABSOLUTE_1H_CRITICAL: 5000,
+	ABSOLUTE_24H_WARNING: 500,
+	ABSOLUTE_24H_HIGH: 5000,
+	ABSOLUTE_24H_CRITICAL: 100000,
+	NEW_ACCOUNT_DAYS: 7,
+	NEW_ACCOUNT_1H_WARNING: 300,
+	NEW_ACCOUNT_24H_WARNING: 2000,
+	REPUTATION_RATE_ALERT_MIN_24H_EMAILS: 500,
+	ALERT_COOLDOWN_HOURS: 24,
+	AWS_REPUTATION_CACHE_SECONDS: 15 * 60,
 }
 
-// Redis key prefix for spike alert rate limiting
-const SPIKE_ALERT_REDIS_PREFIX = 'spike-alert:'
+const SPIKE_ALERT_REDIS_PREFIX = "spike-alert:"
+const SPIKE_AWS_REPUTATION_CACHE_KEY = "spike-alert:aws-reputation-cache"
 
-/**
- * Get email count for a user in the last N hours
- */
-async function getEmailsSentInLastHours(userId: string, hours: number): Promise<number> {
-  const cutoffTime = new Date(Date.now() - hours * 60 * 60 * 1000)
+type AlertSeverity = "medium" | "high" | "critical"
 
-  const result = await db
-    .select({ count: count() })
-    .from(sentEmails)
-    .where(
-      and(
-        eq(sentEmails.userId, userId),
-        gte(sentEmails.createdAt, cutoffTime)
-      )
-    )
-
-  return result[0]?.count || 0
+type AwsReputationSnapshot = {
+	latestBounceRatePercent: number
+	latestComplaintRatePercent: number
+	latestRejectRatePercent: number
+	bounceWarningPercent: number
+	complaintWarningPercent: number
+	bounceAtRiskPercent: number
+	complaintAtRiskPercent: number
+	isWarning: boolean
+	isAtRisk: boolean
+	checkedAt: string
 }
 
-/**
- * Get daily average email count for a user over a historical period
- * Excludes the most recent 24 hours to avoid contamination
- */
+async function getEmailsSentSince(userId: string, cutoffTime: Date): Promise<number> {
+	const result = await db
+		.select({ total: count() })
+		.from(sentEmails)
+		.where(
+			and(
+				eq(sentEmails.userId, userId),
+				eq(sentEmails.status, "sent"),
+				or(
+					gte(sentEmails.sentAt, cutoffTime),
+					and(isNull(sentEmails.sentAt), gte(sentEmails.createdAt, cutoffTime)),
+				),
+			),
+		)
+
+	return Number(result[0]?.total || 0)
+}
+
 async function getHistoricalDailyAverage(userId: string, days: number): Promise<number> {
-  const now = new Date()
-  const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000)
-  const historicalStart = new Date(now.getTime() - (days + 1) * 24 * 60 * 60 * 1000)
+	const now = new Date()
+	const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+	const historicalStart = new Date(now.getTime() - (days + 1) * 24 * 60 * 60 * 1000)
 
-  const result = await db
-    .select({ count: count() })
-    .from(sentEmails)
-    .where(
-      and(
-        eq(sentEmails.userId, userId),
-        gte(sentEmails.createdAt, historicalStart),
-        lt(sentEmails.createdAt, oneDayAgo)
-      )
-    )
+	const result = await db
+		.select({ total: count() })
+		.from(sentEmails)
+		.where(
+			and(
+				eq(sentEmails.userId, userId),
+				eq(sentEmails.status, "sent"),
+				or(
+					and(gte(sentEmails.sentAt, historicalStart), lt(sentEmails.sentAt, oneDayAgo)),
+					and(
+						isNull(sentEmails.sentAt),
+						gte(sentEmails.createdAt, historicalStart),
+						lt(sentEmails.createdAt, oneDayAgo),
+					),
+				),
+			),
+		)
 
-  const totalEmails = result[0]?.count || 0
-  
-  // Return daily average (total emails divided by number of days)
-  return days > 0 ? totalEmails / days : 0
+	const totalEmails = Number(result[0]?.total || 0)
+	return days > 0 ? totalEmails / days : 0
 }
 
-/**
- * Get user information for the alert
- */
-async function getUserInfo(userId: string): Promise<{ email: string; name: string | null } | null> {
-  const result = await db
-    .select({ 
-      email: user.email, 
-      name: user.name 
-    })
-    .from(user)
-    .where(eq(user.id, userId))
-    .limit(1)
+async function getUserInfo(
+	userId: string,
+): Promise<{ email: string; name: string | null; createdAt: Date | string } | null> {
+	const result = await db
+		.select({
+			email: user.email,
+			name: user.name,
+			createdAt: user.createdAt,
+		})
+		.from(user)
+		.where(eq(user.id, userId))
+		.limit(1)
 
-  return result[0] || null
+	return result[0] || null
 }
 
-/**
- * Check if we recently sent an alert for this user (cooldown) - uses Redis for persistence
- */
+function getUserAgeInDays(createdAt: Date | string): number {
+	const created = createdAt instanceof Date ? createdAt : new Date(createdAt)
+	return Math.max(0, (Date.now() - created.getTime()) / (1000 * 60 * 60 * 24))
+}
+
 async function isInCooldown(userId: string): Promise<boolean> {
-  try {
-    const redisKey = `${SPIKE_ALERT_REDIS_PREFIX}${userId}`
-    const lastAlertTime = await redis.get<number>(redisKey)
-    if (!lastAlertTime) return false
-    
-    const cooldownMs = SPIKE_DETECTION_CONFIG.ALERT_COOLDOWN_HOURS * 60 * 60 * 1000
-    return Date.now() - lastAlertTime < cooldownMs
-  } catch (error) {
-    console.warn('⚠️ isInCooldown - Redis check failed:', error)
-    return false // If Redis fails, allow the alert
-  }
+	try {
+		const redisKey = `${SPIKE_ALERT_REDIS_PREFIX}${userId}`
+		const lastAlertTime = await redis.get<number>(redisKey)
+		if (!lastAlertTime) {
+			return false
+		}
+		const cooldownMs = SPIKE_DETECTION_CONFIG.ALERT_COOLDOWN_HOURS * 60 * 60 * 1000
+		return Date.now() - lastAlertTime < cooldownMs
+	} catch (error) {
+		console.warn("⚠️ isInCooldown - Redis check failed:", error)
+		return false
+	}
 }
 
-/**
- * Mark that we sent an alert for this user - uses Redis for persistence
- */
 async function markAlertSent(userId: string): Promise<void> {
-  try {
-    const redisKey = `${SPIKE_ALERT_REDIS_PREFIX}${userId}`
-    const cooldownSeconds = SPIKE_DETECTION_CONFIG.ALERT_COOLDOWN_HOURS * 60 * 60
-    await redis.set(redisKey, Date.now(), { ex: cooldownSeconds })
-  } catch (error) {
-    console.warn('⚠️ markAlertSent - Redis set failed:', error)
-  }
+	try {
+		const redisKey = `${SPIKE_ALERT_REDIS_PREFIX}${userId}`
+		const cooldownSeconds = SPIKE_DETECTION_CONFIG.ALERT_COOLDOWN_HOURS * 60 * 60
+		await redis.set(redisKey, Date.now(), { ex: cooldownSeconds })
+	} catch (error) {
+		console.warn("⚠️ markAlertSent - Redis set failed:", error)
+	}
 }
 
-/**
- * Send Slack alert for a sending spike
- */
-async function sendSpikeAlert(
-  userId: string,
-  userEmail: string,
-  userName: string | null,
-  currentCount: number,
-  historicalAverage: number,
-  spikeMultiplier: number
-): Promise<void> {
-  if (!SLACK_ADMIN_WEBHOOK_URL) {
-    console.log('⚠️ SLACK_ADMIN_WEBHOOK_URL not configured, skipping spike alert')
-    return
-  }
+async function getAwsReputationSnapshot(): Promise<AwsReputationSnapshot | null> {
+	try {
+		const cached = await redis.get<AwsReputationSnapshot>(SPIKE_AWS_REPUTATION_CACHE_KEY)
+		if (cached) {
+			return cached
+		}
+	} catch (error) {
+		console.warn("⚠️ getAwsReputationSnapshot - Redis read failed:", error)
+	}
 
-  try {
-    const slackMessage = {
-      blocks: [
-        {
-          type: 'header',
-          text: {
-            type: 'plain_text',
-            text: '🚨 Email Sending Spike Detected',
-            emoji: true
-          }
-        },
-        {
-          type: 'section',
-          text: {
-            type: 'mrkdwn',
-            text: `*User sending significantly more emails than usual*`
-          }
-        },
-        {
-          type: 'section',
-          fields: [
-            {
-              type: 'mrkdwn',
-              text: `*User:*\n${userName || 'N/A'} (${userEmail})`
-            },
-            {
-              type: 'mrkdwn',
-              text: `*User ID:*\n\`${userId}\``
-            },
-            {
-              type: 'mrkdwn',
-              text: `*Emails (Last 24h):*\n${currentCount}`
-            },
-            {
-              type: 'mrkdwn',
-              text: `*Historical Daily Avg:*\n${historicalAverage.toFixed(1)}`
-            },
-            {
-              type: 'mrkdwn',
-              text: `*Spike Multiplier:*\n${spikeMultiplier.toFixed(1)}x`
-            },
-            {
-              type: 'mrkdwn',
-              text: `*Detected At:*\n${new Date().toLocaleString()}`
-            }
-          ]
-        },
-        {
-          type: 'context',
-          elements: [
-            {
-              type: 'mrkdwn',
-              text: `⚠️ This user is sending *${spikeMultiplier.toFixed(1)}x* more emails than their ${SPIKE_DETECTION_CONFIG.HISTORICAL_DAYS}-day average. Consider reviewing their activity.`
-            }
-          ]
-        },
-        {
-          type: 'actions',
-          elements: [
-            {
-              type: 'button',
-              text: {
-                type: 'plain_text',
-                text: 'View in Admin',
-                emoji: true
-              },
-              url: `https://inbound.new/admin`,
-              action_id: 'view_admin'
-            }
-          ]
-        }
-      ]
-    }
+	try {
+		const { output } = await getAwsSesStats({
+			lookbackDays: 7,
+			periodSeconds: 3600,
+		})
+		const snapshot: AwsReputationSnapshot = {
+			latestBounceRatePercent: output.metrics.latestBounceRatePercent,
+			latestComplaintRatePercent: output.metrics.latestComplaintRatePercent,
+			latestRejectRatePercent: output.metrics.latestRejectRatePercent,
+			bounceWarningPercent: output.metrics.thresholds.bounceWarningPercent,
+			complaintWarningPercent: output.metrics.thresholds.complaintWarningPercent,
+			bounceAtRiskPercent: output.metrics.thresholds.bounceAtRiskPercent,
+			complaintAtRiskPercent: output.metrics.thresholds.complaintAtRiskPercent,
+			isWarning:
+				output.metrics.latestBounceRatePercent >= output.metrics.thresholds.bounceWarningPercent ||
+				output.metrics.latestComplaintRatePercent >=
+					output.metrics.thresholds.complaintWarningPercent ||
+				output.metrics.latestRejectRatePercent > 0,
+			isAtRisk:
+				output.metrics.latestBounceRatePercent >= output.metrics.thresholds.bounceAtRiskPercent ||
+				output.metrics.latestComplaintRatePercent >=
+					output.metrics.thresholds.complaintAtRiskPercent,
+			checkedAt: new Date().toISOString(),
+		}
 
-    const response = await fetch(SLACK_ADMIN_WEBHOOK_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(slackMessage)
-    })
+		try {
+			await redis.set(SPIKE_AWS_REPUTATION_CACHE_KEY, snapshot, {
+				ex: SPIKE_DETECTION_CONFIG.AWS_REPUTATION_CACHE_SECONDS,
+			})
+		} catch (error) {
+			console.warn("⚠️ getAwsReputationSnapshot - Redis write failed:", error)
+		}
 
-    if (!response.ok) {
-      console.error(`❌ Slack spike alert failed: ${response.status} ${response.statusText}`)
-    } else {
-      console.log(`✅ Slack spike alert sent for user: ${userEmail}`)
-      await markAlertSent(userId)
-    }
-  } catch (error) {
-    console.error('❌ Failed to send Slack spike alert:', error)
-  }
+		return snapshot
+	} catch (error) {
+		console.warn("⚠️ getAwsReputationSnapshot - Failed to load SES reputation rates:", error)
+		return null
+	}
+}
+
+function getSeverity(
+	current15m: number,
+	current1h: number,
+	current24h: number,
+	reputation: AwsReputationSnapshot | null,
+): AlertSeverity {
+	if (
+		current24h >= SPIKE_DETECTION_CONFIG.ABSOLUTE_24H_CRITICAL ||
+		current1h >= SPIKE_DETECTION_CONFIG.ABSOLUTE_1H_CRITICAL ||
+		reputation?.isAtRisk
+	) {
+		return "critical"
+	}
+
+	if (
+		current24h >= SPIKE_DETECTION_CONFIG.ABSOLUTE_24H_HIGH ||
+		current1h >= SPIKE_DETECTION_CONFIG.ABSOLUTE_1H_HIGH
+	) {
+		return "high"
+	}
+
+	return "medium"
+}
+
+async function sendSpikeAlert(params: {
+	userId: string
+	userEmail: string
+	userName: string | null
+	current15m: number
+	current1h: number
+	current24h: number
+	historicalAverage: number
+	spikeMultiplier: number | null
+	severity: AlertSeverity
+	reasons: string[]
+	reputation: AwsReputationSnapshot | null
+}): Promise<void> {
+	if (!SLACK_ADMIN_WEBHOOK_URL) {
+		console.log("⚠️ SLACK_ADMIN_WEBHOOK_URL not configured, skipping spike alert")
+		return
+	}
+
+	const emoji =
+		params.severity === "critical" ? "🚨" : params.severity === "high" ? "⚠️" : "🔎"
+	const titleSeverity = params.severity.toUpperCase()
+	const multiplierText =
+		params.spikeMultiplier === null ? "N/A" : `${params.spikeMultiplier.toFixed(1)}x`
+
+	try {
+		const slackMessage = {
+			blocks: [
+				{
+					type: "header",
+					text: {
+						type: "plain_text",
+						text: `${emoji} Email Sending Spike Detected (${titleSeverity})`,
+						emoji: true,
+					},
+				},
+				{
+					type: "section",
+					fields: [
+						{
+							type: "mrkdwn",
+							text: `*User:*\n${params.userName || "N/A"} (${params.userEmail})`,
+						},
+						{
+							type: "mrkdwn",
+							text: `*User ID:*\n\`${params.userId}\``,
+						},
+						{
+							type: "mrkdwn",
+							text: `*Last 15m:*\n${params.current15m.toLocaleString()}`,
+						},
+						{
+							type: "mrkdwn",
+							text: `*Last 1h:*\n${params.current1h.toLocaleString()}`,
+						},
+						{
+							type: "mrkdwn",
+							text: `*Last 24h:*\n${params.current24h.toLocaleString()}`,
+						},
+						{
+							type: "mrkdwn",
+							text: `*Historical Daily Avg:*\n${params.historicalAverage.toFixed(1)}`,
+						},
+						{
+							type: "mrkdwn",
+							text: `*Spike Multiplier:*\n${multiplierText}`,
+						},
+						{
+							type: "mrkdwn",
+							text: `*Detected At:*\n${new Date().toLocaleString()}`,
+						},
+					],
+				},
+				{
+					type: "section",
+					text: {
+						type: "mrkdwn",
+						text: `*Triggers:* ${params.reasons.join(" • ")}`,
+					},
+				},
+				...(params.reputation
+					? [
+							{
+								type: "context" as const,
+								elements: [
+									{
+										type: "mrkdwn" as const,
+										text: `SES latest rates → bounce ${params.reputation.latestBounceRatePercent.toFixed(3)}% (warn ${params.reputation.bounceWarningPercent.toFixed(3)}%), complaint ${params.reputation.latestComplaintRatePercent.toFixed(3)}% (warn ${params.reputation.complaintWarningPercent.toFixed(3)}%), reject ${params.reputation.latestRejectRatePercent.toFixed(3)}%`,
+									},
+								],
+							},
+						]
+					: []),
+				{
+					type: "actions",
+					elements: [
+						{
+							type: "button",
+							text: {
+								type: "plain_text",
+								text: "View in Admin",
+								emoji: true,
+							},
+							url: "https://inbound.new/admin",
+							action_id: "view_admin",
+						},
+					],
+				},
+			],
+		}
+
+		const response = await fetch(SLACK_ADMIN_WEBHOOK_URL, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify(slackMessage),
+		})
+
+		if (!response.ok) {
+			console.error(`❌ Slack spike alert failed: ${response.status} ${response.statusText}`)
+			return
+		}
+
+		console.log(`✅ Slack spike alert sent for user: ${params.userEmail}`)
+		await markAlertSent(params.userId)
+	} catch (error) {
+		console.error("❌ Failed to send Slack spike alert:", error)
+	}
 }
 
 export interface SpikeDetectionResult {
-  isSpike: boolean
-  currentCount: number
-  historicalAverage: number
-  spikeMultiplier: number | null
-  alertSent: boolean
-  reason?: string
+	isSpike: boolean
+	currentCount: number
+	current1h: number
+	current15m: number
+	historicalAverage: number
+	spikeMultiplier: number | null
+	alertSent: boolean
+	severity?: AlertSeverity
+	reason?: string
 }
 
-/**
- * Check for email sending spike and send alert if detected
- * 
- * This function should be called non-blocking (via waitUntil) after emails are sent.
- * It compares the user's current 24h sending volume against their historical average
- * and sends a Slack alert if a significant spike is detected.
- * 
- * @param userId - The user ID to check
- * @returns SpikeDetectionResult with spike status and metrics
- */
 export async function checkSendingSpike(userId: string): Promise<SpikeDetectionResult> {
-  try {
-    console.log(`📊 Checking sending spike for user ${userId}`)
+	try {
+		console.log(`📊 Checking sending spike for user ${userId}`)
 
-    // Check cooldown first (using Redis for persistence)
-    if (await isInCooldown(userId)) {
-      console.log(`⏳ User ${userId} is in cooldown, skipping spike check`)
-      return {
-        isSpike: false,
-        currentCount: 0,
-        historicalAverage: 0,
-        spikeMultiplier: null,
-        alertSent: false,
-        reason: 'User in cooldown period'
-      }
-    }
+		if (await isInCooldown(userId)) {
+			console.log(`⏳ User ${userId} is in cooldown, skipping spike check`)
+			return {
+				isSpike: false,
+				currentCount: 0,
+				current1h: 0,
+				current15m: 0,
+				historicalAverage: 0,
+				spikeMultiplier: null,
+				alertSent: false,
+				reason: "User in cooldown period",
+			}
+		}
 
-    // Get current 24h count
-    const currentCount = await getEmailsSentInLastHours(userId, 24)
-    
-    // Skip if current count is too low to be concerning
-    if (currentCount < SPIKE_DETECTION_CONFIG.MIN_CURRENT_EMAILS_FOR_ALERT) {
-      return {
-        isSpike: false,
-        currentCount,
-        historicalAverage: 0,
-        spikeMultiplier: null,
-        alertSent: false,
-        reason: `Current count (${currentCount}) below minimum threshold`
-      }
-    }
+		const now = Date.now()
+		const fifteenMinutesAgo = new Date(now - 15 * 60 * 1000)
+		const oneHourAgo = new Date(now - 60 * 60 * 1000)
+		const oneDayAgo = new Date(now - 24 * 60 * 60 * 1000)
 
-    // Get historical average
-    const historicalAverage = await getHistoricalDailyAverage(
-      userId, 
-      SPIKE_DETECTION_CONFIG.HISTORICAL_DAYS
-    )
+		const [current15m, current1h, current24h, historicalAverage, userInfo] =
+			await Promise.all([
+				getEmailsSentSince(userId, fifteenMinutesAgo),
+				getEmailsSentSince(userId, oneHourAgo),
+				getEmailsSentSince(userId, oneDayAgo),
+				getHistoricalDailyAverage(userId, SPIKE_DETECTION_CONFIG.HISTORICAL_DAYS),
+				getUserInfo(userId),
+			])
 
-    // If no historical data, can't establish baseline
-    if (historicalAverage < SPIKE_DETECTION_CONFIG.MIN_HISTORICAL_EMAILS / SPIKE_DETECTION_CONFIG.HISTORICAL_DAYS) {
-      console.log(`📊 User ${userId} has insufficient historical data for spike detection`)
-      return {
-        isSpike: false,
-        currentCount,
-        historicalAverage,
-        spikeMultiplier: null,
-        alertSent: false,
-        reason: 'Insufficient historical data'
-      }
-    }
+		const baselineReady =
+			historicalAverage >= SPIKE_DETECTION_CONFIG.MIN_HISTORICAL_DAILY_AVERAGE
+		const spikeMultiplier = baselineReady ? current24h / historicalAverage : null
 
-    // Calculate spike multiplier
-    const spikeMultiplier = currentCount / historicalAverage
+		const reasons: string[] = []
 
-    // Check if this is a spike
-    const isSpike = spikeMultiplier >= SPIKE_DETECTION_CONFIG.SPIKE_THRESHOLD_MULTIPLIER
+		const isRelativeSpike =
+			baselineReady &&
+			current24h >= SPIKE_DETECTION_CONFIG.MIN_CURRENT_EMAILS_FOR_RELATIVE_ALERT &&
+			(spikeMultiplier || 0) >= SPIKE_DETECTION_CONFIG.SPIKE_THRESHOLD_MULTIPLIER
 
-    console.log(`📊 Spike check for user ${userId}: current=${currentCount}, avg=${historicalAverage.toFixed(1)}, multiplier=${spikeMultiplier.toFixed(1)}x, isSpike=${isSpike}`)
+		if (isRelativeSpike) {
+			reasons.push(
+				`relative_spike_${(spikeMultiplier || 0).toFixed(1)}x_vs_${SPIKE_DETECTION_CONFIG.HISTORICAL_DAYS}d_avg`,
+			)
+		}
 
-    if (isSpike) {
-      // Get user info for the alert
-      const userInfo = await getUserInfo(userId)
-      
-      if (userInfo) {
-        await sendSpikeAlert(
-          userId,
-          userInfo.email,
-          userInfo.name,
-          currentCount,
-          historicalAverage,
-          spikeMultiplier
-        )
+		if (current15m >= SPIKE_DETECTION_CONFIG.ABSOLUTE_15_MIN_WARNING) {
+			reasons.push(`burst_15m_${current15m}`)
+		}
+		if (current1h >= SPIKE_DETECTION_CONFIG.ABSOLUTE_1H_WARNING) {
+			reasons.push(`volume_1h_${current1h}`)
+		}
+		if (current24h >= SPIKE_DETECTION_CONFIG.ABSOLUTE_24H_WARNING) {
+			reasons.push(`volume_24h_${current24h}`)
+		}
 
-        return {
-          isSpike: true,
-          currentCount,
-          historicalAverage,
-          spikeMultiplier,
-          alertSent: true
-        }
-      }
-    }
+		const userAgeDays = userInfo ? getUserAgeInDays(userInfo.createdAt) : null
+		const isNewAccount =
+			userAgeDays !== null && userAgeDays <= SPIKE_DETECTION_CONFIG.NEW_ACCOUNT_DAYS
+		if (
+			isNewAccount &&
+			(current1h >= SPIKE_DETECTION_CONFIG.NEW_ACCOUNT_1H_WARNING ||
+				current24h >= SPIKE_DETECTION_CONFIG.NEW_ACCOUNT_24H_WARNING)
+		) {
+			reasons.push(`new_account_volume_${Math.round(userAgeDays || 0)}d_old`)
+		}
 
-    return {
-      isSpike,
-      currentCount,
-      historicalAverage,
-      spikeMultiplier,
-      alertSent: false
-    }
-  } catch (error) {
-    console.error(`❌ Error checking sending spike for user ${userId}:`, error)
-    // Fail silently - don't block email sending
-    return {
-      isSpike: false,
-      currentCount: 0,
-      historicalAverage: 0,
-      spikeMultiplier: null,
-      alertSent: false,
-      reason: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
-    }
-  }
+		const shouldCheckReputation =
+			reasons.length > 0 ||
+			current24h >= SPIKE_DETECTION_CONFIG.REPUTATION_RATE_ALERT_MIN_24H_EMAILS
+		const reputation = shouldCheckReputation ? await getAwsReputationSnapshot() : null
+
+		if (
+			reputation?.isWarning &&
+			current24h >= SPIKE_DETECTION_CONFIG.REPUTATION_RATE_ALERT_MIN_24H_EMAILS
+		) {
+			reasons.push("aws_reputation_warning")
+		}
+
+		const shouldAlert = reasons.length > 0
+		const severity = shouldAlert
+			? getSeverity(current15m, current1h, current24h, reputation)
+			: undefined
+
+		console.log(
+			`📊 Spike check for user ${userId}: 15m=${current15m}, 1h=${current1h}, 24h=${current24h}, avg=${historicalAverage.toFixed(1)}, multiplier=${spikeMultiplier?.toFixed(1) || "N/A"}, reasons=${reasons.join(",") || "none"}`,
+		)
+
+		if (!shouldAlert) {
+			return {
+				isSpike: false,
+				currentCount: current24h,
+				current1h,
+				current15m,
+				historicalAverage,
+				spikeMultiplier,
+				alertSent: false,
+				reason: "No spam-oriented spike thresholds exceeded",
+			}
+		}
+
+		if (!userInfo) {
+			return {
+				isSpike: true,
+				currentCount: current24h,
+				current1h,
+				current15m,
+				historicalAverage,
+				spikeMultiplier,
+				alertSent: false,
+				severity,
+				reason: "User metadata missing; alert skipped",
+			}
+		}
+
+		await sendSpikeAlert({
+			userId,
+			userEmail: userInfo.email,
+			userName: userInfo.name,
+			current15m,
+			current1h,
+			current24h,
+			historicalAverage,
+			spikeMultiplier,
+			severity: severity || "medium",
+			reasons,
+			reputation,
+		})
+
+		return {
+			isSpike: true,
+			currentCount: current24h,
+			current1h,
+			current15m,
+			historicalAverage,
+			spikeMultiplier,
+			alertSent: true,
+			severity,
+			reason: reasons.join(", "),
+		}
+	} catch (error) {
+		console.error(`❌ Error checking sending spike for user ${userId}:`, error)
+		return {
+			isSpike: false,
+			currentCount: 0,
+			current1h: 0,
+			current15m: 0,
+			historicalAverage: 0,
+			spikeMultiplier: null,
+			alertSent: false,
+			reason: `Error: ${error instanceof Error ? error.message : "Unknown error"}`,
+		}
+	}
 }
 
