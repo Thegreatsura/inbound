@@ -1,8 +1,13 @@
-import { and, eq } from "drizzle-orm";
+import { and, count, eq, gte, isNull, or } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import { user } from "@/lib/db/auth-schema";
-import { emailAddresses, emailDomains, sesTenants } from "@/lib/db/schema";
+import {
+	emailAddresses,
+	emailDomains,
+	sentEmails,
+	sesTenants,
+} from "@/lib/db/schema";
 import { getRootDomain, isSubdomain } from "@/lib/domains-and-dns/domain-utils";
 
 type GuardReasonCode =
@@ -11,6 +16,7 @@ type GuardReasonCode =
 	| "domain_not_verified"
 	| "tenant_inactive"
 	| "sender_address_disabled"
+	| "hourly_send_limit_exceeded"
 	| "guard_check_failed";
 
 export interface OutboundSendGuardResult {
@@ -26,6 +32,124 @@ interface OutboundSendGuardInput {
 	fromAddress: string;
 	fromDomain: string;
 	isAgentEmail: boolean;
+}
+
+const ONE_HOUR_IN_MS = 60 * 60 * 1000;
+const DEFAULT_HOURLY_SEND_LIMIT = 500;
+const parsedHourlyLimit = Number.parseInt(
+	process.env.OUTBOUND_HOURLY_SEND_LIMIT || "",
+	10,
+);
+const HOURLY_SEND_LIMIT =
+	Number.isFinite(parsedHourlyLimit) && parsedHourlyLimit > 0
+		? parsedHourlyLimit
+		: DEFAULT_HOURLY_SEND_LIMIT;
+const SLACK_ADMIN_WEBHOOK_URL = process.env.SLACK_ADMIN_WEBHOOK_URL;
+const hourlyLimitAlertCache = new Set<string>();
+
+function buildHourlyLimitCacheKey(userId: string, timestamp: Date): string {
+	const hourBucket = Math.floor(timestamp.getTime() / ONE_HOUR_IN_MS);
+	return `${userId}:${hourBucket}`;
+}
+
+function trimHourlyLimitAlertCache(maxEntries = 2000): void {
+	if (hourlyLimitAlertCache.size <= maxEntries) {
+		return;
+	}
+
+	const iterator = hourlyLimitAlertCache.values();
+	const entriesToRemove = Math.max(1, hourlyLimitAlertCache.size - maxEntries);
+	for (let index = 0; index < entriesToRemove; index++) {
+		const next = iterator.next();
+		if (next.done) {
+			break;
+		}
+		hourlyLimitAlertCache.delete(next.value);
+	}
+}
+
+async function sendHourlyLimitSlackAlert(params: {
+	userId: string;
+	userEmail: string | null;
+	tenantId: string;
+	sentLastHour: number;
+	limit: number;
+	windowStart: Date;
+	windowEnd: Date;
+}): Promise<void> {
+	if (!SLACK_ADMIN_WEBHOOK_URL) {
+		return;
+	}
+
+	const cacheKey = buildHourlyLimitCacheKey(params.userId, params.windowEnd);
+	if (hourlyLimitAlertCache.has(cacheKey)) {
+		return;
+	}
+
+	hourlyLimitAlertCache.add(cacheKey);
+	trimHourlyLimitAlertCache();
+
+	const message = {
+		text: "Outbound hourly send limit reached",
+		blocks: [
+			{
+				type: "header",
+				text: {
+					type: "plain_text",
+					text: "Outbound hourly send limit reached",
+				},
+			},
+			{
+				type: "section",
+				fields: [
+					{
+						type: "mrkdwn",
+						text: `*User ID:*\n${params.userId}`,
+					},
+					{
+						type: "mrkdwn",
+						text: `*User Email:*\n${params.userEmail || "unknown"}`,
+					},
+					{
+						type: "mrkdwn",
+						text: `*Tenant ID:*\n${params.tenantId}`,
+					},
+					{
+						type: "mrkdwn",
+						text: `*Last 1h Sent:*\n${params.sentLastHour}`,
+					},
+					{
+						type: "mrkdwn",
+						text: `*Limit:*\n${params.limit}`,
+					},
+					{
+						type: "mrkdwn",
+						text: `*Window:*\n${params.windowStart.toISOString()} to ${params.windowEnd.toISOString()}`,
+					},
+				],
+			},
+		],
+	};
+
+	try {
+		const response = await fetch(SLACK_ADMIN_WEBHOOK_URL, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify(message),
+		});
+
+		if (!response.ok) {
+			console.error(
+				"❌ Failed to send hourly send limit Slack alert:",
+				response.status,
+				response.statusText,
+			);
+		}
+	} catch (error) {
+		console.error("❌ Failed to send hourly send limit Slack alert:", error);
+	}
 }
 
 function deny(
@@ -49,6 +173,7 @@ export async function enforceOutboundSendGuard(
 	try {
 		const [userRecord] = await db
 			.select({
+				email: user.email,
 				banned: user.banned,
 				banReason: user.banReason,
 				banExpires: user.banExpires,
@@ -96,6 +221,47 @@ export async function enforceOutboundSendGuard(
 				403,
 				"Email sending is disabled for this account.",
 				"tenant_inactive",
+			);
+		}
+
+		const windowEnd = new Date();
+		const windowStart = new Date(windowEnd.getTime() - ONE_HOUR_IN_MS);
+		const [hourlyCountResult] = await db
+			.select({
+				total: count(),
+			})
+			.from(sentEmails)
+			.where(
+				and(
+					eq(sentEmails.userId, userId),
+					eq(sentEmails.status, "sent"),
+					or(
+						gte(sentEmails.sentAt, windowStart),
+						and(
+							isNull(sentEmails.sentAt),
+							gte(sentEmails.createdAt, windowStart),
+						),
+					),
+				),
+			)
+			.limit(1);
+
+		const sentLastHour = Number(hourlyCountResult?.total || 0);
+		if (sentLastHour >= HOURLY_SEND_LIMIT) {
+			await sendHourlyLimitSlackAlert({
+				userId,
+				userEmail: userRecord.email,
+				tenantId: userTenant.id,
+				sentLastHour,
+				limit: HOURLY_SEND_LIMIT,
+				windowStart,
+				windowEnd,
+			});
+
+			return deny(
+				429,
+				`Hourly sending limit reached (${HOURLY_SEND_LIMIT} emails per hour). Please contact support to request a higher limit.`,
+				"hourly_send_limit_exceeded",
 			);
 		}
 

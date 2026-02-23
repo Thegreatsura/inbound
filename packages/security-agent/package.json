@@ -1,0 +1,14 @@
+{
+  "name": "security-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun run --watch src/server.ts",
+    "start": "bun run src/server.ts"
+  },
+  "dependencies": {
+    "@opencode-ai/sdk": "^1.2.10",
+    "dotenv": "^16.5.0"
+  }
+}

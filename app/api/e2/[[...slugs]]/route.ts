@@ -8,6 +8,9 @@ import { updateBlockedSignupDomain } from "../admin/blocked-signup-domains/updat
 import { deleteIdentity } from "../admin/identities/delete";
 import { listTenants } from "../admin/tenants/list";
 import { pauseTenant } from "../admin/tenants/pause";
+import { suspendTenant } from "../admin/tenants/suspend";
+import { banUser } from "../admin/users/ban";
+import { unbanUser } from "../admin/users/unban";
 import { getAttachment } from "../attachments/get";
 import { createDomain } from "../domains/create";
 import { deleteDomain } from "../domains/delete";
@@ -489,6 +492,9 @@ https://inbound.new/api/e2
 	.use(deleteBlockedSignupDomain)
 	.use(listTenants)
 	.use(pauseTenant)
+	.use(suspendTenant)
+	.use(banUser)
+	.use(unbanUser)
 	.use(deleteIdentity)
 	// Guard routes
 	.use(listGuardRules)
