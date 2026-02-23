@@ -13,7 +13,11 @@ import {
 } from "@/lib/aws-ses/aws-ses-tenants";
 import { db } from "@/lib/db";
 import { user } from "@/lib/db/auth-schema";
-import { emailDomains, sesTenants } from "@/lib/db/schema";
+import {
+	blockedSignupDomains,
+	emailDomains,
+	sesTenants,
+} from "@/lib/db/schema";
 
 dotenv.config();
 
@@ -21,6 +25,9 @@ type TenantDbRow = {
 	tenantId: string;
 	userId: string;
 	userEmail: string | null;
+	userBanned: boolean | null;
+	userBanReason: string | null;
+	userBanExpires: Date | null;
 	tenantName: string;
 	dbAwsTenantId: string;
 	configurationSetName: string | null;
@@ -37,6 +44,14 @@ type DomainDbRow = {
 	tenantId: string | null;
 	userId: string;
 	userEmail: string | null;
+	userBanned: boolean | null;
+	userBanReason: string | null;
+	userBanExpires: Date | null;
+	blockedSignupId: string | null;
+	blockedSignupActive: boolean | null;
+	blockedSignupReason: string | null;
+	blockedSignupBlockedBy: string | null;
+	blockedSignupUpdatedAt: Date | null;
 	updatedAt: Date | null;
 };
 
@@ -211,6 +226,9 @@ async function loadTenantRows(
 				tenantId: sesTenants.id,
 				userId: sesTenants.userId,
 				userEmail: user.email,
+				userBanned: user.banned,
+				userBanReason: user.banReason,
+				userBanExpires: user.banExpires,
 				tenantName: sesTenants.tenantName,
 				dbAwsTenantId: sesTenants.awsTenantId,
 				configurationSetName: sesTenants.configurationSetName,
@@ -234,6 +252,9 @@ async function loadTenantRows(
 			tenantId: sesTenants.id,
 			userId: sesTenants.userId,
 			userEmail: user.email,
+			userBanned: user.banned,
+			userBanReason: user.banReason,
+			userBanExpires: user.banExpires,
 			tenantName: sesTenants.tenantName,
 			dbAwsTenantId: sesTenants.awsTenantId,
 			configurationSetName: sesTenants.configurationSetName,
@@ -274,10 +295,22 @@ async function loadDomainRows(
 					tenantId: emailDomains.tenantId,
 					userId: emailDomains.userId,
 					userEmail: user.email,
+					userBanned: user.banned,
+					userBanReason: user.banReason,
+					userBanExpires: user.banExpires,
+					blockedSignupId: blockedSignupDomains.id,
+					blockedSignupActive: blockedSignupDomains.isActive,
+					blockedSignupReason: blockedSignupDomains.reason,
+					blockedSignupBlockedBy: blockedSignupDomains.blockedBy,
+					blockedSignupUpdatedAt: blockedSignupDomains.updatedAt,
 					updatedAt: emailDomains.updatedAt,
 				})
 				.from(emailDomains)
 				.leftJoin(user, eq(emailDomains.userId, user.id))
+				.leftJoin(
+					blockedSignupDomains,
+					eq(emailDomains.domain, blockedSignupDomains.domain),
+				)
 				.where(inArray(emailDomains.id, domainIds)),
 		);
 	}
@@ -293,10 +326,22 @@ async function loadDomainRows(
 					tenantId: emailDomains.tenantId,
 					userId: emailDomains.userId,
 					userEmail: user.email,
+					userBanned: user.banned,
+					userBanReason: user.banReason,
+					userBanExpires: user.banExpires,
+					blockedSignupId: blockedSignupDomains.id,
+					blockedSignupActive: blockedSignupDomains.isActive,
+					blockedSignupReason: blockedSignupDomains.reason,
+					blockedSignupBlockedBy: blockedSignupDomains.blockedBy,
+					blockedSignupUpdatedAt: blockedSignupDomains.updatedAt,
 					updatedAt: emailDomains.updatedAt,
 				})
 				.from(emailDomains)
 				.leftJoin(user, eq(emailDomains.userId, user.id))
+				.leftJoin(
+					blockedSignupDomains,
+					eq(emailDomains.domain, blockedSignupDomains.domain),
+				)
 				.where(inArray(emailDomains.domain, domainNames)),
 		);
 	}
@@ -319,10 +364,22 @@ async function loadDomainRows(
 			tenantId: emailDomains.tenantId,
 			userId: emailDomains.userId,
 			userEmail: user.email,
+			userBanned: user.banned,
+			userBanReason: user.banReason,
+			userBanExpires: user.banExpires,
+			blockedSignupId: blockedSignupDomains.id,
+			blockedSignupActive: blockedSignupDomains.isActive,
+			blockedSignupReason: blockedSignupDomains.reason,
+			blockedSignupBlockedBy: blockedSignupDomains.blockedBy,
+			blockedSignupUpdatedAt: blockedSignupDomains.updatedAt,
 			updatedAt: emailDomains.updatedAt,
 		})
 		.from(emailDomains)
 		.leftJoin(user, eq(emailDomains.userId, user.id))
+		.leftJoin(
+			blockedSignupDomains,
+			eq(emailDomains.domain, blockedSignupDomains.domain),
+		)
 		.orderBy(desc(emailDomains.updatedAt))
 		.limit(limit);
 
@@ -597,6 +654,9 @@ function printOutput(output: OutputPayload): void {
 					`aws_reputation_policy=${row.awsReputationPolicy ?? "null"}`,
 					`user_id=${row.userId}`,
 					`user_email=${row.userEmail ?? "null"}`,
+					`user_banned=${row.userBanned ?? "null"}`,
+					`user_ban_reason=${row.userBanReason ?? "null"}`,
+					`user_ban_expires=${row.userBanExpires ? row.userBanExpires.toISOString() : "null"}`,
 					`errors=${row.awsErrors.length > 0 ? row.awsErrors.join(" | ") : "none"}`,
 				].join(" "),
 			);
@@ -615,12 +675,20 @@ function printOutput(output: OutputPayload): void {
 					`db_status=${row.dbStatus}`,
 					`can_receive_emails=${row.canReceiveEmails ?? "null"}`,
 					`tenant_id=${row.tenantId ?? "null"}`,
+					`blocked_signup_id=${row.blockedSignupId ?? "null"}`,
+					`blocked_signup_active=${row.blockedSignupActive ?? "null"}`,
+					`blocked_signup_reason=${row.blockedSignupReason ?? "null"}`,
+					`blocked_signup_blocked_by=${row.blockedSignupBlockedBy ?? "null"}`,
+					`blocked_signup_updated_at=${row.blockedSignupUpdatedAt ? row.blockedSignupUpdatedAt.toISOString() : "null"}`,
 					`aws_identity_found=${row.awsIdentityFound}`,
 					`aws_verified_for_sending=${row.awsVerifiedForSending ?? "null"}`,
 					`aws_dkim_status=${row.awsDkimStatus ?? "null"}`,
 					`aws_mail_from_status=${row.awsMailFromStatus ?? "null"}`,
 					`user_id=${row.userId}`,
 					`user_email=${row.userEmail ?? "null"}`,
+					`user_banned=${row.userBanned ?? "null"}`,
+					`user_ban_reason=${row.userBanReason ?? "null"}`,
+					`user_ban_expires=${row.userBanExpires ? row.userBanExpires.toISOString() : "null"}`,
 					`errors=${row.awsErrors.length > 0 ? row.awsErrors.join(" | ") : "none"}`,
 				].join(" "),
 			);

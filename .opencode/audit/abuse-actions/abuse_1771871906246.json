@@ -1,0 +1,58 @@
+{
+  "actionId": "abuse_1771871906246",
+  "mode": "dry_run",
+  "generatedAt": "2026-02-23T18:38:26.246Z",
+  "baseUrl": "https://inbound.new/api/e2",
+  "action": "pause",
+  "confirmationToken": "1ff7760933b8061d",
+  "auditLogPath": "/Users/ryanvogel/dev/inbound-org/inbound/.opencode/audit/abuse-actions/abuse_1771871906246.json",
+  "targets": {
+    "tenantId": "tenant_M440hryxXUNYX8Yd-CSEv",
+    "userId": "6zucxfwJlSWI0nzfDoZYbO5OkEtsWpgB",
+    "domains": [
+      "accounts.enigmastudio.dev"
+    ]
+  },
+  "reason": "Automated abuse monitor: critical reject rate 8.57% (24h) / 7.38% (7d) exceeding 2.0% threshold with 3661 emails in 7d window",
+  "violation": {
+    "sent": 3663,
+    "bounces": 69,
+    "complaints": 0,
+    "bounceRate": 1.88,
+    "complaintRate": 0,
+    "flags": [
+      "medium_high_volume_threshold"
+    ]
+  },
+  "currentStatus": {
+    "tenantStatus": "active",
+    "userBanned": false,
+    "domains": [
+      {
+        "domain": "accounts.enigmastudio.dev",
+        "sendingDomainStatus": "verified",
+        "blockedSignup": false
+      }
+    ]
+  },
+  "postActionStatus": null,
+  "steps": [
+    {
+      "action": "pause_tenant",
+      "target": "tenant_M440hryxXUNYX8Yd-CSEv",
+      "success": true,
+      "httpStatus": null,
+      "outcome": "planned",
+      "message": "Would call POST /admin/tenants/:tenantId/pause"
+    }
+  ],
+  "invocationArgs": [
+    "--tenant-id",
+    "tenant_M440hryxXUNYX8Yd-CSEv",
+    "--action",
+    "pause",
+    "--reason",
+    "Automated abuse monitor: critical reject rate 8.57% (24h) / 7.38% (7d) exceeding 2.0% threshold with 3661 emails in 7d window",
+    "--json"
+  ]
+}

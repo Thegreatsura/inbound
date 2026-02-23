@@ -1,0 +1,130 @@
+{
+  "actionId": "abuse_1771871908430",
+  "mode": "dry_run",
+  "generatedAt": "2026-02-23T18:38:28.430Z",
+  "baseUrl": "https://inbound.new/api/e2",
+  "action": "pause",
+  "confirmationToken": "2261714275b42fe3",
+  "auditLogPath": "/Users/ryanvogel/dev/inbound-org/inbound/.opencode/audit/abuse-actions/abuse_1771871908430.json",
+  "targets": {
+    "tenantId": "tenant_t8mz8Z-sxWt82jR6KSzrR",
+    "userId": "lpoi8qsc5IDZjBZykKr82LV4nCM2kiJX",
+    "domains": [
+      "atmgrwthclip.com",
+      "atomikclipper.com",
+      "atomikmail.com",
+      "choppedemail.com",
+      "emaildxb.com",
+      "getrichmail.com",
+      "mailslaps.com",
+      "nochillmail.com",
+      "pingmailr.com",
+      "postmailo.com",
+      "sendmaila.com",
+      "smashtok.com",
+      "xmailor.com"
+    ]
+  },
+  "reason": "Automated abuse monitor: critical reject rate 15.13% (24h) / 11.70% (7d) exceeding 2.0% threshold with 812 emails in 7d window, 13 domains registered",
+  "violation": {
+    "sent": 812,
+    "bounces": 11,
+    "complaints": 0,
+    "bounceRate": 1.35,
+    "complaintRate": 0,
+    "flags": [
+      "medium_high_volume_threshold"
+    ]
+  },
+  "currentStatus": {
+    "tenantStatus": "active",
+    "userBanned": false,
+    "domains": [
+      {
+        "domain": "atmgrwthclip.com",
+        "sendingDomainStatus": "verified",
+        "blockedSignup": false
+      },
+      {
+        "domain": "atomikclipper.com",
+        "sendingDomainStatus": "verified",
+        "blockedSignup": false
+      },
+      {
+        "domain": "atomikmail.com",
+        "sendingDomainStatus": "verified",
+        "blockedSignup": false
+      },
+      {
+        "domain": "choppedemail.com",
+        "sendingDomainStatus": "verified",
+        "blockedSignup": false
+      },
+      {
+        "domain": "emaildxb.com",
+        "sendingDomainStatus": "verified",
+        "blockedSignup": false
+      },
+      {
+        "domain": "getrichmail.com",
+        "sendingDomainStatus": "verified",
+        "blockedSignup": false
+      },
+      {
+        "domain": "mailslaps.com",
+        "sendingDomainStatus": "verified",
+        "blockedSignup": false
+      },
+      {
+        "domain": "nochillmail.com",
+        "sendingDomainStatus": "verified",
+        "blockedSignup": false
+      },
+      {
+        "domain": "pingmailr.com",
+        "sendingDomainStatus": "verified",
+        "blockedSignup": false
+      },
+      {
+        "domain": "postmailo.com",
+        "sendingDomainStatus": "verified",
+        "blockedSignup": false
+      },
+      {
+        "domain": "sendmaila.com",
+        "sendingDomainStatus": "verified",
+        "blockedSignup": false
+      },
+      {
+        "domain": "smashtok.com",
+        "sendingDomainStatus": "verified",
+        "blockedSignup": false
+      },
+      {
+        "domain": "xmailor.com",
+        "sendingDomainStatus": "verified",
+        "blockedSignup": false
+      }
+    ]
+  },
+  "postActionStatus": null,
+  "steps": [
+    {
+      "action": "pause_tenant",
+      "target": "tenant_t8mz8Z-sxWt82jR6KSzrR",
+      "success": true,
+      "httpStatus": null,
+      "outcome": "planned",
+      "message": "Would call POST /admin/tenants/:tenantId/pause"
+    }
+  ],
+  "invocationArgs": [
+    "--tenant-id",
+    "tenant_t8mz8Z-sxWt82jR6KSzrR",
+    "--action",
+    "pause",
+    "--reason",
+    "Automated abuse monitor: critical reject rate 15.13% (24h) / 11.70% (7d) exceeding 2.0% threshold with 812 emails in 7d window, 13 domains registered",
+    "--json"
+  ]
+}

@@ -1,0 +1,82 @@
+{
+  "actionId": "abuse_1771869157961",
+  "mode": "execute",
+  "generatedAt": "2026-02-23T17:52:37.961Z",
+  "baseUrl": "https://inbound.new/api/e2",
+  "action": "pause",
+  "confirmationToken": "6c4e18bc332fac1e",
+  "auditLogPath": "/Users/ryanvogel/dev/inbound-org/inbound/.opencode/audit/abuse-actions/abuse_1771869157961.json",
+  "targets": {
+    "tenantId": "tenant_OM0PWjvNudwvnIGfcfc6C",
+    "userId": "Y8F7xxuhLHLvrnhRrTRunlwIKaQgKFtr",
+    "domains": [
+      "linktinvoicings.com",
+      "turnanewleaf.net"
+    ]
+  },
+  "reason": "Auto-enforce: bounce rate exceeded thresholds (24h/7d)",
+  "violation": {
+    "sent": 62503,
+    "bounces": 8809,
+    "complaints": 0,
+    "bounceRate": 14.09,
+    "complaintRate": 0,
+    "flags": [
+      "critical_bounce_threshold",
+      "medium_high_volume_threshold"
+    ]
+  },
+  "currentStatus": {
+    "tenantStatus": "paused",
+    "userBanned": true,
+    "domains": [
+      {
+        "domain": "linktinvoicings.com",
+        "sendingDomainStatus": "verified",
+        "blockedSignup": true
+      },
+      {
+        "domain": "turnanewleaf.net",
+        "sendingDomainStatus": "verified",
+        "blockedSignup": true
+      }
+    ]
+  },
+  "postActionStatus": {
+    "tenantStatus": "paused",
+    "userBanned": true,
+    "domains": [
+      {
+        "domain": "linktinvoicings.com",
+        "sendingDomainStatus": "verified",
+        "blockedSignup": false
+      },
+      {
+        "domain": "turnanewleaf.net",
+        "sendingDomainStatus": "verified",
+        "blockedSignup": false
+      }
+    ]
+  },
+  "steps": [
+    {
+      "action": "pause_tenant",
+      "target": "tenant_OM0PWjvNudwvnIGfcfc6C",
+      "success": true,
+      "httpStatus": null,
+      "outcome": "already_exists",
+      "message": "Tenant already paused"
+    }
+  ],
+  "invocationArgs": [
+    "--tenant-id",
+    "tenant_OM0PWjvNudwvnIGfcfc6C",
+    "--action",
+    "pause",
+    "--reason",
+    "Auto-enforce: bounce rate exceeded thresholds (24h/7d)",
+    "--execute",
+    "--auto-confirm",
+    "--json"
+  ]
+}
