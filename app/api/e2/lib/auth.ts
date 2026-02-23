@@ -67,6 +67,14 @@ export class AuthError extends Error {
 	}
 }
 
+function getHeaderRecord(headers: unknown): Record<string, string> {
+	if (headers && typeof headers === "object" && !Array.isArray(headers)) {
+		return headers as Record<string, string>;
+	}
+
+	return {};
+}
+
 /**
  * Validates authentication (session or API key) and checks rate limits
  * Throws AuthError with RFC-compliant headers on failure
@@ -86,7 +94,7 @@ export async function validateAndRateLimit(
 	request: Request,
 	set: {
 		status?: number | string;
-		headers?: Record<string, string>;
+		headers?: unknown;
 	},
 ): Promise<string> {
 	try {
@@ -139,10 +147,11 @@ export async function validateAndRateLimit(
 			console.log("❌ Authentication failed: No valid session or API key");
 			// RFC 7235: 401 responses MUST include WWW-Authenticate header
 			set.status = 401;
-			set.headers = {
+			const unauthorizedHeaders = {
 				"WWW-Authenticate": 'Bearer realm="API", charset="UTF-8"',
 				"Content-Type": "application/json; charset=utf-8",
 			};
+			set.headers = unauthorizedHeaders;
 			throw new AuthError(
 				{
 					error: "Unauthorized",
@@ -150,7 +159,7 @@ export async function validateAndRateLimit(
 						"Authentication required. Provide a valid session cookie or Bearer token.",
 					statusCode: 401,
 				},
-				set.headers,
+				unauthorizedHeaders,
 			);
 		}
 
@@ -166,18 +175,19 @@ export async function validateAndRateLimit(
 
 		if (!userRecord) {
 			set.status = 401;
-			set.headers = {
-				...set.headers,
+			const userNotFoundHeaders = {
+				...getHeaderRecord(set.headers),
 				"WWW-Authenticate": 'Bearer realm="API", charset="UTF-8"',
 				"Content-Type": "application/json; charset=utf-8",
 			};
+			set.headers = userNotFoundHeaders;
 			throw new AuthError(
 				{
 					error: "Unauthorized",
 					message: "User not found.",
 					statusCode: 401,
 				},
-				set.headers,
+				userNotFoundHeaders,
 			);
 		}
 
@@ -191,10 +201,11 @@ export async function validateAndRateLimit(
 
 			if (banStillActive) {
 				set.status = 403;
-				set.headers = {
-					...set.headers,
+				const bannedHeaders = {
+					...getHeaderRecord(set.headers),
 					"Content-Type": "application/json; charset=utf-8",
 				};
+				set.headers = bannedHeaders;
 				throw new AuthError(
 					{
 						error: "Forbidden",
@@ -203,7 +214,7 @@ export async function validateAndRateLimit(
 							"Account suspended. Please contact support.",
 						statusCode: 403,
 					},
-					set.headers,
+					bannedHeaders,
 				);
 			}
 		}
@@ -226,7 +237,7 @@ export async function validateAndRateLimit(
 
 			// Set rate limit headers on all requests (RFC 6585 recommendation)
 			set.headers = {
-				...set.headers,
+				...getHeaderRecord(set.headers),
 				"X-RateLimit-Limit": limit.toString(),
 				"X-RateLimit-Remaining": remaining.toString(),
 				"X-RateLimit-Reset": reset.toString(),
@@ -237,18 +248,19 @@ export async function validateAndRateLimit(
 				// RFC 6585: 429 responses SHOULD include Retry-After header
 				const retryAfterSeconds = Math.ceil((reset - Date.now()) / 1000);
 				set.status = 429;
-				set.headers = {
-					...set.headers,
+				const rateLimitHeaders = {
+					...getHeaderRecord(set.headers),
 					"Retry-After": retryAfterSeconds.toString(),
 					"Content-Type": "application/json; charset=utf-8",
 				};
+				set.headers = rateLimitHeaders;
 				throw new AuthError(
 					{
 						error: "Too Many Requests",
 						message: `Rate limit exceeded. Maximum ${limit} requests per second. Retry after ${retryAfterSeconds} seconds.`,
 						statusCode: 429,
 					},
-					set.headers,
+					rateLimitHeaders,
 				);
 			}
 		} else {
@@ -258,10 +270,11 @@ export async function validateAndRateLimit(
 					"🚨 SECURITY: Blocking request - rate limiting unavailable and ALLOW_REQUESTS_WITHOUT_RATE_LIMIT is not enabled",
 				);
 				set.status = 503;
-				set.headers = {
+				const unavailableHeaders = {
 					"Content-Type": "application/json; charset=utf-8",
 					"Retry-After": "60",
 				};
+				set.headers = unavailableHeaders;
 				throw new AuthError(
 					{
 						error: "Service Unavailable",
@@ -269,7 +282,7 @@ export async function validateAndRateLimit(
 							"Rate limiting service is temporarily unavailable. Please try again later.",
 						statusCode: 503,
 					},
-					set.headers,
+					unavailableHeaders,
 				);
 			}
 			console.warn(
@@ -286,17 +299,18 @@ export async function validateAndRateLimit(
 		}
 		// For unexpected errors, set unauthorized status with proper headers
 		set.status = 401;
-		set.headers = {
+		const errorHeaders = {
 			"WWW-Authenticate": 'Bearer realm="API", charset="UTF-8"',
 			"Content-Type": "application/json; charset=utf-8",
 		};
+		set.headers = errorHeaders;
 		throw new AuthError(
 			{
 				error: "Unauthorized",
 				message: "An error occurred during authentication.",
 				statusCode: 401,
 			},
-			set.headers,
+			errorHeaders,
 		);
 	}
 }
