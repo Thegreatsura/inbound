@@ -399,7 +399,6 @@ export class SESTenantManager {
 				return {
 					tenant: strictPolicyResult.tenant,
 					success: true,
-					error: "Tenant already exists for user",
 				};
 			}
 
