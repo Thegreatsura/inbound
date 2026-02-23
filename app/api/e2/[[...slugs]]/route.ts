@@ -1,5 +1,13 @@
 import { openapi } from "@elysiajs/openapi";
 import { Elysia } from "elysia";
+import { createBlockedSignupDomain } from "../admin/blocked-signup-domains/create";
+import { deleteBlockedSignupDomain } from "../admin/blocked-signup-domains/delete";
+import { getBlockedSignupDomain } from "../admin/blocked-signup-domains/get";
+import { listBlockedSignupDomains } from "../admin/blocked-signup-domains/list";
+import { updateBlockedSignupDomain } from "../admin/blocked-signup-domains/update";
+import { deleteIdentity } from "../admin/identities/delete";
+import { listTenants } from "../admin/tenants/list";
+import { pauseTenant } from "../admin/tenants/pause";
 import { getAttachment } from "../attachments/get";
 import { createDomain } from "../domains/create";
 import { deleteDomain } from "../domains/delete";
@@ -176,6 +184,9 @@ for (const attachment of email.parsedData.attachments) {
 const app = new Elysia({ prefix: "/api/e2" })
 	.use(
 		openapi({
+			exclude: {
+				tags: ["Admin"],
+			},
 			documentation: {
 				openapi: "3.1.0",
 				servers: [
@@ -470,6 +481,15 @@ https://inbound.new/api/e2
 	// Onboarding routes
 	.use(sendOnboardingDemo)
 	.use(checkOnboardingReply)
+	// Admin routes
+	.use(listBlockedSignupDomains)
+	.use(createBlockedSignupDomain)
+	.use(getBlockedSignupDomain)
+	.use(updateBlockedSignupDomain)
+	.use(deleteBlockedSignupDomain)
+	.use(listTenants)
+	.use(pauseTenant)
+	.use(deleteIdentity)
 	// Guard routes
 	.use(listGuardRules)
 	.use(createGuardRule)

@@ -4,6 +4,7 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { createAuthMiddleware } from "better-auth/api";
 import { admin, apiKey, magicLink, oAuthProxy } from "better-auth/plugins";
+import { and, eq } from "drizzle-orm";
 import Inbound from "inboundemail";
 
 import MagicLinkEmail from "@/emails/magic-link-email";
@@ -151,10 +152,31 @@ async function sendNewUserSlackNotification(user: {
 /**
  * Check if an email domain is blocked from signing up
  */
-function isBlockedEmailDomain(email: string): boolean {
+async function isBlockedEmailDomain(email: string): Promise<boolean> {
 	const domain = email.split("@")[1]?.toLowerCase();
 	if (!domain) return false;
-	return BLOCKED_SIGNUP_DOMAINS.includes(domain);
+
+	if (BLOCKED_SIGNUP_DOMAINS.includes(domain)) {
+		return true;
+	}
+
+	try {
+		const blockedDomain = await db
+			.select({ id: schema.blockedSignupDomains.id })
+			.from(schema.blockedSignupDomains)
+			.where(
+				and(
+					eq(schema.blockedSignupDomains.domain, domain),
+					eq(schema.blockedSignupDomains.isActive, true),
+				),
+			)
+			.limit(1);
+
+		return blockedDomain.length > 0;
+	} catch (error) {
+		console.error("Error checking blocked signup domain list:", error);
+		return false;
+	}
 }
 
 export const auth = betterAuth({
@@ -266,7 +288,7 @@ export const auth = betterAuth({
 		before: createAuthMiddleware(async (ctx) => {
 			// Block signups from banned email domains
 			const body = ctx.body as { email?: string } | undefined;
-			if (body?.email && isBlockedEmailDomain(body.email)) {
+			if (body?.email && (await isBlockedEmailDomain(body.email))) {
 				console.log(
 					`🚫 Blocked signup attempt from banned domain: ${body.email}`,
 				);
