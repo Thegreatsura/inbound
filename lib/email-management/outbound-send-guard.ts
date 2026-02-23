@@ -69,15 +69,34 @@ export async function enforceOutboundSendGuard(
 			const banExpiresAt = userRecord.banExpires
 				? new Date(userRecord.banExpires)
 				: null;
-			const banExpired = banExpiresAt ? banExpiresAt < new Date() : false;
+			const banStillActive = banExpiresAt
+				? banExpiresAt.getTime() >= Date.now()
+				: true;
 
-			if (!banExpired) {
+			if (banStillActive) {
 				return deny(
 					403,
 					`Account suspended${userRecord.banReason ? `: ${userRecord.banReason}` : ""}`,
 					"user_banned",
 				);
 			}
+		}
+
+		const [userTenant] = await db
+			.select({
+				id: sesTenants.id,
+				status: sesTenants.status,
+			})
+			.from(sesTenants)
+			.where(eq(sesTenants.userId, userId))
+			.limit(1);
+
+		if (!userTenant || userTenant.status !== "active") {
+			return deny(
+				403,
+				"Email sending is disabled for this account.",
+				"tenant_inactive",
+			);
 		}
 
 		if (isAgentEmail) {
@@ -129,27 +148,12 @@ export async function enforceOutboundSendGuard(
 			);
 		}
 
-		if (verifiedDomain.tenantId) {
-			const [tenantRecord] = await db
-				.select({
-					status: sesTenants.status,
-				})
-				.from(sesTenants)
-				.where(
-					and(
-						eq(sesTenants.id, verifiedDomain.tenantId),
-						eq(sesTenants.userId, userId),
-					),
-				)
-				.limit(1);
-
-			if (!tenantRecord || tenantRecord.status !== "active") {
-				return deny(
-					403,
-					"Email sending is disabled for this account.",
-					"tenant_inactive",
-				);
-			}
+		if (verifiedDomain.tenantId && verifiedDomain.tenantId !== userTenant.id) {
+			return deny(
+				403,
+				"Email sending is disabled for this account.",
+				"tenant_inactive",
+			);
 		}
 
 		const [senderAddressRecord] = await db

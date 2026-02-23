@@ -76,6 +76,13 @@ interface QStashPayload {
 	batchIndex?: number; // for batch
 }
 
+interface StoredAttachment {
+	filename?: string;
+	contentType?: string;
+	content_type?: string;
+	[key: string]: unknown;
+}
+
 export async function POST(request: NextRequest) {
 	console.log("📨 QStash Webhook - Received scheduled email request");
 
@@ -248,72 +255,73 @@ async function handleScheduledEmail(payload: QStashPayload) {
 		const rawAttachments = scheduledEmail.attachments
 			? JSON.parse(scheduledEmail.attachments)
 			: [];
-		const tags = scheduledEmail.tags ? JSON.parse(scheduledEmail.tags) : [];
 
 		// Validate and fix attachment data - ensure contentType is set
-		const attachments = rawAttachments.map((att: any, index: number) => {
-			if (!att.contentType && !att.content_type) {
-				console.log(
-					`⚠️ Attachment ${index + 1} missing contentType, using fallback`,
-				);
-				const filename = att.filename || "unknown";
-				const ext = filename.toLowerCase().split(".").pop();
-				let contentType = "application/octet-stream";
+		const attachments = rawAttachments.map(
+			(att: StoredAttachment, index: number) => {
+				if (!att.contentType && !att.content_type) {
+					console.log(
+						`⚠️ Attachment ${index + 1} missing contentType, using fallback`,
+					);
+					const filename = att.filename || "unknown";
+					const ext = filename.toLowerCase().split(".").pop();
+					let contentType = "application/octet-stream";
 
-				// Common file type mappings
-				switch (ext) {
-					case "pdf":
-						contentType = "application/pdf";
-						break;
-					case "jpg":
-					case "jpeg":
-						contentType = "image/jpeg";
-						break;
-					case "png":
-						contentType = "image/png";
-						break;
-					case "gif":
-						contentType = "image/gif";
-						break;
-					case "txt":
-						contentType = "text/plain";
-						break;
-					case "html":
-						contentType = "text/html";
-						break;
-					case "json":
-						contentType = "application/json";
-						break;
-					case "zip":
-						contentType = "application/zip";
-						break;
-					case "doc":
-						contentType = "application/msword";
-						break;
-					case "docx":
-						contentType =
-							"application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-						break;
-					case "xls":
-						contentType = "application/vnd.ms-excel";
-						break;
-					case "xlsx":
-						contentType =
-							"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-						break;
+					// Common file type mappings
+					switch (ext) {
+						case "pdf":
+							contentType = "application/pdf";
+							break;
+						case "jpg":
+						case "jpeg":
+							contentType = "image/jpeg";
+							break;
+						case "png":
+							contentType = "image/png";
+							break;
+						case "gif":
+							contentType = "image/gif";
+							break;
+						case "txt":
+							contentType = "text/plain";
+							break;
+						case "html":
+							contentType = "text/html";
+							break;
+						case "json":
+							contentType = "application/json";
+							break;
+						case "zip":
+							contentType = "application/zip";
+							break;
+						case "doc":
+							contentType = "application/msword";
+							break;
+						case "docx":
+							contentType =
+								"application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+							break;
+						case "xls":
+							contentType = "application/vnd.ms-excel";
+							break;
+						case "xlsx":
+							contentType =
+								"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+							break;
+					}
+
+					return {
+						...att,
+						contentType: contentType,
+					};
 				}
 
 				return {
 					...att,
-					contentType: contentType,
+					contentType: att.contentType || att.content_type,
 				};
-			}
-
-			return {
-				...att,
-				contentType: att.contentType || att.content_type,
-			};
-		});
+			},
+		);
 
 		// Create sent email record first (for tracking)
 		const sentEmailId = nanoid();
@@ -540,9 +548,9 @@ async function handleScheduledEmail(payload: QStashPayload) {
 
 // Handler for batch emails
 async function handleBatchEmail(
-	request: NextRequest,
+	_request: NextRequest,
 	payload: QStashPayload,
-	body: string,
+	_body: string,
 ) {
 	if (!payload.emailId || !payload.userId || !payload.emailData) {
 		console.error("❌ QStash Webhook - Missing required batch fields");
@@ -552,7 +560,7 @@ async function handleBatchEmail(
 		);
 	}
 
-	const { emailId, userId, emailData, batchId, batchIndex } = payload;
+	const { emailId, userId, batchId, batchIndex } = payload;
 	console.log("📧 Processing batch email:", { emailId, batchId, batchIndex });
 
 	// Check if SES is configured
@@ -581,6 +589,19 @@ async function handleBatchEmail(
 		);
 	}
 
+	const effectiveUserId = sentEmail.userId;
+	if (effectiveUserId !== userId) {
+		console.error("❌ QStash Webhook - Payload userId mismatch", {
+			emailId,
+			payloadUserId: userId,
+			recordUserId: effectiveUserId,
+		});
+		return NextResponse.json(
+			{ error: "Invalid batch payload user association" },
+			{ status: 400 },
+		);
+	}
+
 	// Check if already processed
 	if (sentEmail.status === SENT_EMAIL_STATUS.SENT) {
 		console.log("✅ Email already sent, skipping:", emailId);
@@ -599,14 +620,14 @@ async function handleBatchEmail(
 		sentEmail.from,
 	);
 	const batchGuard = await enforceOutboundSendGuard({
-		userId,
+		userId: effectiveUserId,
 		fromAddress: batchFromAddress,
 		fromDomain: sentEmail.fromDomain,
 		isAgentEmail: batchIsAgentEmail,
 	});
 	if (!batchGuard.allowed) {
 		console.log(
-			`🚫 Blocking batch email for user ${userId}: ${batchGuard.reasonCode}`,
+			`🚫 Blocking batch email for user ${effectiveUserId}: ${batchGuard.reasonCode}`,
 		);
 
 		// Update sent email status to failed
@@ -645,69 +666,71 @@ async function handleBatchEmail(
 			: [];
 
 		// Validate and fix attachment data - ensure contentType is set
-		const attachments = rawAttachments.map((att: any, index: number) => {
-			if (!att.contentType && !att.content_type) {
-				console.log(
-					`⚠️ Attachment ${index + 1} missing contentType, using fallback`,
-				);
-				const filename = att.filename || "unknown";
-				const ext = filename.toLowerCase().split(".").pop();
-				let contentType = "application/octet-stream";
+		const attachments = rawAttachments.map(
+			(att: StoredAttachment, index: number) => {
+				if (!att.contentType && !att.content_type) {
+					console.log(
+						`⚠️ Attachment ${index + 1} missing contentType, using fallback`,
+					);
+					const filename = att.filename || "unknown";
+					const ext = filename.toLowerCase().split(".").pop();
+					let contentType = "application/octet-stream";
 
-				// Common file type mappings
-				switch (ext) {
-					case "pdf":
-						contentType = "application/pdf";
-						break;
-					case "jpg":
-					case "jpeg":
-						contentType = "image/jpeg";
-						break;
-					case "png":
-						contentType = "image/png";
-						break;
-					case "gif":
-						contentType = "image/gif";
-						break;
-					case "txt":
-						contentType = "text/plain";
-						break;
-					case "html":
-						contentType = "text/html";
-						break;
-					case "json":
-						contentType = "application/json";
-						break;
-					case "zip":
-						contentType = "application/zip";
-						break;
-					case "doc":
-						contentType = "application/msword";
-						break;
-					case "docx":
-						contentType =
-							"application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-						break;
-					case "xls":
-						contentType = "application/vnd.ms-excel";
-						break;
-					case "xlsx":
-						contentType =
-							"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-						break;
+					// Common file type mappings
+					switch (ext) {
+						case "pdf":
+							contentType = "application/pdf";
+							break;
+						case "jpg":
+						case "jpeg":
+							contentType = "image/jpeg";
+							break;
+						case "png":
+							contentType = "image/png";
+							break;
+						case "gif":
+							contentType = "image/gif";
+							break;
+						case "txt":
+							contentType = "text/plain";
+							break;
+						case "html":
+							contentType = "text/html";
+							break;
+						case "json":
+							contentType = "application/json";
+							break;
+						case "zip":
+							contentType = "application/zip";
+							break;
+						case "doc":
+							contentType = "application/msword";
+							break;
+						case "docx":
+							contentType =
+								"application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+							break;
+						case "xls":
+							contentType = "application/vnd.ms-excel";
+							break;
+						case "xlsx":
+							contentType =
+								"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+							break;
+					}
+
+					return {
+						...att,
+						contentType: contentType,
+					};
 				}
 
 				return {
 					...att,
-					contentType: contentType,
+					contentType: att.contentType || att.content_type,
 				};
-			}
-
-			return {
-				...att,
-				contentType: att.contentType || att.content_type,
-			};
-		});
+			},
+		);
 
 		// Build raw email message
 		console.log("📧 Building raw email message for batch email");
@@ -744,7 +767,7 @@ async function handleBatchEmail(
 				? getRootDomain(batchFromDomain)
 				: undefined;
 			batchTenantInfo = await getTenantSendingInfoForDomainOrParent(
-				userId,
+				effectiveUserId,
 				batchFromDomain,
 				batchParentDomain || undefined,
 			);
@@ -833,14 +856,14 @@ async function handleBatchEmail(
 		try {
 			const { Autumn: autumn } = await import("autumn-js");
 			const { data: emailCheck } = await autumn.check({
-				customer_id: userId,
+				customer_id: effectiveUserId,
 				feature_id: "emails_sent",
 			});
 
 			if (emailCheck && !emailCheck.unlimited) {
 				console.log("📊 Tracking email usage with Autumn");
 				const { error: trackError } = await autumn.track({
-					customer_id: userId,
+					customer_id: effectiveUserId,
 					feature_id: "emails_sent",
 					value: 1,
 				});
@@ -857,7 +880,7 @@ async function handleBatchEmail(
 
 		// Evaluate email for security risks (non-blocking)
 		waitUntil(
-			evaluateSending(emailId, userId, {
+			evaluateSending(emailId, effectiveUserId, {
 				from: sentEmail.from,
 				to: toAddresses,
 				subject: sentEmail.subject,
@@ -867,7 +890,7 @@ async function handleBatchEmail(
 		);
 
 		// Check for sending spikes (non-blocking)
-		waitUntil(checkSendingSpike(userId));
+		waitUntil(checkSendingSpike(effectiveUserId));
 
 		console.log("✅ Batch email processed successfully:", emailId);
 

@@ -1,6 +1,9 @@
-import { auth } from "@/lib/auth/auth";
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
+import { eq } from "drizzle-orm";
+import { auth } from "@/lib/auth/auth";
+import { db } from "@/lib/db";
+import { user } from "@/lib/db/auth-schema";
 
 // Initialize Upstash Redis client for rate limiting
 // Only initialize if env vars are present
@@ -83,7 +86,7 @@ export async function validateAndRateLimit(
 	request: Request,
 	set: {
 		status?: number | string;
-		headers?: Record<string, string> | any;
+		headers?: Record<string, string>;
 	},
 ): Promise<string> {
 	try {
@@ -149,6 +152,60 @@ export async function validateAndRateLimit(
 				},
 				set.headers,
 			);
+		}
+
+		const [userRecord] = await db
+			.select({
+				banned: user.banned,
+				banReason: user.banReason,
+				banExpires: user.banExpires,
+			})
+			.from(user)
+			.where(eq(user.id, userId))
+			.limit(1);
+
+		if (!userRecord) {
+			set.status = 401;
+			set.headers = {
+				...set.headers,
+				"WWW-Authenticate": 'Bearer realm="API", charset="UTF-8"',
+				"Content-Type": "application/json; charset=utf-8",
+			};
+			throw new AuthError(
+				{
+					error: "Unauthorized",
+					message: "User not found.",
+					statusCode: 401,
+				},
+				set.headers,
+			);
+		}
+
+		if (userRecord.banned) {
+			const banExpiresAt = userRecord.banExpires
+				? new Date(userRecord.banExpires)
+				: null;
+			const banStillActive = banExpiresAt
+				? banExpiresAt.getTime() >= Date.now()
+				: true;
+
+			if (banStillActive) {
+				set.status = 403;
+				set.headers = {
+					...set.headers,
+					"Content-Type": "application/json; charset=utf-8",
+				};
+				throw new AuthError(
+					{
+						error: "Forbidden",
+						message:
+							userRecord.banReason ||
+							"Account suspended. Please contact support.",
+						statusCode: 403,
+					},
+					set.headers,
+				);
+			}
 		}
 
 		// Check rate limit for this userId (if configured)
