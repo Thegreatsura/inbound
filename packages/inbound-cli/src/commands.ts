@@ -305,7 +305,7 @@ function getReplyTargetId(body: Record<string, unknown>): string | undefined {
 }
 
 function validateReplyModeFields(body: Record<string, unknown>): void {
-	const unsupported = ["cc", "bcc", "scheduled_at", "timezone"];
+	const unsupported = ["cc", "bcc", "reply_to", "scheduled_at", "timezone"];
 	const present = unsupported.filter((field) => body[field] !== undefined);
 	if (present.length > 0) {
 		throw new Error(

@@ -1,8 +1,7 @@
 "use client";
 
-import { AlertTriangleIcon, Loader2Icon, RefreshCcwIcon } from "lucide-react";
+import { Loader2Icon, RefreshCcwIcon } from "lucide-react";
 import { useState } from "react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
 	Card,
@@ -106,18 +105,70 @@ function formatDate(value: string | null): string {
 	return parsed.toLocaleString();
 }
 
-function riskBadgeVariant(
-	score: number,
-): "destructive" | "secondary" | "outline" {
-	if (score >= 70) {
-		return "destructive";
+function formatInt(value: number): string {
+	return value.toLocaleString();
+}
+
+function buildIssueSummary(tenant: TenantInsight): string {
+	const parts: string[] = [];
+
+	if (tenant.stats.bounceRate >= 5) {
+		parts.push(`Bounce rate ${tenant.stats.bounceRate.toFixed(2)}%`);
 	}
 
-	if (score >= 40) {
-		return "secondary";
+	if (tenant.stats.bounces >= 50) {
+		parts.push(`${formatInt(tenant.stats.bounces)} bounces`);
 	}
 
-	return "outline";
+	if (tenant.stats.failedSends >= 20) {
+		parts.push(`${formatInt(tenant.stats.failedSends)} failed sends`);
+	}
+
+	if (tenant.stats.complaints > 0) {
+		parts.push(
+			`${formatInt(tenant.stats.complaints)} complaints (${tenant.stats.complaintRate.toFixed(2)}%)`,
+		);
+	}
+
+	if (tenant.stats.uniqueFailedRecipients >= 100) {
+		parts.push(
+			`${formatInt(tenant.stats.uniqueFailedRecipients)} unique failed recipients`,
+		);
+	}
+
+	if (tenant.user.banned) {
+		parts.push("User is banned");
+	}
+
+	if (tenant.status !== "active") {
+		parts.push(`Tenant status is ${tenant.status}`);
+	}
+
+	if (tenant.stats.topRejectedRecipientDomains.length > 0) {
+		const topDomains = tenant.stats.topRejectedRecipientDomains
+			.slice(0, 2)
+			.map((item) => `${item.domain} (${formatInt(item.count)})`)
+			.join(", ");
+		parts.push(`Top recipient rejections: ${topDomains}`);
+	}
+
+	if (parts.length === 0) {
+		return "No major risk signals in selected window";
+	}
+
+	return parts.join(" | ");
+}
+
+function getDisplayAccount(tenant: TenantInsight): string {
+	if (tenant.user.email) {
+		return tenant.user.email;
+	}
+
+	if (tenant.user.name) {
+		return tenant.user.name;
+	}
+
+	return tenant.user.id;
 }
 
 export function TenantInsightsPanel({
@@ -174,7 +225,8 @@ export function TenantInsightsPanel({
 			<CardHeader>
 				<CardTitle>Tenant Risk Panel</CardTitle>
 				<CardDescription>
-					Link tenants, users, domains, and delivery outcomes to spot abuse.
+					Focused incident view across tenants, users, domains, and delivery
+					outcomes.
 				</CardDescription>
 			</CardHeader>
 			<CardContent>
@@ -183,7 +235,7 @@ export function TenantInsightsPanel({
 						className="lg:col-span-2"
 						value={search}
 						onChange={(event) => setSearch(event.target.value)}
-						placeholder="Search tenant, user, or AWS tenant id"
+						placeholder="Search tenant, user, domain, or AWS tenant id"
 					/>
 					<Select value={timeRange} onValueChange={setTimeRange}>
 						<SelectTrigger>
@@ -253,13 +305,13 @@ export function TenantInsightsPanel({
 
 				{result ? (
 					<>
-						<div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+						<div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
 							<div className="bg-card rounded-md border p-3">
 								<p className="text-muted-foreground text-[11px]">
 									Scanned tenants
 								</p>
 								<p className="text-sm font-medium">
-									{result.summary.scannedTenants}
+									{formatInt(result.summary.scannedTenants)}
 								</p>
 							</div>
 							<div className="bg-card rounded-md border p-3">
@@ -267,13 +319,19 @@ export function TenantInsightsPanel({
 									Flagged tenants
 								</p>
 								<p className="text-sm font-medium">
-									{result.summary.flaggedTenants}
+									{formatInt(result.summary.flaggedTenants)}
 								</p>
 							</div>
 							<div className="bg-card rounded-md border p-3">
 								<p className="text-muted-foreground text-[11px]">Sent emails</p>
 								<p className="text-sm font-medium">
-									{result.summary.totalSent}
+									{formatInt(result.summary.totalSent)}
+								</p>
+							</div>
+							<div className="bg-card rounded-md border p-3">
+								<p className="text-muted-foreground text-[11px]">Bounces</p>
+								<p className="text-sm font-medium">
+									{formatInt(result.summary.totalBounces)}
 								</p>
 							</div>
 							<div className="bg-card rounded-md border p-3">
@@ -292,168 +350,125 @@ export function TenantInsightsPanel({
 							</div>
 						</div>
 
-						<div className="mt-4 grid gap-3">
-							{result.data.length === 0 ? (
-								<div className="text-muted-foreground rounded-md border border-dashed p-4 text-xs/relaxed">
-									No tenant insights match this filter.
-								</div>
-							) : (
-								result.data.map((tenant) => {
-									const firstDomainIdentity = tenant.domains[0]?.domain || "";
+						<div className="mt-4 overflow-x-auto rounded-md border">
+							<table className="w-full min-w-[1200px] text-xs/relaxed">
+								<thead className="bg-muted/40 text-muted-foreground">
+									<tr>
+										<th className="px-3 py-2 text-left font-medium">Account</th>
+										<th className="px-3 py-2 text-left font-medium">Domains</th>
+										<th className="px-3 py-2 text-right font-medium">Sent</th>
+										<th className="px-3 py-2 text-right font-medium">Failed</th>
+										<th className="px-3 py-2 text-right font-medium">
+											Bounces
+										</th>
+										<th className="px-3 py-2 text-right font-medium">
+											Bounce %
+										</th>
+										<th className="px-3 py-2 text-right font-medium">
+											Complaints
+										</th>
+										<th className="px-3 py-2 text-left font-medium">
+											Last activity
+										</th>
+										<th className="px-3 py-2 text-left font-medium">
+											Incident summary
+										</th>
+										<th className="px-3 py-2 text-left font-medium">Actions</th>
+									</tr>
+								</thead>
+								<tbody>
+									{result.data.length === 0 ? (
+										<tr>
+											<td
+												colSpan={10}
+												className="text-muted-foreground px-3 py-6 text-center"
+											>
+												No tenant insights match this filter.
+											</td>
+										</tr>
+									) : (
+										result.data.map((tenant) => {
+											const firstDomainIdentity =
+												tenant.domains[0]?.domain || "";
+											const domainsText =
+												tenant.domains.length > 0
+													? tenant.domains
+															.map((domain) => domain.domain)
+															.join(", ")
+													: "-";
+											const rowClassName = tenant.risk.suspicious
+												? "border-t bg-destructive/5"
+												: "border-t";
 
-									return (
-										<div
-											key={tenant.id}
-											className="bg-card rounded-md border p-3"
-										>
-											<div className="mb-2 flex flex-wrap items-center gap-2">
-												<Badge variant={riskBadgeVariant(tenant.risk.score)}>
-													Risk {tenant.risk.score}
-												</Badge>
-												<Badge
-													variant={
-														tenant.status === "active" ? "secondary" : "outline"
-													}
-												>
-													{tenant.status}
-												</Badge>
-												{tenant.user.banned ? (
-													<Badge variant="destructive">User banned</Badge>
-												) : null}
-												<Badge variant="outline">Tenant ID: {tenant.id}</Badge>
-												<Badge variant="outline">
-													AWS: {tenant.awsTenantId}
-												</Badge>
-											</div>
-
-											<div className="grid gap-3 xl:grid-cols-2">
-												<div className="space-y-2">
-													<p className="text-sm font-medium">
-														{tenant.tenantName}
-													</p>
-													<p className="text-muted-foreground text-xs/relaxed">
-														User: {tenant.user.name || "-"} (
-														{tenant.user.email || "-"})
-													</p>
-													<p className="text-muted-foreground text-xs/relaxed">
-														Created: {formatDate(tenant.createdAt)}
-													</p>
-													<div className="flex flex-wrap gap-1">
-														{tenant.domains.length === 0 ? (
-															<Badge variant="outline">No domains linked</Badge>
-														) : (
-															tenant.domains.map((domain) => (
-																<Badge key={domain.id} variant="outline">
-																	{domain.domain}
-																</Badge>
-															))
-														)}
-													</div>
-												</div>
-
-												<div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-													<div className="rounded-md border px-2 py-1.5">
-														<p className="text-muted-foreground text-[11px]">
-															Sent
-														</p>
+											return (
+												<tr key={tenant.id} className={rowClassName}>
+													<td className="px-3 py-2 align-top">
 														<p className="text-sm font-medium">
-															{tenant.stats.sent}
+															{getDisplayAccount(tenant)}
 														</p>
-													</div>
-													<div className="rounded-md border px-2 py-1.5">
-														<p className="text-muted-foreground text-[11px]">
-															Failed sends
+														<p className="text-muted-foreground">
+															{tenant.tenantName} | {tenant.status}
+															{tenant.user.banned ? " | user banned" : ""}
 														</p>
-														<p className="text-sm font-medium">
-															{tenant.stats.failedSends}
+														<p className="text-muted-foreground">
+															Tenant ID: {tenant.id}
 														</p>
-													</div>
-													<div className="rounded-md border px-2 py-1.5">
-														<p className="text-muted-foreground text-[11px]">
-															Bounces
+													</td>
+													<td className="px-3 py-2 align-top">{domainsText}</td>
+													<td className="px-3 py-2 text-right align-top">
+														{formatInt(tenant.stats.sent)}
+													</td>
+													<td className="px-3 py-2 text-right align-top">
+														{formatInt(tenant.stats.failedSends)}
+													</td>
+													<td className="px-3 py-2 text-right align-top">
+														{formatInt(tenant.stats.bounces)}
+													</td>
+													<td className="px-3 py-2 text-right align-top">
+														{tenant.stats.bounceRate.toFixed(2)}%
+													</td>
+													<td className="px-3 py-2 text-right align-top">
+														{formatInt(tenant.stats.complaints)}
+													</td>
+													<td className="px-3 py-2 align-top">
+														<p className="text-muted-foreground">
+															Last sent: {formatDate(tenant.stats.lastSentAt)}
 														</p>
-														<p className="text-sm font-medium">
-															{tenant.stats.bounces}
+														<p className="text-muted-foreground">
+															Last event:{" "}
+															{formatDate(tenant.stats.lastDeliveryEventAt)}
 														</p>
-													</div>
-													<div className="rounded-md border px-2 py-1.5">
-														<p className="text-muted-foreground text-[11px]">
-															Complaints
-														</p>
-														<p className="text-sm font-medium">
-															{tenant.stats.complaints}
-														</p>
-													</div>
-													<div className="rounded-md border px-2 py-1.5">
-														<p className="text-muted-foreground text-[11px]">
-															Bounce rate
-														</p>
-														<p className="text-sm font-medium">
-															{tenant.stats.bounceRate.toFixed(2)}%
-														</p>
-													</div>
-													<div className="rounded-md border px-2 py-1.5">
-														<p className="text-muted-foreground text-[11px]">
-															Complaint rate
-														</p>
-														<p className="text-sm font-medium">
-															{tenant.stats.complaintRate.toFixed(2)}%
-														</p>
-													</div>
-												</div>
-											</div>
-
-											<div className="mt-2 flex flex-wrap gap-1">
-												{tenant.risk.flags.length === 0 ? (
-													<Badge variant="outline">No risk flags</Badge>
-												) : (
-													tenant.risk.flags.map((flag) => (
-														<Badge key={flag} variant="secondary">
-															<AlertTriangleIcon data-icon="inline-start" />
-															{flag}
-														</Badge>
-													))
-												)}
-											</div>
-
-											{tenant.stats.topRejectedRecipientDomains.length > 0 ? (
-												<div className="mt-2 flex flex-wrap gap-1">
-													{tenant.stats.topRejectedRecipientDomains.map(
-														(item) => (
-															<Badge
-																key={`${tenant.id}-${item.domain}`}
+													</td>
+													<td className="px-3 py-2 align-top">
+														{buildIssueSummary(tenant)}
+													</td>
+													<td className="px-3 py-2 align-top">
+														<div className="flex flex-col gap-2">
+															<Button
 																variant="outline"
+																size="sm"
+																onClick={() => onUsePauseTenant(tenant.id)}
 															>
-																{item.domain} ({item.count})
-															</Badge>
-														),
-													)}
-												</div>
-											) : null}
-
-											<div className="mt-3 flex flex-wrap gap-2">
-												<Button
-													variant="outline"
-													size="sm"
-													onClick={() => onUsePauseTenant(tenant.id)}
-												>
-													Use in pause action
-												</Button>
-												<Button
-													variant="outline"
-													size="sm"
-													onClick={() =>
-														onUseIdentity(tenant.id, firstDomainIdentity)
-													}
-													disabled={!firstDomainIdentity}
-												>
-													Use first domain for identity delete
-												</Button>
-											</div>
-										</div>
-									);
-								})
-							)}
+																Use in pause action
+															</Button>
+															<Button
+																variant="outline"
+																size="sm"
+																onClick={() =>
+																	onUseIdentity(tenant.id, firstDomainIdentity)
+																}
+																disabled={!firstDomainIdentity}
+															>
+																Use first domain for identity delete
+															</Button>
+														</div>
+													</td>
+												</tr>
+											);
+										})
+									)}
+								</tbody>
+							</table>
 						</div>
 					</>
 				) : null}
