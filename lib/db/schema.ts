@@ -89,6 +89,20 @@ export const sesTenants = pgTable("ses_tenants", {
 	updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Rate limit overrides - allows custom hourly sending limits per user
+// A null hourlyLimit means unlimited (no hourly cap)
+export const rateLimitOverrides = pgTable("rate_limit_overrides", {
+	id: varchar("id", { length: 255 }).primaryKey(),
+	userId: varchar("user_id", { length: 255 }).notNull().unique(),
+	hourlyLimit: integer("hourly_limit"), // null = unlimited
+	isActive: boolean("is_active").notNull().default(true),
+	reason: text("reason"), // why this override exists
+	createdBy: varchar("created_by", { length: 255 }), // admin who set it
+	expiresAt: timestamp("expires_at"), // optional expiry
+	createdAt: timestamp("created_at").defaultNow(),
+	updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const emailDomains = pgTable("email_domains", {
 	id: varchar("id", { length: 255 }).primaryKey(),
 	domain: varchar("domain", { length: 255 }).notNull().unique(),
@@ -966,6 +980,8 @@ export type WebhookStatus =
 // Type exports
 export type SESTenantsSchema = typeof sesTenants.$inferSelect;
 export type NewSESTenant = typeof sesTenants.$inferInsert;
+export type RateLimitOverride = typeof rateLimitOverrides.$inferSelect;
+export type NewRateLimitOverride = typeof rateLimitOverrides.$inferInsert;
 
 export type EndpointType = (typeof ENDPOINT_TYPES)[keyof typeof ENDPOINT_TYPES];
 export type WebhookFormat =

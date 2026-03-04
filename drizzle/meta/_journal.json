@@ -442,6 +442,13 @@
       "when": 1771808086080,
       "tag": "0062_futuristic_nightshade",
       "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1772643873266,
+      "tag": "0063_pink_stranger",
+      "breakpoints": true
     }
   ]
 }

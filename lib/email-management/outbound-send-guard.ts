@@ -5,6 +5,7 @@ import { user } from "@/lib/db/auth-schema";
 import {
 	emailAddresses,
 	emailDomains,
+	rateLimitOverrides,
 	sentEmails,
 	sesTenants,
 } from "@/lib/db/schema";
@@ -247,20 +248,45 @@ export async function enforceOutboundSendGuard(
 			.limit(1);
 
 		const sentLastHour = Number(hourlyCountResult?.total || 0);
-		if (sentLastHour >= HOURLY_SEND_LIMIT) {
+
+		const [override] = await db
+			.select({
+				hourlyLimit: rateLimitOverrides.hourlyLimit,
+				expiresAt: rateLimitOverrides.expiresAt,
+			})
+			.from(rateLimitOverrides)
+			.where(
+				and(
+					eq(rateLimitOverrides.userId, userId),
+					eq(rateLimitOverrides.isActive, true),
+				),
+			)
+			.limit(1);
+
+		const isOverrideValid =
+			override &&
+			(!override.expiresAt || override.expiresAt.getTime() > Date.now());
+
+		// null hourlyLimit = unlimited (no cap)
+		const effectiveLimit = isOverrideValid
+			? override.hourlyLimit
+			: HOURLY_SEND_LIMIT;
+
+		// effectiveLimit === null means unlimited — skip the check entirely
+		if (effectiveLimit !== null && sentLastHour >= effectiveLimit) {
 			await sendHourlyLimitSlackAlert({
 				userId,
 				userEmail: userRecord.email,
 				tenantId: userTenant.id,
 				sentLastHour,
-				limit: HOURLY_SEND_LIMIT,
+				limit: effectiveLimit,
 				windowStart,
 				windowEnd,
 			});
 
 			return deny(
 				429,
-				`Hourly sending limit reached (${HOURLY_SEND_LIMIT} emails per hour). Please contact support to request a higher limit.`,
+				`Hourly sending limit reached (${effectiveLimit} emails per hour). Please contact support to request a higher limit.`,
 				"hourly_send_limit_exceeded",
 			);
 		}
