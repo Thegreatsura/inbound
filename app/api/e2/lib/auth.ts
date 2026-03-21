@@ -3,7 +3,7 @@ import { Redis } from "@upstash/redis";
 import { eq } from "drizzle-orm";
 import { auth } from "@/lib/auth/auth";
 import { db } from "@/lib/db";
-import { user } from "@/lib/db/auth-schema";
+import { apikey, user } from "@/lib/db/auth-schema";
 
 // Initialize Upstash Redis client for rate limiting
 // Only initialize if env vars are present
@@ -119,13 +119,47 @@ export async function validateAndRateLimit(
 			request.headers.get("Authorization")?.replace("Bearer ", "") || "";
 
 		// Verify API key if provided
-		const apiSession = apiKey
-			? await auth.api.verifyApiKey({
-					body: {
-						key: apiKey,
-					},
-				})
-			: null;
+		const authApi = auth.api as {
+			verifyApiKey?: (input: { body: { key: string } }) => Promise<{
+				valid: boolean;
+				error?: { message?: string } | null;
+				key?: {
+					id?: string | null;
+					userId?: string | null;
+					referenceId?: string | null;
+				} | null;
+			}>;
+		};
+
+		const apiSession =
+			apiKey && authApi.verifyApiKey
+				? await authApi.verifyApiKey({
+						body: {
+							key: apiKey,
+						},
+					})
+				: null;
+
+		let apiKeyUserId: string | null = null;
+		if (apiSession?.valid && !apiSession.error && apiSession.key) {
+			const verifiedKey = apiSession.key as {
+				id?: string | null;
+				userId?: string | null;
+				referenceId?: string | null;
+			};
+
+			apiKeyUserId = verifiedKey.userId ?? verifiedKey.referenceId ?? null;
+
+			if (!apiKeyUserId && verifiedKey.id) {
+				const [apiKeyRecord] = await db
+					.select({ userId: apikey.userId })
+					.from(apikey)
+					.where(eq(apikey.id, verifiedKey.id))
+					.limit(1);
+
+				apiKeyUserId = apiKeyRecord?.userId ?? null;
+			}
+		}
 
 		// Determine userId from either session or API key
 		let userId: string;
@@ -134,12 +168,8 @@ export async function validateAndRateLimit(
 			userId = session.user.id;
 			console.log("🔑 [E2] Auth Type: SESSION");
 			console.log("✅ Session authentication successful for userId:", userId);
-		} else if (
-			apiSession?.valid &&
-			!apiSession?.error &&
-			apiSession?.key?.userId
-		) {
-			userId = apiSession.key.userId;
+		} else if (apiSession?.valid && !apiSession?.error && apiKeyUserId) {
+			userId = apiKeyUserId;
 			console.log("🔑 [E2] Auth Type: API_KEY");
 			console.log("🔑 [E2] API Key:", apiKey);
 			console.log("✅ API key authentication successful for userId:", userId);

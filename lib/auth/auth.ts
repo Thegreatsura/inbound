@@ -1,9 +1,10 @@
+import { apiKey } from "@better-auth/api-key";
 import { passkey } from "@better-auth/passkey";
 import { render } from "@react-email/components";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { createAuthMiddleware } from "better-auth/api";
-import { admin, apiKey, magicLink, oAuthProxy } from "better-auth/plugins";
+import { admin, magicLink, oAuthProxy } from "better-auth/plugins";
 import { and, eq } from "drizzle-orm";
 import Inbound from "inboundemail";
 

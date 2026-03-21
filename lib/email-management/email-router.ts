@@ -6,7 +6,7 @@
  */
 
 import { Autumn as autumn } from "autumn-js";
-import { and, asc, eq, or } from "drizzle-orm";
+import { and, asc, eq, or, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import type { Endpoint } from "@/features/endpoints/types";
 import { getTenantSendingInfoForDomainOrParent } from "@/lib/aws-ses/identity-arn-helper";
@@ -29,6 +29,10 @@ import { triggerEmailAction } from "./webhook-trigger";
 
 // Maximum webhook payload size (5MB safety margin)
 const MAX_WEBHOOK_PAYLOAD_SIZE = 1_000_000;
+
+type StructuredEmailWithData = NonNullable<
+	Awaited<ReturnType<typeof getEmailWithStructuredData>>
+>;
 
 /**
  * Main email routing function - routes emails to appropriate endpoints
@@ -675,6 +679,122 @@ async function findEndpointForEmail(
 	}
 }
 
+function isUniqueConstraintError(error: unknown): boolean {
+	if (!(error instanceof Error)) {
+		return false;
+	}
+
+	const errorWithCode = error as Error & { code?: string };
+	return (
+		errorWithCode.code === "23505" ||
+		error.message.includes("duplicate key") ||
+		error.message.includes("unique constraint")
+	);
+}
+
+async function claimWebhookEndpointDelivery(
+	emailId: string,
+	endpointId: string,
+): Promise<string | null> {
+	const deliveryId = nanoid();
+	const now = new Date();
+
+	try {
+		await db.insert(endpointDeliveries).values({
+			id: deliveryId,
+			emailId,
+			endpointId,
+			deliveryType: "webhook",
+			status: "processing",
+			attempts: 1,
+			lastAttemptAt: now,
+			createdAt: now,
+			updatedAt: now,
+		});
+		return deliveryId;
+	} catch (error) {
+		if (!isUniqueConstraintError(error)) {
+			throw error;
+		}
+	}
+
+	const [existingDelivery] = await db
+		.select({
+			id: endpointDeliveries.id,
+			status: endpointDeliveries.status,
+			updatedAt: endpointDeliveries.updatedAt,
+		})
+		.from(endpointDeliveries)
+		.where(
+			and(
+				eq(endpointDeliveries.emailId, emailId),
+				eq(endpointDeliveries.endpointId, endpointId),
+			),
+		)
+		.limit(1);
+
+	if (!existingDelivery) {
+		throw new Error(
+			`Expected an existing webhook delivery for emailId=${emailId} endpointId=${endpointId}`,
+		);
+	}
+
+	if (existingDelivery.status === "success") {
+		console.log(
+			`⏭️  handleWebhookEndpoint - Delivery already succeeded for emailId=${emailId}, endpointId=${endpointId}. Skipping duplicate.`,
+		);
+		return null;
+	}
+
+	// A 'processing' delivery is retryable if the worker likely crashed:
+	// use a 5-minute timeout as a conservative stale-lock threshold.
+	const PROCESSING_STALE_MS = 5 * 60 * 1000;
+	if (existingDelivery.status === "processing") {
+		const staleAt = new Date(
+			(existingDelivery.updatedAt?.getTime() ?? 0) + PROCESSING_STALE_MS,
+		);
+		if (now < staleAt) {
+			console.log(
+				`⏭️  handleWebhookEndpoint - Delivery is already in progress (not yet stale) for emailId=${emailId}, endpointId=${endpointId}. Skipping duplicate.`,
+			);
+			return null;
+		}
+		console.log(
+			`⚠️  handleWebhookEndpoint - Stale processing delivery detected (>${PROCESSING_STALE_MS / 1000}s) for emailId=${emailId}, endpointId=${endpointId}. Reclaiming.`,
+		);
+	}
+	// Any other status ('pending', 'failed') falls through to the CAS update below.
+	// These are explicitly retryable — a failed delivery should be reattempted.
+
+	const [claimedDelivery] = await db
+		.update(endpointDeliveries)
+		.set({
+			status: "processing",
+			attempts: sql`COALESCE(${endpointDeliveries.attempts}, 0) + 1`,
+			lastAttemptAt: now,
+			updatedAt: now,
+		})
+		.where(
+			and(
+				eq(endpointDeliveries.id, existingDelivery.id),
+				eq(endpointDeliveries.status, existingDelivery.status),
+			),
+		)
+		.returning({ id: endpointDeliveries.id });
+
+	if (!claimedDelivery) {
+		console.log(
+			`⏭️  handleWebhookEndpoint - Another worker claimed delivery ${existingDelivery.id} for emailId=${emailId}, endpointId=${endpointId}. Skipping duplicate.`,
+		);
+		return null;
+	}
+
+	console.log(
+		`🔄 handleWebhookEndpoint - Reclaiming delivery ${existingDelivery.id} for retry (was: ${existingDelivery.status}) for emailId=${emailId}, endpointId=${endpointId}.`,
+	);
+	return existingDelivery.id;
+}
+
 /**
  * Handle webhook endpoint routing (direct implementation for unified endpoints)
  */
@@ -682,66 +802,9 @@ async function handleWebhookEndpoint(
 	emailId: string,
 	endpoint: Endpoint,
 ): Promise<void> {
-	// PRE-CREATE delivery record to prevent race condition duplicates
-	// The unique constraint on (emailId, endpointId) acts as a distributed lock
-	let deliveryId = nanoid();
-
-	try {
-		// Insert delivery record BEFORE sending webhook to prevent race conditions
-		await db.insert(endpointDeliveries).values({
-			id: deliveryId,
-			emailId,
-			endpointId: endpoint.id,
-			deliveryType: "webhook",
-			status: "pending",
-			attempts: 1,
-			lastAttemptAt: new Date(),
-			createdAt: new Date(),
-			updatedAt: new Date(),
-		});
-		console.log(
-			`🔒 handleWebhookEndpoint - Created delivery lock ${deliveryId} for ${emailId} → ${endpoint.id}`,
-		);
-	} catch (error: unknown) {
-		const errCode = (error as { code?: string })?.code;
-		const errMsg = (error as { message?: string })?.message;
-		// Check if this is a unique constraint violation (another request already processing)
-		if (
-			errCode === "23505" ||
-			errMsg?.includes("duplicate key") ||
-			errMsg?.includes("unique constraint")
-		) {
-			// Check if the existing delivery is a retry (pending/failed) or already succeeded
-			const [existingDelivery] = await db
-				.select({
-					id: endpointDeliveries.id,
-					status: endpointDeliveries.status,
-				})
-				.from(endpointDeliveries)
-				.where(
-					and(
-						eq(endpointDeliveries.emailId, emailId),
-						eq(endpointDeliveries.endpointId, endpoint.id),
-					),
-				)
-				.limit(1);
-
-			if (existingDelivery && existingDelivery.status !== "success") {
-				// This is a retry — use the existing delivery record ID and proceed
-				deliveryId = existingDelivery.id;
-				console.log(
-					`🔄 handleWebhookEndpoint - Retry: reusing delivery ${deliveryId} for ${emailId} → ${endpoint.id} (status was: ${existingDelivery.status})`,
-				);
-			} else {
-				// Already succeeded — skip to prevent duplicate delivery
-				console.log(
-					`⏭️  handleWebhookEndpoint - Delivery already succeeded for emailId=${emailId}, endpointId=${endpoint.id}. Skipping duplicate.`,
-				);
-				return;
-			}
-		} else {
-			throw error; // Re-throw other errors
-		}
+	const deliveryId = await claimWebhookEndpointDelivery(emailId, endpoint.id);
+	if (!deliveryId) {
+		return;
 	}
 
 	try {
@@ -934,7 +997,7 @@ async function handleWebhookEndpoint(
 		let deliverySuccess = false;
 		let responseCode = 0;
 		let responseBody = "";
-		let responseHeaders: Record<string, string> = {};
+		const responseHeaders: Record<string, string> = {};
 		let errorMessage = "";
 		let deliveryTime = 0;
 
@@ -1175,7 +1238,7 @@ async function handleWebhookEndpoint(
 async function handleEmailForwardEndpoint(
 	emailId: string,
 	endpoint: Endpoint,
-	emailData: any,
+	emailData: StructuredEmailWithData,
 ): Promise<void> {
 	// PRE-CREATE delivery record to prevent race condition duplicates
 	let deliveryId = nanoid();
@@ -1388,7 +1451,7 @@ async function handleEmailForwardEndpoint(
 		await forwarder.forwardEmail(parsedEmailData, fromAddress, toAddresses, {
 			subjectPrefix: config.subjectPrefix,
 			includeAttachments: config.includeAttachments,
-			recipientEmail: emailData.recipient,
+			recipientEmail: emailData.recipient || undefined,
 			senderName: config.senderName, // Pass custom sender name if configured
 			sourceArn: sourceArn || undefined,
 			configurationSetName: configurationSetName || undefined,
@@ -1446,7 +1509,9 @@ async function handleEmailForwardEndpoint(
 /**
  * Reconstruct ParsedEmailData from structured email data
  */
-function reconstructParsedEmailData(emailData: any): ParsedEmailData {
+function reconstructParsedEmailData(
+	emailData: StructuredEmailWithData,
+): ParsedEmailData {
 	return {
 		messageId: emailData.messageId || undefined,
 		date: emailData.date || undefined,

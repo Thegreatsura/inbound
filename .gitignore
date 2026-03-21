@@ -91,3 +91,4 @@ scripts/webhook-test-verification-report.md
 
 .reference/
 scripts/dual-daily-review.ts
+.overseer/

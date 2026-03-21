@@ -1,5 +1,5 @@
 import { and, count, eq, gte, isNull, or } from "drizzle-orm";
-
+import { pauseTenantSending } from "@/lib/aws-ses/aws-ses-tenants";
 import { db } from "@/lib/db";
 import { user } from "@/lib/db/auth-schema";
 import {
@@ -153,6 +153,50 @@ async function sendHourlyLimitSlackAlert(params: {
 	}
 }
 
+async function pauseTenantForHourlyLimit(params: {
+	tenantId: string;
+	configurationSetName: string | null;
+}): Promise<void> {
+	const reason =
+		"Automatic pause: hourly send limit reached and threshold exceeded";
+
+	try {
+		if (params.configurationSetName) {
+			const pauseResult = await pauseTenantSending(
+				params.configurationSetName,
+				reason,
+			);
+			if (pauseResult.success) {
+				console.log(
+					`✅ pauseTenantForHourlyLimit - Tenant paused in AWS for tenantId: ${params.tenantId}`,
+				);
+				return;
+			}
+
+			console.warn(
+				`⚠️ pauseTenantForHourlyLimit - AWS pause failed for tenantId ${params.tenantId}, falling back to DB status update: ${pauseResult.error}`,
+			);
+		}
+
+		await db
+			.update(sesTenants)
+			.set({
+				status: "paused",
+				updatedAt: new Date(),
+			})
+			.where(eq(sesTenants.id, params.tenantId));
+
+		console.log(
+			`✅ pauseTenantForHourlyLimit - Tenant status updated to paused for tenantId: ${params.tenantId}`,
+		);
+	} catch (error) {
+		console.error(
+			"❌ pauseTenantForHourlyLimit - Failed to pause tenant:",
+			error,
+		);
+	}
+}
+
 function deny(
 	statusCode: number,
 	error: string,
@@ -212,6 +256,7 @@ export async function enforceOutboundSendGuard(
 			.select({
 				id: sesTenants.id,
 				status: sesTenants.status,
+				configurationSetName: sesTenants.configurationSetName,
 			})
 			.from(sesTenants)
 			.where(eq(sesTenants.userId, userId))
@@ -274,6 +319,11 @@ export async function enforceOutboundSendGuard(
 
 		// effectiveLimit === null means unlimited — skip the check entirely
 		if (effectiveLimit !== null && sentLastHour >= effectiveLimit) {
+			await pauseTenantForHourlyLimit({
+				tenantId: userTenant.id,
+				configurationSetName: userTenant.configurationSetName,
+			});
+
 			await sendHourlyLimitSlackAlert({
 				userId,
 				userEmail: userRecord.email,
