@@ -5,11 +5,12 @@ alwaysApply: true
 ---
 Project Rules:
 
-- only use bun for package manager
-- never run `bun run dev` or `bun run build` without my approval
+- Only use bun for package manager
+- Never run `bun run dev` or `bun run build` without my approval
 - Before every message say "Rules Loaded: Primary (any others)"
-- Never run npx tsc or any other build, type checker or anything else without my approval first. This will break the project. 
-- We have depricated the `receivedEmails` and `parsedEmails` schema tables and we are wanted to replace them with `structuredEmails` which has better (cleaner) information and better typing. 
-- You should NOT create duplicate type definitions, always try to find an existing type or find/extend one from a schema.
-- All icons are using nucleo via MCP. 
-- For all new functions and components you can create them in the API folder. Make sure to use the correct spec for the API.
+- Never run npx tsc or any other build/type checker without my approval first — this will break the project
+- `receivedEmails` and `parsedEmails` are deprecated — always use `structuredEmails` instead
+- Never create duplicate type definitions; always find/extend an existing type from the schema
+- All icons use Nucleo via MCP
+- New functions and components go in the API folder — follow the correct API spec
+- Do not run AWS CLI list commands; give me the command and I'll run it

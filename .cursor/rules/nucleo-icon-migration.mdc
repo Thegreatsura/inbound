@@ -13,7 +13,7 @@ This guide helps you efficiently replace lucide-react and react-icons with Nucle
 
 1. **Configure Icon Directory** (One-time setup)
    ```
-   mcp_Nucleo_Icons_updateConfig with iconDirectory: "/Users/ryanvogel/dev/inbound/components/icons"
+   mcp_Nucleo_Icons_updateConfig with iconDirectory: "/home/ubuntu/dev/inbound-simplify/components/icons"
    ```
    - Always use absolute path to ensure icons are saved in the correct location
    - Verify with `mcp_Nucleo_Icons_getConfig` after configuration
