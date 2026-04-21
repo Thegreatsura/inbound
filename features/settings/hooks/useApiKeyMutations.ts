@@ -1,6 +1,9 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import type {
+	CreateApiKeyData,
+	UpdateApiKeyData,
+} from "@/features/settings/types";
 import { authClient } from "@/lib/auth/auth-client";
-import { CreateApiKeyData, UpdateApiKeyData } from "@/features/settings/types";
 
 export const useCreateApiKeyMutation = () => {
 	const queryClient = useQueryClient();
@@ -92,13 +95,18 @@ export const useRevokeAllApiKeysMutation = () => {
 
 	return useMutation({
 		mutationFn: async () => {
-			const { data: apiKeys, error: listError } =
-				await authClient.apiKey.list();
+			const { data, error: listError } = await authClient.apiKey.list();
 			if (listError) {
 				throw new Error(listError.message);
 			}
 
-			if (!apiKeys || apiKeys.length === 0) {
+			const apiKeys = !data
+				? []
+				: Array.isArray(data)
+					? data
+					: (data.apiKeys ?? []);
+
+			if (apiKeys.length === 0) {
 				return { count: 0 };
 			}
 
