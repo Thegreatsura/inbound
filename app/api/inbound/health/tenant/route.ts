@@ -282,9 +282,29 @@ function parseSNSNotification(snsData: SNSNotification) {
 			if (parsedMessage.AlarmName && parsedMessage.MetricName) {
 				result.cloudWatchAlarm = parsedMessage as CloudWatchAlarmMessage;
 			}
-			// Check if it's SES Events
+			// Check if it's SES Events wrapped in Records[] (SES v1 / receiving pipeline)
 			else if (parsedMessage.Records && Array.isArray(parsedMessage.Records)) {
 				result.sesEvents = parsedMessage as SESEventMessage;
+			}
+			// Handle flat SES v2 event format (Configuration Set event destinations via SNS)
+			// SES v2 sends events as flat objects with eventType + mail at the top level —
+			// wrap them in Records[] so downstream handlers work unchanged.
+			else if (parsedMessage.eventType && parsedMessage.mail) {
+				// SES v2 sends eventType capitalized ("Bounce", "Complaint", "Delivery", ...)
+				// but downstream code compares against lowercase values. Normalize here.
+				const normalizedEvent = {
+					...parsedMessage,
+					eventType:
+						typeof parsedMessage.eventType === "string"
+							? parsedMessage.eventType.toLowerCase()
+							: parsedMessage.eventType,
+				};
+				console.log(
+					`📨 parseSNSNotification - Flat SES v2 event detected: ${normalizedEvent.eventType} (raw: ${parsedMessage.eventType})`,
+				);
+				result.sesEvents = {
+					Records: [normalizedEvent],
+				} as SESEventMessage;
 			} else {
 				console.log("🤔 Unknown message format:", Object.keys(parsedMessage));
 			}
