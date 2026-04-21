@@ -6,6 +6,6 @@ alwaysApply: true
 
 When writing code, always apply the following style guide:
 
-1. When you are using component files, always use a variant prop to apply the correct variant to the component. NEVER, NEVER, apply custom styles to the component like colors and sizes. You can use classname for spacing and layout.
-2. Always use the correct color css variables for the component from global.css.
-3. Never apply custom border radius to the components.
+1. Use variant props for component styling — never apply custom colors, sizes, or border-radius directly. `className` is only for spacing and layout.
+2. Always use CSS color variables from `global.css` — never hardcode colors.
+3. Default theme is light mode; all new styles go in `globals.css` under light mode.

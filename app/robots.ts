@@ -41,7 +41,6 @@ export default function robots(): MetadataRoute.Robots {
 					"/add/",
 					"/login",
 					"/addtoblocklist/",
-					"/ambassador/",
 					"/debug/",
 					"/debug-simple/",
 					"/development/",
