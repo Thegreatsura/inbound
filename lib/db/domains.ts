@@ -417,25 +417,65 @@ export async function getDomainOwnerByDomain(domain: string): Promise<{ userId: 
 }
 
 /**
- * Update domain status to verified
+ * Update domain status to verified, and run a full verification check so
+ * downstream flags (DNS records, canReceiveEmails, MAIL FROM) stay in sync.
+ *
+ * Callers — notably the AWS Health SNS webhook at
+ * `app/api/inbound/health/route.ts` — only know the domain string, and the
+ * previous implementation flipped `status` but left `canReceiveEmails = false`,
+ * which kept the catch-all gate and send guards blocked.
  */
 export async function markDomainAsVerified(domain: string): Promise<EmailDomain | null> {
   try {
+    const now = new Date()
     const [updated] = await db
       .update(emailDomains)
       .set({
         status: 'verified',
-        lastSesCheck: new Date(),
-        updatedAt: new Date(),
+        lastSesCheck: now,
+        updatedAt: now,
       })
       .where(eq(emailDomains.domain, domain))
       .returning()
 
-    if (updated) {
-      console.log(`✅ markDomainAsVerified - Domain ${domain} marked as verified`)
+    if (!updated) {
+      return null
     }
 
-    return updated || null
+    console.log(`✅ markDomainAsVerified - Domain ${domain} marked as verified`)
+
+    // Re-run the full verification check so DNS record statuses and
+    // canReceiveEmails are persisted alongside the status flip. Imported
+    // lazily — this module (`lib/db/domains`) is pulled in by hot paths that
+    // don't need the AWS SES SDK (email fetching, address management, etc.),
+    // and the verification-check module transitively loads `@aws-sdk/client-ses`
+    // at import time. Keeping it behind a dynamic import avoids eagerly loading
+    // ~MB of AWS SDK code on every request that only needs DB helpers.
+    try {
+      const { runDomainVerificationCheck } = await import(
+        '@/lib/domains-and-dns/domain-verification-check'
+      )
+      const checkResult = await runDomainVerificationCheck(updated)
+      if (checkResult.error) {
+        console.warn(
+          `⚠️ markDomainAsVerified - post-verification check reported error for ${domain}: ${checkResult.error}`,
+        )
+      }
+
+      // Return the latest row after the check so callers see canReceiveEmails.
+      const [refreshed] = await db
+        .select()
+        .from(emailDomains)
+        .where(eq(emailDomains.id, updated.id))
+        .limit(1)
+      return refreshed || updated
+    } catch (checkError) {
+      console.error(
+        `❌ markDomainAsVerified - Failed to run post-verification check for ${domain}:`,
+        checkError,
+      )
+      return updated
+    }
   } catch (error) {
     console.error('❌ markDomainAsVerified - Error updating domain status:', error)
     return null
