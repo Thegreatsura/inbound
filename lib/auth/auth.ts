@@ -155,11 +155,9 @@ export const auth = betterAuth({
 			currentURL:
 				process.env.NODE_ENV === "development"
 					? (process.env.NEXT_PUBLIC_APP_URL as string)
-					: process.env.VERCEL_URL
-						? `https://${process.env.VERCEL_URL}`
-						: process.env.VERCEL_BRANCH_URL
-							? `https://${process.env.VERCEL_BRANCH_URL}`
-							: undefined,
+					: process.env.VERCEL_ENV === "preview"
+						? `https://${process.env.VERCEL_BRANCH_URL}`
+						: undefined,
 		}),
 		apiKey({
 			rateLimit: {
