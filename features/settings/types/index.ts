@@ -1,5 +1,3 @@
-import { Customer } from 'autumn-js'
-
 // Re-export Customer type from Autumn
 export type { Customer } from 'autumn-js'
 
@@ -21,10 +19,12 @@ export interface DomainStatsResponse {
 // API Key types (these should ideally come from auth client types)
 export interface ApiKey {
   id: string
+  configId: string
   name: string | null
   start: string | null
   prefix: string | null
-  userId: string
+  referenceId: string
+  userId?: string | null
   enabled: boolean
   rateLimitEnabled: boolean
   rateLimitTimeWindow: number | null
@@ -36,7 +36,7 @@ export interface ApiKey {
   createdAt: string
   updatedAt: string
   permissions: { [key: string]: string[] } | null
-  metadata: Record<string, any> | null
+  metadata: Record<string, unknown> | null
 }
 
 // Form types for API operations

@@ -343,11 +343,13 @@ export const webhooks = pgTable("webhooks", {
 
 export const apikey = pgTable("apikey", {
 	id: text().primaryKey().notNull(),
+	configId: text("config_id").default('default').notNull(),
 	name: text(),
 	start: text(),
+	referenceId: text("reference_id").notNull(),
 	prefix: text(),
 	key: text().notNull(),
-	userId: text("user_id").notNull(),
+	userId: text("user_id"),
 	refillInterval: integer("refill_interval"),
 	refillAmount: integer("refill_amount"),
 	lastRefillAt: timestamp("last_refill_at", { mode: 'string' }),
@@ -369,6 +371,9 @@ export const apikey = pgTable("apikey", {
 			foreignColumns: [user.id],
 			name: "apikey_user_id_user_id_fk"
 		}).onDelete("cascade"),
+	index("apikey_config_id_idx").using("btree", table.configId.asc().nullsLast().op("text_ops")),
+	index("apikey_reference_id_idx").using("btree", table.referenceId.asc().nullsLast().op("text_ops")),
+	index("apikey_key_idx").using("btree", table.key.asc().nullsLast().op("text_ops")),
 ]);
 
 export const parsedEmails = pgTable("parsed_emails", {

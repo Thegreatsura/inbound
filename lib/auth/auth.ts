@@ -160,10 +160,11 @@ export const auth = betterAuth({
 						: undefined,
 		}),
 		apiKey({
+			// E2 endpoints already enforce account-level rate limits. Disabling
+			// Better Auth's per-key limiter avoids turning valid internal traffic
+			// into 401s before the API's own rate-limit handling runs.
 			rateLimit: {
-				enabled: true,
-				timeWindow: 1000, // 1 second in milliseconds
-				maxRequests: 4, // 4 requests per second
+				enabled: false,
 			},
 		}),
 		admin(),
@@ -181,7 +182,7 @@ export const auth = betterAuth({
 		magicLink({
 			expiresIn: 300, // 5 minutes
 			disableSignUp: process.env.NODE_ENV === "development" ? false : true, // Only allow magic link for existing accounts - new users must use Google OAuth
-			sendMagicLink: async ({ email, url }, request) => {
+			sendMagicLink: async ({ email, url }, _request) => {
 				console.log(`📧 Sending magic link to ${email}`);
 
 				try {

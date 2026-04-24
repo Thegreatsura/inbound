@@ -23,7 +23,7 @@ export const accountRelations = relations(account, ({one}) => ({
 
 export const apikeyRelations = relations(apikey, ({one}) => ({
 	user: one(user, {
-		fields: [apikey.userId],
+		fields: [apikey.referenceId],
 		references: [user.id]
 	}),
 }));

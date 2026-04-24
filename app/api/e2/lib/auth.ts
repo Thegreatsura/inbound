@@ -152,12 +152,16 @@ export async function validateAndRateLimit(
 
 			if (!apiKeyUserId && verifiedKey.id) {
 				const [apiKeyRecord] = await db
-					.select({ userId: apikey.userId })
+					.select({
+						referenceId: apikey.referenceId,
+						userId: apikey.userId,
+					})
 					.from(apikey)
 					.where(eq(apikey.id, verifiedKey.id))
 					.limit(1);
 
-				apiKeyUserId = apiKeyRecord?.userId ?? null;
+				apiKeyUserId =
+					apiKeyRecord?.referenceId ?? apiKeyRecord?.userId ?? null;
 			}
 		}
 
@@ -251,12 +255,35 @@ export async function validateAndRateLimit(
 
 		// Check rate limit for this userId (if configured)
 		if (ratelimit) {
+			let rateLimitResult: Awaited<ReturnType<typeof ratelimit.limit>>;
+
+			try {
+				rateLimitResult = await ratelimit.limit(userId);
+			} catch (error) {
+				console.error("🚨 Rate limiting service failure:", error);
+				set.status = 503;
+				const unavailableHeaders = {
+					"Content-Type": "application/json; charset=utf-8",
+					"Retry-After": "60",
+				};
+				set.headers = unavailableHeaders;
+				throw new AuthError(
+					{
+						error: "Service Unavailable",
+						message:
+							"Rate limiting service is temporarily unavailable. Please try again later.",
+						statusCode: 503,
+					},
+					unavailableHeaders,
+				);
+			}
+
 			const {
 				success: rateLimitSuccess,
 				limit,
 				remaining,
 				reset,
-			} = await ratelimit.limit(userId);
+			} = rateLimitResult;
 
 			console.log("📊 Rate limit check:", {
 				success: rateLimitSuccess,

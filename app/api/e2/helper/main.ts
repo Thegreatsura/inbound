@@ -2,7 +2,7 @@
 
 import { auth } from "@/lib/auth/auth";
 import { headers } from "next/headers";
-import { NextRequest } from "next/server";
+import type { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { user } from "@/lib/db/auth-schema";
 import { sentEmails } from "@/lib/db/schema";
@@ -70,14 +70,29 @@ export async function validateRequest(request: NextRequest) {
 				?.replace("Bearer ", "");
 
 			if (apiKey) {
-				const apiKeyResult = (await (auth.api as any).verifyApiKey({
-					body: {
-						key: apiKey,
-					},
-				})) as { valid: boolean; key?: { userId: string } } | null;
+				const authApi = auth.api as {
+					verifyApiKey?: (input: { body: { key: string } }) => Promise<{
+						valid: boolean;
+						key?: {
+							userId?: string | null;
+							referenceId?: string | null;
+						} | null;
+					}>;
+				};
 
-				if (apiKeyResult?.key?.userId) {
-					userId = apiKeyResult.key.userId;
+				const apiKeyResult = authApi.verifyApiKey
+					? await authApi.verifyApiKey({
+							body: {
+								key: apiKey,
+							},
+						})
+					: null;
+
+				const apiKeyUserId =
+					apiKeyResult?.key?.userId ?? apiKeyResult?.key?.referenceId ?? null;
+
+				if (apiKeyUserId) {
+					userId = apiKeyUserId;
 					console.log("🔑 [V2] Auth Type: API_KEY");
 					console.log("🔑 [V2] API Key:", apiKey);
 					console.log("✅ Authenticated via API key:", userId);
