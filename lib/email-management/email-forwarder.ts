@@ -224,8 +224,7 @@ export class EmailForwarder {
         const attachmentContent = await this.getAttachmentContent(params.originalEmail, attachment.filename)
         
         if (!attachmentContent) {
-          console.warn(`⚠️ EmailForwarder - Could not retrieve content for attachment: ${attachment.filename}`)
-          continue
+          throw new Error(`Failed to retrieve content for attachment: ${attachment.filename}. Aborting forward to prevent silent data loss.`)
         }
 
         messageParts.push(
