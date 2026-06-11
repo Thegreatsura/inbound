@@ -156,6 +156,31 @@ async function checkExplicitRule(
     }
   }
 
+  // Check to criteria (recipient address + To header addresses)
+  if (config.to) {
+    try {
+      const toAddresses = getRecipientAddresses(email);
+
+      const toMatches = checkEmailCriteria(
+        toAddresses,
+        config.to.values,
+        config.to.operator
+      );
+
+      if (toMatches) {
+        matchDetails.push({
+          criteria: 'to',
+          value: `Matched with ${config.to.operator} logic`,
+        });
+      } else {
+        allCriteriaMatch = false;
+      }
+    } catch (error) {
+      console.error('Failed to parse toData:', error);
+      allCriteriaMatch = false;
+    }
+  }
+
   // Check attachment criteria
   if (config.hasAttachment !== undefined) {
     try {
@@ -202,6 +227,7 @@ async function checkExplicitRule(
   const hasCriteria = 
     config.subject !== undefined ||
     config.from !== undefined ||
+    config.to !== undefined ||
     config.hasAttachment !== undefined ||
     config.hasWords !== undefined;
 
@@ -235,7 +261,32 @@ function checkStringCriteria(
 }
 
 /**
- * Check email-based criteria (from) with wildcard support
+ * Collect recipient addresses for an email: the delivered-to address
+ * plus any addresses parsed from the To header (lowercased, deduplicated)
+ */
+function getRecipientAddresses(
+  email: typeof structuredEmails.$inferSelect
+): string[] {
+  const addresses = new Set<string>();
+
+  if (email.recipient) {
+    addresses.add(email.recipient.toLowerCase());
+  }
+
+  if (email.toData) {
+    const toData = JSON.parse(email.toData);
+    for (const addr of toData?.addresses || []) {
+      if (addr?.address) {
+        addresses.add(String(addr.address).toLowerCase());
+      }
+    }
+  }
+
+  return Array.from(addresses);
+}
+
+/**
+ * Check email-based criteria (from, to) with wildcard support
  */
 function checkEmailCriteria(
   emailAddresses: string[],
@@ -292,6 +343,13 @@ async function checkAiPromptRule(
     // ignore parse errors, treat as empty
   }
 
+  let toAddresses: string[] = [];
+  try {
+    toAddresses = getRecipientAddresses(email);
+  } catch {
+    // ignore parse errors, treat as empty
+  }
+
   let hasAttachments = false;
   try {
     const attachments = email.attachments ? JSON.parse(email.attachments) : [];
@@ -310,7 +368,7 @@ async function checkAiPromptRule(
       matches: z
         .array(
           z.object({
-            criteria: z.string().describe('subject | from | body | attachments | other'),
+            criteria: z.string().describe('subject | from | to | body | attachments | other'),
             value: z.string().describe('what content or pattern matched'),
           })
         )
@@ -326,6 +384,7 @@ Email:
         .map((a) => (a.name ? `${a.name} <${a.address || ''}>` : a.address || ''))
         .filter(Boolean)
         .join(', ')}
+- To: ${toAddresses.join(', ')}
 - Has attachments: ${hasAttachments ? 'yes' : 'no'}
 - Body (snippet):\n${bodySnippet}
 

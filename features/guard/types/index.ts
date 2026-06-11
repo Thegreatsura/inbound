@@ -33,6 +33,10 @@ export interface ExplicitRuleConfig {
     operator: LogicOperator;
     values: string[]; // Supports wildcards like *@domain.com
   };
+  to?: {
+    operator: LogicOperator;
+    values: string[]; // Supports wildcards like *@domain.com
+  };
   hasAttachment?: boolean;
   hasWords?: {
     operator: LogicOperator;
