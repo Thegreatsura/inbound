@@ -18,7 +18,7 @@ export interface GuardEvaluationResult {
   matchedRule?: GuardRule;
   action?: 'allow' | 'block' | 'route' | 'flag' | 'label';
   reason?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 /**
@@ -72,7 +72,7 @@ export async function checkRuleMatch(
     let config: ExplicitRuleConfig | AiPromptRuleConfig;
     try {
       config = JSON.parse(rule.config);
-    } catch (error) {
+    } catch {
       return {
         matched: false,
         error: 'Invalid rule configuration',
@@ -102,7 +102,7 @@ export async function checkRuleMatch(
 /**
  * Check if an explicit rule matches an email
  */
-async function checkExplicitRule(
+export async function checkExplicitRule(
   config: ExplicitRuleConfig,
   email: typeof structuredEmails.$inferSelect
 ): Promise<CheckRuleMatchResponse> {
@@ -131,10 +131,7 @@ async function checkExplicitRule(
   // Check from criteria
   if (config.from) {
     try {
-      const fromData = email.fromData ? JSON.parse(email.fromData) : null;
-      const fromAddresses = fromData?.addresses?.map((addr: any) => 
-        addr.address?.toLowerCase() || ''
-      ) || [];
+      const fromAddresses = getParsedHeaderAddresses(email.fromData);
       
       const fromMatches = checkEmailCriteria(
         fromAddresses,
@@ -261,28 +258,41 @@ function checkStringCriteria(
 }
 
 /**
- * Collect recipient addresses for an email: the delivered-to address
- * plus any addresses parsed from the To header (lowercased, deduplicated)
+ * Collect recipient addresses for an email from the delivered-to row recipient.
  */
 function getRecipientAddresses(
   email: typeof structuredEmails.$inferSelect
 ): string[] {
-  const addresses = new Set<string>();
-
-  if (email.recipient) {
-    addresses.add(email.recipient.toLowerCase());
+  const recipient = email.recipient?.trim().toLowerCase();
+  if (recipient) {
+    return [recipient];
   }
 
-  if (email.toData) {
-    const toData = JSON.parse(email.toData);
-    for (const addr of toData?.addresses || []) {
-      if (addr?.address) {
-        addresses.add(String(addr.address).toLowerCase());
-      }
+  return getParsedHeaderAddresses(email.toData);
+}
+
+function getParsedHeaderAddresses(addressData: string | null): string[] {
+  if (!addressData) {
+    return [];
+  }
+
+  const parsed: unknown = JSON.parse(addressData);
+  if (!isRecord(parsed) || !Array.isArray(parsed.addresses)) {
+    return [];
+  }
+
+  return parsed.addresses.flatMap((addr) => {
+    if (!isRecord(addr) || typeof addr.address !== "string") {
+      return [];
     }
-  }
 
-  return Array.from(addresses);
+    const address = addr.address.trim().toLowerCase();
+    return address ? [address] : [];
+  });
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }
 
 /**
@@ -410,7 +420,7 @@ Instructions:
         reason: object.reason,
         matches: object.matches,
       });
-    } catch (e) {
+    } catch {
       // ignore logging errors
     }
 
@@ -474,7 +484,7 @@ export async function evaluateGuardRules(
         let config: ExplicitRuleConfig | AiPromptRuleConfig;
         try {
           config = JSON.parse(rule.config);
-        } catch (error) {
+        } catch {
           console.error(`🛡️ Guard - Invalid config for rule ${rule.id}, skipping`)
           continue;
         }
@@ -496,7 +506,7 @@ export async function evaluateGuardRules(
           let actionConfig: RuleActionConfig;
           try {
             actionConfig = JSON.parse(rule.actions || '{"action":"allow"}');
-          } catch (error) {
+          } catch {
             console.error(`🛡️ Guard - Invalid action config for rule ${rule.id}, defaulting to allow`)
             actionConfig = { action: 'allow' };
           }
