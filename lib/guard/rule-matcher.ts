@@ -18,7 +18,7 @@ export interface GuardEvaluationResult {
   matchedRule?: GuardRule;
   action?: 'allow' | 'block' | 'route' | 'flag' | 'label';
   reason?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 /**
@@ -72,7 +72,7 @@ export async function checkRuleMatch(
     let config: ExplicitRuleConfig | AiPromptRuleConfig;
     try {
       config = JSON.parse(rule.config);
-    } catch (error) {
+    } catch {
       return {
         matched: false,
         error: 'Invalid rule configuration',
@@ -102,7 +102,7 @@ export async function checkRuleMatch(
 /**
  * Check if an explicit rule matches an email
  */
-async function checkExplicitRule(
+export async function checkExplicitRule(
   config: ExplicitRuleConfig,
   email: typeof structuredEmails.$inferSelect
 ): Promise<CheckRuleMatchResponse> {
@@ -131,10 +131,7 @@ async function checkExplicitRule(
   // Check from criteria
   if (config.from) {
     try {
-      const fromData = email.fromData ? JSON.parse(email.fromData) : null;
-      const fromAddresses = fromData?.addresses?.map((addr: any) => 
-        addr.address?.toLowerCase() || ''
-      ) || [];
+      const fromAddresses = getParsedHeaderAddresses(email.fromData);
       
       const fromMatches = checkEmailCriteria(
         fromAddresses,
@@ -152,6 +149,31 @@ async function checkExplicitRule(
       }
     } catch (error) {
       console.error('Failed to parse fromData:', error);
+      allCriteriaMatch = false;
+    }
+  }
+
+  // Check to criteria against the delivered recipient address
+  if (config.to) {
+    try {
+      const toAddresses = getRecipientAddresses(email);
+
+      const toMatches = checkEmailCriteria(
+        toAddresses,
+        config.to.values,
+        config.to.operator
+      );
+
+      if (toMatches) {
+        matchDetails.push({
+          criteria: 'to',
+          value: `Matched with ${config.to.operator} logic`,
+        });
+      } else {
+        allCriteriaMatch = false;
+      }
+    } catch (error) {
+      console.error('Failed to parse toData:', error);
       allCriteriaMatch = false;
     }
   }
@@ -202,6 +224,7 @@ async function checkExplicitRule(
   const hasCriteria = 
     config.subject !== undefined ||
     config.from !== undefined ||
+    config.to !== undefined ||
     config.hasAttachment !== undefined ||
     config.hasWords !== undefined;
 
@@ -235,7 +258,45 @@ function checkStringCriteria(
 }
 
 /**
- * Check email-based criteria (from) with wildcard support
+ * Collect recipient addresses for an email from the delivered-to row recipient.
+ */
+function getRecipientAddresses(
+  email: typeof structuredEmails.$inferSelect
+): string[] {
+  const recipient = email.recipient?.trim().toLowerCase();
+  if (recipient) {
+    return [recipient];
+  }
+
+  return getParsedHeaderAddresses(email.toData);
+}
+
+function getParsedHeaderAddresses(addressData: string | null): string[] {
+  if (!addressData) {
+    return [];
+  }
+
+  const parsed: unknown = JSON.parse(addressData);
+  if (!isRecord(parsed) || !Array.isArray(parsed.addresses)) {
+    return [];
+  }
+
+  return parsed.addresses.flatMap((addr) => {
+    if (!isRecord(addr) || typeof addr.address !== "string") {
+      return [];
+    }
+
+    const address = addr.address.trim().toLowerCase();
+    return address ? [address] : [];
+  });
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+/**
+ * Check email-based criteria (from, to) with wildcard support
  */
 function checkEmailCriteria(
   emailAddresses: string[],
@@ -292,6 +353,13 @@ async function checkAiPromptRule(
     // ignore parse errors, treat as empty
   }
 
+  let toAddresses: string[] = [];
+  try {
+    toAddresses = getRecipientAddresses(email);
+  } catch {
+    // ignore parse errors, treat as empty
+  }
+
   let hasAttachments = false;
   try {
     const attachments = email.attachments ? JSON.parse(email.attachments) : [];
@@ -310,7 +378,7 @@ async function checkAiPromptRule(
       matches: z
         .array(
           z.object({
-            criteria: z.string().describe('subject | from | body | attachments | other'),
+            criteria: z.string().describe('subject | from | to | body | attachments | other'),
             value: z.string().describe('what content or pattern matched'),
           })
         )
@@ -326,6 +394,7 @@ Email:
         .map((a) => (a.name ? `${a.name} <${a.address || ''}>` : a.address || ''))
         .filter(Boolean)
         .join(', ')}
+- To: ${toAddresses.join(', ')}
 - Has attachments: ${hasAttachments ? 'yes' : 'no'}
 - Body (snippet):\n${bodySnippet}
 
@@ -351,7 +420,7 @@ Instructions:
         reason: object.reason,
         matches: object.matches,
       });
-    } catch (e) {
+    } catch {
       // ignore logging errors
     }
 
@@ -415,7 +484,7 @@ export async function evaluateGuardRules(
         let config: ExplicitRuleConfig | AiPromptRuleConfig;
         try {
           config = JSON.parse(rule.config);
-        } catch (error) {
+        } catch {
           console.error(`🛡️ Guard - Invalid config for rule ${rule.id}, skipping`)
           continue;
         }
@@ -437,7 +506,7 @@ export async function evaluateGuardRules(
           let actionConfig: RuleActionConfig;
           try {
             actionConfig = JSON.parse(rule.actions || '{"action":"allow"}');
-          } catch (error) {
+          } catch {
             console.error(`🛡️ Guard - Invalid action config for rule ${rule.id}, defaulting to allow`)
             actionConfig = { action: 'allow' };
           }

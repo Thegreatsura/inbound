@@ -27,6 +27,12 @@ const ExplicitRuleConfigSchema = t.Object({
 			values: t.Array(t.String()),
 		}),
 	),
+	to: t.Optional(
+		t.Object({
+			operator: t.Union([t.Literal("OR"), t.Literal("AND")]),
+			values: t.Array(t.String()),
+		}),
+	),
 	hasAttachment: t.Optional(t.Boolean()),
 	hasWords: t.Optional(
 		t.Object({
@@ -86,6 +92,14 @@ export const generateGuardRules = new Elysia().post(
 							.describe("Email addresses or patterns like *@domain.com"),
 					})
 					.optional(),
+				to: z
+					.object({
+						operator: z.enum(["OR", "AND"]),
+						values: z
+							.array(z.string())
+							.describe("Recipient email addresses or patterns like *@domain.com"),
+					})
+					.optional(),
 				hasAttachment: z.boolean().optional(),
 				hasWords: z
 					.object({
@@ -100,6 +114,7 @@ export const generateGuardRules = new Elysia().post(
 Available rule criteria:
 - subject: Match email subjects containing specific words/phrases
 - from: Match sender email addresses (supports wildcards like *@domain.com for whole domains)
+- to: Match recipient email addresses (supports wildcards like *@domain.com for whole domains)
 - hasAttachment: Match emails with/without attachments
 - hasWords: Match emails with body containing specific words/phrases
 
@@ -111,6 +126,7 @@ Examples:
 - "Block emails from marketing@spam.com" -> { from: { operator: "OR", values: ["marketing@spam.com"] } }
 - "Filter all emails from example.com domain" -> { from: { operator: "OR", values: ["*@example.com"] } }
 - "Match emails with urgent or important in subject" -> { subject: { operator: "OR", values: ["urgent", "important"] } }
+- "Match emails sent to support@mydomain.com" -> { to: { operator: "OR", values: ["support@mydomain.com"] } }
 - "Match emails with attachments" -> { hasAttachment: true }
 
 Generate a config that best matches the user's intent. Only include relevant criteria.`;

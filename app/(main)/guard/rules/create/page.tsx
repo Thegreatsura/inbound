@@ -60,6 +60,8 @@ export default function CreateGuardRulePage() {
   const [subjectValues, setSubjectValues] = useState<string[]>([""]);
   const [fromOperator, setFromOperator] = useState<LogicOperator>("OR");
   const [fromValues, setFromValues] = useState<string[]>([""]);
+  const [toOperator, setToOperator] = useState<LogicOperator>("OR");
+  const [toValues, setToValues] = useState<string[]>([""]);
   const [hasAttachment, setHasAttachment] = useState<boolean | undefined>(
     undefined
   );
@@ -126,15 +128,16 @@ export default function CreateGuardRulePage() {
       // We need to check explicitly for boolean values, not just truthiness
       const hasSubject = subjectValues.some((v) => v.trim());
       const hasFrom = fromValues.some((v) => v.trim());
+      const hasTo = toValues.some((v) => v.trim());
       const hasAttachmentCriteria = typeof hasAttachment === "boolean";
       const hasWords = wordsValues.some((v) => v.trim());
 
       const hasAnyConfig =
-        hasSubject || hasFrom || hasAttachmentCriteria || hasWords;
+        hasSubject || hasFrom || hasTo || hasAttachmentCriteria || hasWords;
 
       if (!hasAnyConfig) {
         newErrors.config =
-          "At least one criteria must be configured (subject, from, attachment, or words)";
+          "At least one criteria must be configured (subject, from, to, attachment, or words)";
       }
     } else {
       if (!aiPrompt.trim()) {
@@ -182,6 +185,12 @@ export default function CreateGuardRulePage() {
           from: {
             operator: fromOperator,
             values: fromValues.filter((v) => v.trim()),
+          },
+        }),
+        ...(toValues.some((v) => v.trim()) && {
+          to: {
+            operator: toOperator,
+            values: toValues.filter((v) => v.trim()),
           },
         }),
         ...(hasAttachment !== undefined && { hasAttachment }),
@@ -492,6 +501,72 @@ export default function CreateGuardRulePage() {
                     </Button>
                     <p className="text-sm text-muted-foreground">
                       Supports wildcards like *@domain.com
+                    </p>
+                  </div>
+
+                  <Separator />
+
+                  {/* To */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Label>To (Email Address)</Label>
+                      <Select
+                        value={toOperator}
+                        onValueChange={(v) =>
+                          setToOperator(v as LogicOperator)
+                        }
+                      >
+                        <SelectTrigger className="w-24">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="OR">OR</SelectItem>
+                          <SelectItem value="AND">AND</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {toValues.map((value, index) => (
+                      <div key={index} className="flex items-center gap-2">
+                        <Input
+                          value={value}
+                          onChange={(e) =>
+                            handleValueChange(
+                              index,
+                              e.target.value,
+                              toValues,
+                              setToValues
+                            )
+                          }
+                          placeholder="email@domain.com or *@domain.com"
+                        />
+                        {toValues.length > 1 && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() =>
+                              handleRemoveValue(
+                                index,
+                                toValues,
+                                setToValues
+                              )
+                            }
+                          >
+                            <Trash2 width="16" height="16" />
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleAddValue(toValues, setToValues)}
+                    >
+                      <CirclePlus width="16" height="16" className="mr-2" />
+                      Add Value
+                    </Button>
+                    <p className="text-sm text-muted-foreground">
+                      Matches the recipient address. Supports wildcards like
+                      *@domain.com
                     </p>
                   </div>
 

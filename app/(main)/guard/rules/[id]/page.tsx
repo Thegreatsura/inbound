@@ -135,6 +135,9 @@ export default function GuardRuleDetailPage() {
           (parsed.from === undefined ||
             (typeof parsed.from === "object" &&
               Array.isArray(parsed.from.values))) &&
+          (parsed.to === undefined ||
+            (typeof parsed.to === "object" &&
+              Array.isArray(parsed.to.values))) &&
           (parsed.hasAttachment === undefined ||
             typeof parsed.hasAttachment === "boolean") &&
           (parsed.hasWords === undefined ||
