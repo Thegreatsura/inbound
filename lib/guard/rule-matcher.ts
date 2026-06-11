@@ -153,7 +153,7 @@ export async function checkExplicitRule(
     }
   }
 
-  // Check to criteria (recipient address + To header addresses)
+  // Check to criteria against the delivered recipient address
   if (config.to) {
     try {
       const toAddresses = getRecipientAddresses(email);
