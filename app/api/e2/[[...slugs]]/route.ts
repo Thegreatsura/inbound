@@ -505,11 +505,34 @@ https://inbound.new/api/e2
 	.use(checkGuardRule)
 	.use(generateGuardRules);
 
-export const GET = app.fetch;
-export const POST = app.fetch;
-export const PUT = app.fetch;
-export const PATCH = app.fetch;
-export const DELETE = app.fetch;
+// The /api/v2 -> /api/e2 rewrite in next.config.ts can deliver requests to
+// this handler with the original /api/v2 URL intact (behavior varies by
+// Vercel builder version). Normalize the path so Elysia (prefixed /api/e2)
+// matches regardless of which URL the platform passes through.
+const handler = (request: Request): Promise<Response> => {
+	const url = new URL(request.url);
+
+	if (url.pathname === "/api/v2" || url.pathname.startsWith("/api/v2/")) {
+		url.pathname = `/api/e2${url.pathname.slice("/api/v2".length)}`;
+
+		return app.fetch(
+			new Request(url, {
+				method: request.method,
+				headers: request.headers,
+				body: request.body,
+				duplex: "half",
+			} as RequestInit),
+		);
+	}
+
+	return app.fetch(request);
+};
+
+export const GET = handler;
+export const POST = handler;
+export const PUT = handler;
+export const PATCH = handler;
+export const DELETE = handler;
 
 export type App = typeof app;
 
